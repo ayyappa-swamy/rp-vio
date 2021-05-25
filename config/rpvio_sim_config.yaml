@@ -4,7 +4,7 @@
 imu_topic: "/imu_throttled"
 image_topic: "/image"
 mask_topic: "/mask"
-output_path: "~/output/"
+output_path: "/home/tvvsst-ayyappa/output/"
 
 #camera calibration 
 model_type: PINHOLE

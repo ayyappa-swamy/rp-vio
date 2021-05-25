@@ -17,6 +17,7 @@
 #include <eigen3/Eigen/Dense>
 #include "../estimator.h"
 #include "../parameters.h"
+#include "utility.h"
 #include <fstream>
 
 extern ros::Publisher pub_odometry;
@@ -43,10 +44,12 @@ void pubKeyPoses(const Estimator &estimator, const std_msgs::Header &header);
 
 void pubCameraPose(const Estimator &estimator, const std_msgs::Header &header);
 
-void pubPointCloud(const Estimator &estimator, const std_msgs::Header &header);
+void pubPointCloud(Estimator &estimator, const std_msgs::Header &header, const sensor_msgs::PointCloudConstPtr &mask_cloud);
 
 void pubTF(const Estimator &estimator, const std_msgs::Header &header);
 
 void pubKeyframe(const Estimator &estimator);
 
 void pubRelocalization(const Estimator &estimator);
+
+void pubPlaneCloud(Estimator &estimator, const std_msgs::Header &header, const sensor_msgs::PointCloudConstPtr &mask_cloud);

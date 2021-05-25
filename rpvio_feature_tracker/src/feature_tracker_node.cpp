@@ -16,7 +16,7 @@ vector<uchar> r_status;
 vector<float> r_err;
 queue<sensor_msgs::ImageConstPtr> img_buf;
 
-ros::Publisher pub_img,pub_match;
+ros::Publisher pub_img,pub_match, pub_mask_cloud;
 ros::Publisher pub_restart;
 
 FeatureTracker trackerData[NUM_OF_CAM];
@@ -176,7 +176,7 @@ void callback(const sensor_msgs::ImageConstPtr &img_msg, const sensor_msgs::Imag
             ptr = cv_bridge::cvtColor(ptr, sensor_msgs::image_encodings::BGR8);
             //cv::Mat stereo_img(ROW * NUM_OF_CAM, COL, CV_8UC3);
             cv::Mat stereo_img = ptr->image;
-            cv::Mat mask_img = mask_ptr->image;
+            // cv::Mat mask_img;
             std::vector<int> pids = trackerData[0].plane_ids;
 
             std::set<int> unique_pids(pids.begin(), pids.end());
@@ -197,39 +197,138 @@ void callback(const sensor_msgs::ImageConstPtr &img_msg, const sensor_msgs::Imag
                 }
             }
     
-            cv::Mat mask = mask_img == largest_pid;
-            cv::Mat mask_viz(ROW, COL, CV_8UC3, cv::Scalar(0,0,0));
-            mask_viz.setTo(cv::Scalar(0,255,0), mask);
+            sensor_msgs::PointCloud mask_cloud;
+            mask_cloud.header = img_msg->header;
+            mask_cloud.header.frame_id = "world";
+            sensor_msgs::ChannelFloat32 mask_ids;
+            sensor_msgs::ChannelFloat32 colors;
+            colors.name = "rgb";
 
-            for (int i = 0; i < NUM_OF_CAM; i++)
-            {
-                cv::Mat tmp_img = stereo_img.rowRange(i * ROW, (i + 1) * ROW);
-                cv::cvtColor(show_img, tmp_img, CV_GRAY2RGB);
+            vector<cv::Scalar> label_colors;
+            label_colors.push_back(cv::Scalar(255,0,0));
+            label_colors.push_back(cv::Scalar(0,255,0));
+            label_colors.push_back(cv::Scalar(0,0,255));
+            label_colors.push_back(cv::Scalar(255,255,0));
+            label_colors.push_back(cv::Scalar(0,255,255));
+            label_colors.push_back(cv::Scalar(255,0,255));
+
+            vector<int> unique_pids_vec;
+            for (auto& pid: unique_pids) {
+                unique_pids_vec.push_back(pid);
+            }
+
+            ROS_INFO("-------------NUMBER OF UNIQUE MASKS ARE : %d---------------", (int)unique_pids_vec.size());
+
+            cv::Mat tmp_img = stereo_img.rowRange(0 * ROW, (0 + 1) * ROW);
+            cv::cvtColor(show_img, tmp_img, CV_GRAY2RGB);
+            for (int ppi = 0; ppi < unique_pids_vec.size(); ppi++) {
+                int mid = unique_pids_vec[ppi];
+                ROS_INFO("||||||||||||| ID = %d |||||||||||||||||||||||||", mid);
+                if (
+                    (mid == 91) || 
+                    (mid == 39) ||
+                    // (mid == 66) ||
+                    // (mid == 162) || 
+                    (mid == 175)
+                ) {
+                cv::Mat mask_img = mask_ptr->image;
+                cv::Mat mask = mask_img == mid;
+                cv::Mat mask_viz(ROW, COL, CV_8UC3, cv::Scalar(0,0,0));
+                mask_viz.setTo(label_colors[ppi], mask);
                 cv::addWeighted(tmp_img, 1.0, mask_viz, 0.3, 0.0, tmp_img);
 
-                for (unsigned int j = 0; j < trackerData[i].cur_pts.size(); j++)
+                for (int i = 0; i < NUM_OF_CAM; i++)
                 {
-                    double len = std::min(1.0, 1.0 * trackerData[i].track_cnt[j] / WINDOW_SIZE);
-                    cv::circle(tmp_img, trackerData[i].cur_pts[j], 2, cv::Scalar(255 * (1 - len), 0, 255 * len), 2);
-                    //draw speed line
-                    /*
-                    Vector2d tmp_cur_un_pts (trackerData[i].cur_un_pts[j].x, trackerData[i].cur_un_pts[j].y);
-                    Vector2d tmp_pts_velocity (trackerData[i].pts_velocity[j].x, trackerData[i].pts_velocity[j].y);
-                    Vector3d tmp_prev_un_pts;
-                    tmp_prev_un_pts.head(2) = tmp_cur_un_pts - 0.10 * tmp_pts_velocity;
-                    tmp_prev_un_pts.z() = 1;
-                    Vector2d tmp_prev_uv;
-                    trackerData[i].m_camera->spaceToPlane(tmp_prev_un_pts, tmp_prev_uv);
-                    cv::line(tmp_img, trackerData[i].cur_pts[j], cv::Point2f(tmp_prev_uv.x(), tmp_prev_uv.y()), cv::Scalar(255 , 0, 0), 1 , 8, 0);
-                    */
-                    //char name[10];
-                    //sprintf(name, "%d", trackerData[i].plane_ids[j]);
-                    //cv::putText(tmp_img, name, trackerData[i].cur_pts[j], cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 0));
+
+                    // Binary mask
+                    cv::Mat binMask(ROW, COL, CV_8UC1, cv::Scalar(0));
+                    // cv::Mat bgr[3];
+                    // cv::split(mask_viz, bgr);
+                    binMask.setTo(cv::Scalar(255), mask);
+                    // cv::threshold(bgr[1], binMask, 100, 255, CV_THRESH_BINARY);
+
+                    // if (mid == largest_pid) {
+                        // create an LSD detector
+                        cv::Ptr<LSDDetector> lsd = LSDDetector::createLSDDetector();
+                        // Detect LSD lines in image1
+                        vector<KeyLine> klsd;
+                        lsd->detect(tmp_img, klsd, 1, 1, binMask);
+
+                        // for (unsigned int l = 0; l < klsd.size(); l++) {
+                        //     KeyLine kl = klsd[l];
+                        //     cv::Point2i start_point(kl.startPointX, kl.startPointY);
+                        //     cv::Point2i end_point(kl.endPointX, kl.endPointY);
+                        //     cv::line(tmp_img, start_point, end_point, cv::Scalar(0, 255, 255), 2, 8, 0);
+                        // }
+                    // }
+
+                    // Compute the mask cloud
+                    for (unsigned int u = 0; u < binMask.rows; u+=5) {
+                        for (unsigned int v = 0; v < binMask.cols; v+=5) {
+                            if (binMask.at<uint8_t>(u, v) == 255) {
+                                geometry_msgs::Point32 p;
+                                // Eigen::Vector2d a(v, u);
+                                Eigen::Vector3d a(v, u, 1);
+                                // Eigen::Vector3d a_;
+                                Eigen::Vector3d a_;
+                                // trackerData[i].m_camera->liftProjective(a, a_);
+
+                                Eigen::Matrix3d K;
+                                K << FOCAL_LENGTH, 0, COL/2,
+                                     0, FOCAL_LENGTH, ROW/2,
+                                     0, 0, 1;
+                                
+                                a_ = K.inverse() * a;
+                            
+                                p.x = a_.x();
+                                p.y = a_.y();
+                                p.z = a_.z();
+
+                                mask_cloud.points.push_back(p);
+                                
+                                // int rgb = 0xaaff00; float float_rgb = *reinterpret_cast<float*>(&rgb);
+                                // Eigen::Vector3d pix = tmp_img.at<Eigen::Vector3d>(u, v);
+                                
+                                // unsigned int r = pix(2);
+                                // unsigned int g = pix(1);
+                                unsigned int b = show_img.at<uint8_t>(u, v);
+
+                                int rgb = ((b & 0xff) << 16) + ((b & 0xff) << 8) + (b & 0xff);
+                                colors.values.push_back(rgb);
+                                mask_ids.values.push_back(mid);
+                            }
+                        }
+                    }
+
+                    // for (unsigned int j = 0; j < trackerData[i].cur_pts.size(); j++)
+                    // {
+                    //     double len = std::min(1.0, 1.0 * trackerData[i].track_cnt[j] / WINDOW_SIZE);
+                    //     cv::circle(tmp_img, trackerData[i].cur_pts[j], 2, cv::Scalar(255 * (1 - len), 0, 255 * len), 2);
+                    //     //draw speed line
+                    //     /*
+                    //     Vector2d tmp_cur_un_pts (trackerData[i].cur_un_pts[j].x, trackerData[i].cur_un_pts[j].y);
+                    //     Vector2d tmp_pts_velocity (trackerData[i].pts_velocity[j].x, trackerData[i].pts_velocity[j].y);
+                    //     Vector3d tmp_prev_un_pts;
+                    //     tmp_prev_un_pts.head(2) = tmp_cur_un_pts - 0.10 * tmp_pts_velocity;
+                    //     tmp_prev_un_pts.z() = 1;
+                    //     Vector2d tmp_prev_uv;
+                    //     trackerData[i].m_camera->spaceToPlane(tmp_prev_un_pts, tmp_prev_uv);
+                    //     cv::line(tmp_img, trackerData[i].cur_pts[j], cv::Point2f(tmp_prev_uv.x(), tmp_prev_uv.y()), cv::Scalar(255 , 0, 0), 1 , 8, 0);
+                    //     */
+                    //     //char name[10];
+                    //     //sprintf(name, "%d", trackerData[i].plane_ids[j]);
+                    //     //cv::putText(tmp_img, name, trackerData[i].cur_pts[j], cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 0));
+                    // }
+                }
                 }
             }
+
+            mask_cloud.channels.push_back(colors);
+            mask_cloud.channels.push_back(mask_ids);
             //cv::imshow("vis", stereo_img);
             //cv::waitKey(5);
             pub_match.publish(ptr->toImageMsg());
+            pub_mask_cloud.publish(mask_cloud);
         }
     }
     ROS_INFO("whole feature tracker processing costs: %f", t_r.toc());
@@ -270,6 +369,7 @@ int main(int argc, char **argv)
 
     pub_img = n.advertise<sensor_msgs::PointCloud>("feature", 1000);
     pub_match = n.advertise<sensor_msgs::Image>("feature_img",1000);
+    pub_mask_cloud = n.advertise<sensor_msgs::PointCloud>("mask_cloud",1);
     pub_restart = n.advertise<std_msgs::Bool>("restart",1000);
     /*
     if (SHOW_TRACK)

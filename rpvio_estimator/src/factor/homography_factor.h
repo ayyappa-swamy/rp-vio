@@ -10,7 +10,7 @@ struct HomographyFactor
         bool operator()(const T* const pose_i, const T* const pose_j, const T* const para_n, const T* const para_depth, const T* const ex_pose, 
         T* residuals) const
         {
-            Eigen::Map<const Eigen::Matrix<T, 3, 1>> pi(pose_i);
+            Eigen::Map<const Eigen::Matrix<T, 3, 1>> poi(pose_i);
             Eigen::Quaternion<T> qi;
             qi.coeffs() << pose_i[3], pose_i[4], pose_i[5], pose_i[6];
 
@@ -34,13 +34,13 @@ struct HomographyFactor
             Eigen::Map<const Eigen::Matrix<T, 1, 1>> depth(para_depth);
 
             Eigen::Quaternion<T> qji = qj.inverse() * qi;
-            Eigen::Matrix<T, 3, 1> tji = qj.inverse() * (pi - pj);
+            Eigen::Matrix<T, 3, 1> tji = qj.inverse() * (poi - pj);
             Eigen::Matrix<T, 1, 1> di, di0;
 
             // convert camera depth to imu frame
             di0(0,0) = depth(0,0) + tic.dot(n_imu_0);
             // convert imu 0 depth to imu i depth
-            di(0,0) = di0(0,0) - pi.dot(n_imu_0);
+            di(0,0) = di0(0,0) - poi.dot(n_imu_0);
 
             Eigen::Matrix<T, 3, 1> pts_imu_i = qic * pts_i.cast<T>() + tic;
 

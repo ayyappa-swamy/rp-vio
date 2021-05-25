@@ -4,7 +4,7 @@ using namespace ros;
 using namespace Eigen;
 ros::Publisher pub_odometry, pub_latest_odometry;
 ros::Publisher pub_path, pub_relo_path;
-ros::Publisher pub_point_cloud, pub_margin_cloud;
+ros::Publisher pub_point_cloud, pub_margin_cloud, pub_plane_cloud;
 ros::Publisher pub_key_poses;
 ros::Publisher pub_relo_relative_pose;
 ros::Publisher pub_camera_pose;
@@ -20,6 +20,15 @@ CameraPoseVisualization keyframebasevisual(0.0, 0.0, 1.0, 1.0);
 static double sum_of_path = 0;
 static Vector3d last_path(0.0, 0.0, 0.0);
 
+map<int, vector<Vector4d>> reg_points;
+
+// Not just register points
+// store the mask_clouds as-is w.r.t timestamp
+// also store the poses w.r.t timestamp
+// Always recompute the poses
+
+// sensor_msgs::PointCloud plane_cloud;
+
 void registerPub(ros::NodeHandle &n)
 {
     pub_latest_odometry = n.advertise<nav_msgs::Odometry>("imu_propagate", 1000);
@@ -28,6 +37,7 @@ void registerPub(ros::NodeHandle &n)
     pub_odometry = n.advertise<nav_msgs::Odometry>("odometry", 1000);
     pub_point_cloud = n.advertise<sensor_msgs::PointCloud>("point_cloud", 1000);
     pub_margin_cloud = n.advertise<sensor_msgs::PointCloud>("history_cloud", 1000);
+    pub_plane_cloud = n.advertise<sensor_msgs::PointCloud>("plane_cloud", 2);
     pub_key_poses = n.advertise<visualization_msgs::Marker>("key_poses", 1000);
     pub_camera_pose = n.advertise<nav_msgs::Odometry>("camera_pose", 1000);
     pub_camera_pose_visual = n.advertise<visualization_msgs::MarkerArray>("camera_pose_visual", 1000);
@@ -237,12 +247,23 @@ void pubCameraPose(const Estimator &estimator, const std_msgs::Header &header)
 }
 
 
-void pubPointCloud(const Estimator &estimator, const std_msgs::Header &header)
+void pubPointCloud(Estimator &estimator, const std_msgs::Header &header, const sensor_msgs::PointCloudConstPtr &mask_cloud)
 {
     sensor_msgs::PointCloud point_cloud, loop_point_cloud;
     point_cloud.header = header;
     loop_point_cloud.header = header;
 
+    bool is_plane_cloud_created = true;
+
+    int RGB_HEX[5];
+    RGB_HEX[0] = 0xff0000; // RED
+    RGB_HEX[1] = 0x0000ff; // BLUE
+    RGB_HEX[2] = 0xff00ff; // MAGENTA
+    RGB_HEX[3] = 0xffff00; // YELLOW
+    RGB_HEX[4] = 0x00ffff; // CYAN
+
+    map<int, vector<Vector4d>> features_per_plane;
+    map<int, Vector4d> plane_params;
 
     for (auto &it_per_id : estimator.f_manager.feature)
     {
@@ -257,14 +278,558 @@ void pubPointCloud(const Estimator &estimator, const std_msgs::Header &header)
         Vector3d pts_i = it_per_id.feature_per_frame[0].point * it_per_id.estimated_depth;
         Vector3d w_pts_i = estimator.Rs[imu_i] * (estimator.ric[0] * pts_i + estimator.tic[0]) + estimator.Ps[imu_i];
 
+        Vector4d w_pt_;
+        w_pt_ << w_pts_i(0), w_pts_i(1), w_pts_i(2), 1;
+        reg_points[it_per_id.plane_id].push_back(w_pt_);
+
         geometry_msgs::Point32 p;
         p.x = w_pts_i(0);
         p.y = w_pts_i(1);
         p.z = w_pts_i(2);
         point_cloud.points.push_back(p);
+
+        if (!is_plane_cloud_created) {           
+            /* Plane visualizing START -----------------------------------------------------------------------------*/
+            sensor_msgs::PointCloud plane_cloud;
+            plane_cloud.header = header;
+            
+            sensor_msgs::ChannelFloat32 colors;
+            colors.name = "rgb";
+
+            int plane_id = it_per_id.plane_id;
+            Vector3d normal;
+            normal << estimator.para_N[plane_id][0], estimator.para_N[plane_id][1], estimator.para_N[plane_id][2];
+            double d = estimator.para_d[plane_id][0];
+            // ROS_DEBUG("Plane %d, d value is %f", plane_id, d);
+            
+            // for (int pid = 0; pid < estimator.para_d.size(); pid++)
+                // ROS_INFO("Plane %d, d value is %f", pid, estimator.para_d[pid][0]);
+
+            // for (int i = 0; i < mask_cloud->points.size(); i++) {
+            //     double lambda = 0.0;
+
+            //     geometry_msgs::Point32 p, m;
+            //     m = mask_cloud->points[i];
+            //     Vector3d c_point(m.x, m.y, m.z);
+
+            //     // transform normal from world camera frame to current camera frame
+            //     Vector3d normal_i = estimator.ric[0].inverse() * estimator.Rs[WINDOW_SIZE].inverse() * estimator.ric[0] * normal;
+
+            //     // transform depth to current camera frame
+            //     double d_c0 = d; // depth in world camera frame
+            //     double d_i0 = d + estimator.tic[0].dot(estimator.ric[0] * normal); // depth in world imu frame
+            //     double d_i = d_i0 - estimator.Ps[WINDOW_SIZE].dot(estimator.ric[0] * normal); // depth in current imu frame
+            //     // double d_ci = d_i + estimator.tic[0].dot(estimator.Rs[WINDOW_SIZE].inverse() * estimator.ric[0] * normal);
+
+            //     // find lambda
+            //     lambda = (-d_i) / (normal_i.dot(c_point));
+            //     // ROS_INFO("lambda value is %f", lambda);
+
+            //     Vector3d pts_i =  lambda * c_point;
+            //     Vector3d w_pts_i = estimator.Rs[WINDOW_SIZE] * (estimator.ric[0] * pts_i + estimator.tic[0]) + estimator.Ps[WINDOW_SIZE];
+
+            //     p.x = w_pts_i(0);
+            //     p.y = w_pts_i(1);
+            //     p.z = w_pts_i(2);
+            //     plane_cloud.points.push_back(p);
+                
+            //     int rgb = mask_cloud->channels[0].values[i];
+            //     colors.values.push_back(rgb);
+            // }
+            ROS_INFO("Number of planes are %d", estimator.init_pids.size());
+            for (int pi = 0; pi < estimator.init_pids.size(); pi++) {
+                int pid = estimator.init_pids[pi];
+                Vector3d normal;
+                normal << estimator.para_N[pid][0], estimator.para_N[pid][1], estimator.para_N[pid][2];
+                
+                double a = estimator.para_N[pid][0];
+                double b = estimator.para_N[pid][1];
+                double c = estimator.para_N[pid][2];
+                double d = estimator.para_d[pid][0];
+
+                // Find the point on plane nearest to origin
+                double r = d / (normal.dot(normal));
+                Vector3d near_point = r * normal;
+
+                // Find a direction along the plane surface
+                Vector3d dir1;
+                dir1 << normal(0) + 0.1, normal(1) + 0.1, normal(2) + 0.1;
+                dir1.normalize();
+
+                double r2 = d / (normal.dot(dir1));
+                dir1 = dir1 * r2;
+
+                dir1 = dir1 - near_point;
+                dir1.normalize();
+
+                // Find another direction perpendicular to above direction
+                Vector3d dir2;
+                dir2 = Utility::skewSymmetric(normal) * dir1;
+                dir2.normalize();
+                
+                // Create meshgrid
+                std::vector<Vector3d> mesh_grid;
+                for (int i = 0; i < 20; i++) {
+                    for (int j = 0; j < 20; j++) {
+                        Vector3d pt;
+                        pt = near_point + i * dir1 + j * dir2;
+                        mesh_grid.push_back(pt);
+                    }
+                }
+
+                for (int i = 0; i < mesh_grid.size(); i++) {
+                    Vector3d xy = mesh_grid[i];
+                    
+                    geometry_msgs::Point32 p;
+                    p.x = xy(0);
+                    p.y = xy(1);
+                    p.z = xy(2);
+                    
+                    plane_cloud.points.push_back(p);
+                    
+                    int rgb = mask_cloud->channels[0].values[0];
+                    colors.values.push_back(rgb);
+                    
+                }
+                ROS_INFO("a=%f, b=%f, c=%f, d=%f", a, b, c, d);
+            }
+            plane_cloud.channels.push_back(colors);
+            pub_plane_cloud.publish(plane_cloud);
+            /* Plane visualized END --------------------------------------------------------------------------------*/
+            is_plane_cloud_created = true;
+        }
     }
     pub_point_cloud.publish(point_cloud);
 
+    // fit planes
+    for (auto const& fpp: reg_points) {
+        MatrixXd pts_mat(fpp.second.size(), 4);
+    
+        for (int pti = 0; pti < fpp.second.size(); pti++) {
+            pts_mat.row(pti) = fpp.second[pti].transpose();
+        }
+
+        // find svd
+        Vector4d params;
+        Eigen::JacobiSVD<MatrixXd> pt_svd(pts_mat, Eigen::ComputeFullU | Eigen::ComputeFullV);
+        params = pt_svd.matrixV().col(pt_svd.matrixV().cols() - 1);
+
+        // store plane params
+        plane_params[fpp.first] = params;
+
+        Vector3d pn;
+        pn << params(0), params(1), params(2);
+        double mag = pn.norm();
+        pn.normalize();
+
+        // ROS_INFO("ID=%d, a=%f, b=%f, c=%f, d=%f", fpp.first, pn(0), pn(1), pn(2), params(3)/mag);
+    }
+
+    /* Plane visualizing START -----------------------------------------------------------------------------*/
+    sensor_msgs::PointCloud plane_cloud;
+    plane_cloud.header = header;
+    
+    sensor_msgs::ChannelFloat32 colors;
+    colors.name = "rgb";
+    
+    is_plane_cloud_created = false;
+
+    int mask_i = 0;
+    bool maski_found = false;
+
+    for (int hi = 0; hi < (WINDOW_SIZE + 1); hi++) {
+        if (mask_cloud->header.stamp.toSec() == estimator.Headers[hi].stamp.toSec()) {
+            mask_i = hi;
+            maski_found = true;
+            break;
+        }
+    }
+
+        // sensor_msgs::ChannelFloat32 colors;
+        // colors.name = "rgb";
+    // if (plane_cloud.channels.size() == 0) {
+        // plane_cloud.channels.push_back(colors);
+    // }
+    
+    vector<int> cur_pids;
+    // for (map<int, array<double, 3>>::iterator it = estimator.para_N.begin(); it != estimator.para_N.end(); ++it){
+    for (map<int, Vector4d>::iterator it = plane_params.begin(); it != plane_params.end(); ++it){
+        cur_pids.push_back(it->first);
+        ROS_INFO("---------------CURRENT PIDs----------------ID = %d --------------------", it->first);
+    }
+
+    // for (int pi = 0; pi < estimator.init_pids.size(); pi++) {
+    for (int pi = 0; pi < cur_pids.size(); pi++) {
+        // int pid = estimator.init_pids[pi];
+        int pid = cur_pids[pi];
+        // Vector3d normal;
+        // normal << estimator.para_N[pid][0], estimator.para_N[pid][1], estimator.para_N[pid][2];
+        
+        // double a = estimator.para_N[pid][0];
+        // double b = estimator.para_N[pid][1];
+        // double c = estimator.para_N[pid][2];
+        // double d = estimator.para_d[pid][0];
+
+        Vector4d pp = plane_params[pid];
+
+        Vector3d normal;
+        normal << pp(0), pp(1), pp(2);
+        double d = -pp(3)/normal.norm();
+        normal.normalize();
+
+        double a = normal[0];
+        double b = normal[1];
+        double c = normal[2];
+        // double d = plane_params[pid][3];
+
+        // Find the point on plane nearest to origin
+        double r = d / (normal.dot(normal));
+        Vector3d near_point = r * normal;
+
+        // Find a direction along the plane surface
+        Vector3d dir1;
+        dir1 << normal(0) + 0.1, normal(1) + 0.1, normal(2) + 0.1;
+        dir1.normalize();
+
+        double r2 = d / (normal.dot(dir1));
+        dir1 = dir1 * r2;
+
+        dir1 = dir1 - near_point;
+        dir1.normalize();
+
+        // Find another direction perpendicular to above direction
+        Vector3d dir2;
+        dir2 = Utility::skewSymmetric(normal) * dir1;
+        dir2.normalize();
+        
+        // Create meshgrid
+        std::vector<Vector3d> mesh_grid;
+        for (int i = 0; i < 20; i++) {
+            for (int j = 0; j < 20; j++) {
+                Vector3d pt;
+                pt = near_point + i * dir1 + j * dir2;
+                mesh_grid.push_back(pt);
+            }
+        }
+
+        for (int i = 0; i < mesh_grid.size(); i++) {
+            Vector3d xy = mesh_grid[i];
+
+            // xy = (estimator.ric[0] * xy) + estimator.tic[0];
+            
+            geometry_msgs::Point32 p;
+            p.x = xy(0);
+            p.y = xy(1);
+            p.z = xy(2);
+            
+            plane_cloud.points.push_back(p);
+            
+            // int rgb = mask_cloud->channels[0].values[0];
+            int rgb = 0x000000;
+            colors.values.push_back(rgb);
+            
+        }
+        ROS_INFO("ID=%d, a=%f, b=%f, c=%f, d=%f", pid, a, b, c, d);
+    }
+
+    if (maski_found) {
+        // ROS_INFO("---------------FOUND----------------ID = %d --------------------", mask_i);
+        // for (auto const& pp: plane_params) {
+            // if (!is_plane_cloud_created) {
+            // Vector3d normal;
+            // normal << pp.second[0], pp.second[1], pp.second[2];
+            // double d = -pp.second[3]/normal.norm();
+            // normal.normalize();
+
+            // ROS_INFO("**************MASK_CLOUD SIZE IS %d **********************",  mask_cloud->points.size());
+            // ROS_INFO("**************MASK_CLOUD NUM OF CHANNELS ARE %d **********************",  mask_cloud->channels.size());
+            // double *pose_i = estimator.para_Pose[mask_i];
+            double pose_i[7];
+            for (int po = 0; po < 7; po++) {
+                pose_i[po] = estimator.para_Pose[mask_i][po];
+            }
+            Eigen::Map<Vector3d> ti(pose_i);
+            Eigen::Quaterniond qi;
+            qi.coeffs() << pose_i[3], pose_i[4], pose_i[5], pose_i[6];
+
+            Isometry3d TIC;
+            TIC.linear() = estimator.ric[0];
+            TIC.translation() = estimator.tic[0];
+            
+            Isometry3d Ti;
+            Ti.linear() = estimator.Rs[mask_i];
+            Ti.translation() = estimator.Ps[mask_i];
+
+            // Isometry3d Tp = TIC.inverse() * Ti.inverse();
+
+            for (unsigned int i = 0; i < mask_cloud->points.size(); i++) {
+                int ppid = mask_cloud->channels[1].values[i];
+                // ROS_INFO("-----------wanted----PLANE----------------ID = %d --------------------", ppid);
+                if (find(cur_pids.begin(), cur_pids.end(), ppid) != cur_pids.end()) {
+                // if (find(estimator.init_pids.begin(), estimator.init_pids.end(), ppid) != estimator.init_pids.end()) {
+                // ROS_INFO("-----------found----PLANE----------------ID = %d --------------------", ppid);
+                Vector4d pp = plane_params[ppid];
+
+                Vector3d normal;
+                normal << pp(0), pp(1), pp(2);
+                double d = -pp(3)/normal.norm();
+                normal.normalize();
+
+                // Vector3d normal;
+                // normal << 
+                    // estimator.para_N[ppid][0],
+                    // estimator.para_N[ppid][1],
+                    // estimator.para_N[ppid][2];
+                // normal.normalize();
+
+                // double d = estimator.para_d[ppid][0] / normal.norm();
+
+                // Vector4d pp;
+                // pp << normal(0), normal(1), normal(2), -d;
+
+                if (d < 100) {
+
+                // ROS_INFO("_-_-_-__-----------___-----------a=%f, b=%f, c=%f, d=%f", normal(0), normal(1), normal(2), d);
+
+                double lambda = 0.0;
+
+                geometry_msgs::Point32 m;
+                m = mask_cloud->points[i];
+                Vector3d c_point(m.x, m.y, m.z);
+
+                // // transform normal from world camera frame to current camera frame
+                // Vector3d normal_i = estimator.ric[0].inverse() * estimator.Rs[mask_i].inverse() * estimator.ric[0] * normal;
+                // normal_i.normalize();
+
+                // // transform depth to current camera frame
+                // double d_c0 = d; // depth in world camera frame
+                // double d_i0 = d + estimator.tic[0].dot(estimator.ric[0] * normal); // depth in world imu frame
+                // double d_i = d_i0 - estimator.Ps[mask_i].dot(estimator.ric[0] * normal); // depth in current imu frame
+                // double d_ci = d_i + estimator.tic[0].dot(estimator.Rs[mask_i].inverse() * estimator.ric[0] * normal); // depth in current camera frame
+
+                // // find lambda
+                // lambda = (d_ci) / (normal_i.dot(c_point));
+                // // ROS_INFO("lambda value is %f", lambda);
+
+                // Vector3d pts_i =  lambda * c_point;
+                // Vector3d w_pts_i = estimator.Rs[mask_i] * (estimator.ric[0] * pts_i + estimator.tic[0]) + estimator.Ps[mask_i];
+
+                // Vector4d pp_ci = (TIC.inverse() * Ti * TIC).matrix().transpose() * pp;
+                Vector4d pp_ci = (Ti * TIC).matrix().transpose() * pp;
+
+                Vector3d normal_ci;
+                normal_ci << pp_ci(0), pp_ci(1), pp_ci(2);
+                double d_ci = -pp_ci(3)/normal_ci.norm();
+                normal_ci.normalize();
+                
+                lambda = (d_ci) / (normal_ci.dot(c_point));
+
+                c_point = lambda * c_point;
+
+                // Transform c_point (current camera) to imu (current IMU)
+                Vector3d i_point = estimator.ric[0] * c_point + estimator.tic[0];
+
+                // Transform current imu point to world imu
+                Vector3d i0_point = (estimator.Rs[mask_i] * i_point) + estimator.Ps[mask_i];
+
+                // Transform world imu to world camera
+                // Vector3d w_pts_i = estimator.ric[0].transpose() * i0_point - estimator.ric[0].transpose() * estimator.tic[0];
+                Vector3d w_pts_i = i0_point;
+                // Vector3d w_pts_i = c_point;
+
+                // find lambda
+                // lambda = d / (normal.dot(w_pts_i));
+                
+                // ROS_INFO("lambda value is %g", lambda);
+                
+                // w_pts_i = lambda * w_pts_i;
+                // w_pts_i = estimator.ric[0] * lambda * w_pts_i + estimator.tic[0];
+
+                geometry_msgs::Point32 p;
+                p.x = w_pts_i(0);
+                p.y = w_pts_i(1);
+                p.z = w_pts_i(2);
+                plane_cloud.points.push_back(p);
+                
+                int rgb = mask_cloud->channels[0].values[i];
+                colors.values.push_back(rgb);
+                }
+                }
+            }
+                            
+            // double a = pp.second[0];
+            // double b = pp.second[1];
+            // double c = pp.second[2];
+            // double d = pp.second[3];
+
+            // // Find the point on plane nearest to origin
+            // double r = -d / (normal.dot(normal));
+            // Vector3d near_point = r * normal;
+
+            // // Find a direction along the plane surface
+            // Vector3d dir1;
+            // dir1 << normal(0) + 0.1, normal(1) + 0.1, normal(2) + 0.1;
+            // dir1.normalize();
+
+            // double r2 = -d / (normal.dot(dir1));
+            // dir1 = dir1 * r2;
+
+            // dir1 = dir1 - near_point;
+            // dir1.normalize();
+
+            // // Find another direction perpendicular to above direction
+            // Vector3d dir2;
+            // dir2 = Utility::skewSymmetric(normal) * dir1;
+            // dir2.normalize();
+            
+            // // Create meshgrid
+            // std::vector<Vector3d> mesh_grid;
+            // for (int i = 0; i < 20; i++) {
+            //     for (int j = 0; j < 20; j++) {
+            //         Vector3d pt;
+            //         pt = near_point + i * dir1 + j * dir2;
+            //         mesh_grid.push_back(pt);
+            //     }
+            // }
+
+            // for (int i = 0; i < mesh_grid.size(); i++) {
+            //     Vector3d xy = mesh_grid[i];
+                
+            //     geometry_msgs::Point32 p;
+            //     p.x = xy(0);
+            //     p.y = xy(1);
+            //     p.z = xy(2);
+                
+            //     plane_cloud.points.push_back(p);
+                
+            //     // int rgb = mask_cloud->channels[0].values[0];
+            //     int rgb = 0x0000ff;
+            //     colors.values.push_back(rgb);
+            // }
+            // is_plane_cloud_created = true;
+            // }
+        // }
+
+        plane_cloud.channels.push_back(colors);
+        pub_plane_cloud.publish(plane_cloud);
+    }
+    else {
+        // ROS_INFO("------------------------POSE NOT FOUND----------------------------------");
+    }
+
+    /**
+    for (auto const& pp: plane_params) {
+        if (!is_plane_cloud_created) {
+        Vector3d normal;
+        normal << pp.second[0], pp.second[1], pp.second[2];
+        // double d = pp.second[3];
+
+        // for (int i = 0; i < mask_cloud->points.size(); i++) {
+        //     double lambda = 0.0;
+
+        //     geometry_msgs::Point32 p, m;
+        //     m = mask_cloud->points[i];
+        //     Vector3d c_point(m.x, m.y, m.z);
+
+        //     // transform normal from world camera frame to current camera frame
+        //     Vector3d normal_i = estimator.ric[0].inverse() * estimator.Rs[0].inverse() * estimator.ric[0] * normal;
+
+        //     // transform depth to current camera frame
+        //     double d_c0 = d; // depth in world camera frame
+        //     double d_i0 = d + estimator.tic[0].dot(estimator.ric[0] * normal); // depth in world imu frame
+        //     double d_i = d_i0 - estimator.Ps[0].dot(estimator.ric[0] * normal); // depth in current imu frame
+        //     // double d_ci = d_i + estimator.tic[0].dot(estimator.Rs[WINDOW_SIZE].inverse() * estimator.ric[0] * normal);
+
+        //     // find lambda
+        //     lambda = (-d_i) / (normal_i.dot(c_point));
+        //     // ROS_INFO("lambda value is %f", lambda);
+
+        //     Vector3d pts_i =  lambda * c_point;
+        //     Vector3d w_pts_i = estimator.Rs[0] * (estimator.ric[0] * pts_i + estimator.tic[0]) + estimator.Ps[0];
+
+        //     p.x = w_pts_i(0);
+        //     p.y = w_pts_i(1);
+        //     p.z = w_pts_i(2);
+        //     plane_cloud.points.push_back(p);
+            
+        //     int rgb = mask_cloud->channels[0].values[i];
+        //     colors.values.push_back(rgb);
+        // }
+                        
+        double a = pp.second[0];
+        double b = pp.second[1];
+        double c = pp.second[2];
+        double d = pp.second[3];
+
+        // Find the point on plane nearest to origin
+        double r = -d / (normal.dot(normal));
+        Vector3d near_point = r * normal;
+
+        // Find a direction along the plane surface
+        Vector3d dir1;
+        dir1 << normal(0) + 0.1, normal(1) + 0.1, normal(2) + 0.1;
+        dir1.normalize();
+
+        double r2 = -d / (normal.dot(dir1));
+        dir1 = dir1 * r2;
+
+        dir1 = dir1 - near_point;
+        dir1.normalize();
+
+        // Find another direction perpendicular to above direction
+        Vector3d dir2;
+        dir2 = Utility::skewSymmetric(normal) * dir1;
+        dir2.normalize();
+        
+        // Create meshgrid
+        std::vector<Vector3d> mesh_grid;
+        for (int i = 0; i < 20; i++) {
+            for (int j = 0; j < 20; j++) {
+                Vector3d pt;
+                pt = near_point + i * dir1 + j * dir2;
+                mesh_grid.push_back(pt);
+            }
+        }
+
+        for (int i = 0; i < mesh_grid.size(); i++) {
+            Vector3d xy = mesh_grid[i];
+            
+            geometry_msgs::Point32 p;
+            p.x = xy(0);
+            p.y = xy(1);
+            p.z = xy(2);
+            
+            plane_cloud.points.push_back(p);
+            
+            // int rgb = mask_cloud->channels[0].values[0];
+            int rgb = 0x0000ff;
+            colors.values.push_back(rgb);
+        }
+        // is_plane_cloud_created = true;
+        }
+    }
+    **/
+
+    // int colour_counter = 0;
+    // for (auto const& reg_pt: reg_points) {
+    //     vector<Vector4d> pts = reg_pt.second;
+
+    //     for (int pti = 0; pti < pts.size(); pti++) {
+    //         geometry_msgs::Point32 p;
+    //         p.x = pts[pti](0);
+    //         p.y = pts[pti](1);
+    //         p.z = pts[pti](2);
+
+    //         plane_cloud.points.push_back(p);
+
+    //         int rgb = RGB_HEX[colour_counter % 5];
+    //         colors.values.push_back(rgb);
+    //     }
+
+    //     colour_counter++;
+    // }
+
+    /* Plane visualized END --------------------------------------------------------------------------------*/
 
     // pub margined potin
     sensor_msgs::PointCloud margin_cloud;
@@ -279,9 +844,9 @@ void pubPointCloud(const Estimator &estimator, const std_msgs::Header &header)
         //if (it_per_id->start_frame > WINDOW_SIZE * 3.0 / 4.0 || it_per_id->solve_flag != 1)
         //        continue;
 
-        if (it_per_id.start_frame == 0 && it_per_id.feature_per_frame.size() <= 2 
-            && it_per_id.solve_flag == 1 )
-        {
+        // if (it_per_id.start_frame == 0 && it_per_id.feature_per_frame.size() <= 2 
+            // && it_per_id.solve_flag == 1 )
+        // {
             int imu_i = it_per_id.start_frame;
             Vector3d pts_i = it_per_id.feature_per_frame[0].point * it_per_id.estimated_depth;
             Vector3d w_pts_i = estimator.Rs[imu_i] * (estimator.ric[0] * pts_i + estimator.tic[0]) + estimator.Ps[imu_i];
@@ -291,7 +856,7 @@ void pubPointCloud(const Estimator &estimator, const std_msgs::Header &header)
             p.y = w_pts_i(1);
             p.z = w_pts_i(2);
             margin_cloud.points.push_back(p);
-        }
+        // }
     }
     pub_margin_cloud.publish(margin_cloud);
 }
@@ -420,4 +985,80 @@ void pubRelocalization(const Estimator &estimator)
     odometry.twist.twist.linear.y = estimator.relo_frame_index;
 
     pub_relo_relative_pose.publish(odometry);
+}
+
+void pubPlaneCloud(Estimator &estimator, const std_msgs::Header &header, const sensor_msgs::PointCloudConstPtr &mask_cloud)
+{
+    /**
+     * Requirements:
+     * image - for texture in the dense cloud of the plane segment
+     * largest plane mask - for filtering plane pixels
+     * plane parameters - of largest plane
+     * pose - of the current image frame
+     * K - for lifting points to normalized plane
+     **/
+    
+    // publish dense point cloud of masked pixels with color/texture from feature tracker
+    // estimate depth of the points using the plane params
+    // republish dense point cloud with correct depth
+
+    // - OR -
+
+    // create a partial depth map from plane parameters and plane mask
+    // simply lift plane pixels using this partial depth map
+
+    sensor_msgs::PointCloud plane_cloud;
+    plane_cloud.header = header;
+
+    /**
+     * Format
+     * pointcloud
+     *      channels
+     *          name - rgb
+     *          values - rgb values of the points
+     *      points
+     **/
+    sensor_msgs::ChannelFloat32 colors;
+    colors.name = "rgb";
+    // for (int i = 0; i < 50; i++) {
+    //     for (int j = 0; j < 50; j++) {
+    //         geometry_msgs::Point32 p;
+    //         p.x = i;
+    //         p.y = j;
+    //         p.z = 0.0;
+    //         plane_cloud.points.push_back(p);
+            
+    //         int rgb = 0xaaff00; float float_rgb = *reinterpret_cast<float*>(&rgb);
+    //         colors.values.push_back(rgb);
+    //     }
+    // }
+    int plane_id = 39;
+    Vector3d normal;
+    normal << estimator.para_N[plane_id][0], estimator.para_N[plane_id][1], estimator.para_N[plane_id][2];
+    double d = estimator.para_d[plane_id][0];
+    ROS_INFO("Plane %d, d value is %f", plane_id, d);
+    
+    // for (int pid = 0; pid < estimator.para_d.size(); pid++)
+        // ROS_INFO("Plane %d, d value is %f", pid, estimator.para_d[pid][0]);
+
+    for (int i = 0; i < mask_cloud->points.size(); i++) {
+        double lambda = 0.0;
+
+        geometry_msgs::Point32 p, m;
+        m = mask_cloud->points[i];
+        Vector3d m_point(m.x, m.y, m.z);
+
+        lambda = (-d - (normal.dot(estimator.Ps[WINDOW_SIZE]))) / (normal.dot(estimator.Rs[WINDOW_SIZE] * (estimator.ric[0] * m_point + estimator.tic[0])));
+        // ROS_INFO("lambda value is %f", lambda);
+
+        p.x = lambda * m.x;
+        p.y = lambda * m.y;
+        p.z = lambda * m.z;
+        plane_cloud.points.push_back(p);
+         
+        int rgb = mask_cloud->channels[0].values[i];
+        colors.values.push_back(rgb);
+    }
+    plane_cloud.channels.push_back(colors);
+    pub_plane_cloud.publish(plane_cloud);
 }

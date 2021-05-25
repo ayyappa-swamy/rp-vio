@@ -7,6 +7,7 @@
 #include <csignal>
 
 #include <opencv2/opencv.hpp>
+#include <opencv2/line_descriptor.hpp>
 #include <eigen3/Eigen/Dense>
 
 #include "camodocal/camera_models/CameraFactory.h"
@@ -19,6 +20,7 @@
 using namespace std;
 using namespace camodocal;
 using namespace Eigen;
+using namespace cv::line_descriptor;
 
 bool inBorder(const cv::Point2f &pt);
 
