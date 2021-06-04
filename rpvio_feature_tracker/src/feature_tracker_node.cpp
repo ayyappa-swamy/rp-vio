@@ -9,6 +9,7 @@
 #include <message_filters/time_synchronizer.h>
 
 #include "feature_tracker.h"
+#include "vp_utils.h"
 
 #define SHOW_UNDISTORTION 0
 
@@ -204,13 +205,21 @@ void callback(const sensor_msgs::ImageConstPtr &img_msg, const sensor_msgs::Imag
             sensor_msgs::ChannelFloat32 colors;
             colors.name = "rgb";
 
-            vector<cv::Scalar> label_colors;
-            label_colors.push_back(cv::Scalar(255,0,0));
-            label_colors.push_back(cv::Scalar(0,255,0));
-            label_colors.push_back(cv::Scalar(0,0,255));
-            label_colors.push_back(cv::Scalar(255,255,0));
-            label_colors.push_back(cv::Scalar(0,255,255));
-            label_colors.push_back(cv::Scalar(255,0,255));
+            // vector<cv::Scalar> label_colors;
+            // label_colors.push_back(cv::Scalar(255,0,0));
+            // label_colors.push_back(cv::Scalar(0,255,0));
+            // label_colors.push_back(cv::Scalar(0,0,255));
+            // label_colors.push_back(cv::Scalar(255,255,0));
+            // label_colors.push_back(cv::Scalar(0,255,255));
+            // label_colors.push_back(cv::Scalar(255,0,255));
+
+            map<int, cv::Scalar> label_colors;
+            label_colors[39] = cv::Scalar(255,0,0);
+            label_colors[66] = cv::Scalar(255,0,255);
+            label_colors[91] = cv::Scalar(0,255,0);
+            label_colors[130] = cv::Scalar(0,0,255);
+            label_colors[162] = cv::Scalar(255,255,0);
+            label_colors[175] = cv::Scalar(0,255,255);
 
             vector<int> unique_pids_vec;
             for (auto& pid: unique_pids) {
@@ -218,6 +227,11 @@ void callback(const sensor_msgs::ImageConstPtr &img_msg, const sensor_msgs::Imag
             }
 
             ROS_INFO("-------------NUMBER OF UNIQUE MASKS ARE : %d---------------", (int)unique_pids_vec.size());
+
+            Eigen::Matrix3d K;
+            K << FOCAL_LENGTH, 0, COL/2,
+                    0, FOCAL_LENGTH, ROW/2,
+                    0, 0, 1;
 
             cv::Mat tmp_img = stereo_img.rowRange(0 * ROW, (0 + 1) * ROW);
             cv::cvtColor(show_img, tmp_img, CV_GRAY2RGB);
@@ -228,13 +242,15 @@ void callback(const sensor_msgs::ImageConstPtr &img_msg, const sensor_msgs::Imag
                     (mid == 91) || 
                     (mid == 39) ||
                     // (mid == 66) ||
+                    (mid == 130) || 
                     // (mid == 162) || 
                     (mid == 175)
+                    // true
                 ) {
                 cv::Mat mask_img = mask_ptr->image;
                 cv::Mat mask = mask_img == mid;
                 cv::Mat mask_viz(ROW, COL, CV_8UC3, cv::Scalar(0,0,0));
-                mask_viz.setTo(label_colors[ppi], mask);
+                mask_viz.setTo(label_colors[mid], mask);
                 cv::addWeighted(tmp_img, 1.0, mask_viz, 0.3, 0.0, tmp_img);
 
                 for (int i = 0; i < NUM_OF_CAM; i++)
@@ -248,17 +264,28 @@ void callback(const sensor_msgs::ImageConstPtr &img_msg, const sensor_msgs::Imag
                     // cv::threshold(bgr[1], binMask, 100, 255, CV_THRESH_BINARY);
 
                     // if (mid == largest_pid) {
-                        // create an LSD detector
-                        cv::Ptr<LSDDetector> lsd = LSDDetector::createLSDDetector();
-                        // Detect LSD lines in image1
-                        vector<KeyLine> klsd;
-                        lsd->detect(tmp_img, klsd, 1, 1, binMask);
+                        // std::vector<KeyLine> lines_klsd;
+                        // cv::Mat lines_lsd_descr; 
+                        // std::vector<cv::Point3d> vps(3);
+                        // std::vector<std::vector<int> > clusters(3);
+                        // std::vector<int> lines_vps;
+                        // double f = K(0, 0);
+                        // cv::Point2d pp(K(0, 2), K(1, 2));
+                        // int LENGTH_THRESH = 0;
+                        
+                        // ROS_INFO("Extracting line segments and vanishing points");
+                        // extract_lines_and_vps(
+                        //     tmp_img, 
+                        //     lines_klsd, lines_lsd_descr, 
+                        //     vps, clusters,
+                        //     lines_vps,
+                        //     f, pp, LENGTH_THRESH
+                        // );
 
-                        // for (unsigned int l = 0; l < klsd.size(); l++) {
-                        //     KeyLine kl = klsd[l];
-                        //     cv::Point2i start_point(kl.startPointX, kl.startPointY);
-                        //     cv::Point2i end_point(kl.endPointX, kl.endPointY);
-                        //     cv::line(tmp_img, start_point, end_point, cv::Scalar(0, 255, 255), 2, 8, 0);
+                        // ROS_INFO("Detected vanishing points are : ");
+                        // for (size_t i = 0; i < vps.size(); i++)
+                        // {
+                        //     ROS_INFO("%f, %f, %f", vps[i].x, vps[i].y, vps[i].z);
                         // }
                     // }
 
@@ -272,11 +299,6 @@ void callback(const sensor_msgs::ImageConstPtr &img_msg, const sensor_msgs::Imag
                                 // Eigen::Vector3d a_;
                                 Eigen::Vector3d a_;
                                 // trackerData[i].m_camera->liftProjective(a, a_);
-
-                                Eigen::Matrix3d K;
-                                K << FOCAL_LENGTH, 0, COL/2,
-                                     0, FOCAL_LENGTH, ROW/2,
-                                     0, 0, 1;
                                 
                                 a_ = K.inverse() * a;
                             
@@ -287,10 +309,11 @@ void callback(const sensor_msgs::ImageConstPtr &img_msg, const sensor_msgs::Imag
                                 mask_cloud.points.push_back(p);
                                 
                                 // int rgb = 0xaaff00; float float_rgb = *reinterpret_cast<float*>(&rgb);
-                                // Eigen::Vector3d pix = tmp_img.at<Eigen::Vector3d>(u, v);
+                                // Eigen::Vector3i pix = tmp_img.at<Eigen::Vector3i>(u, v);
                                 
-                                // unsigned int r = pix(2);
-                                // unsigned int g = pix(1);
+                                // uint8_t r = (uint8_t)label_colors[mid][0];// pix(2);
+                                // uint8_t g = (uint8_t)label_colors[mid][1];// pix(1);
+                                // uint8_t b = (uint8_t)label_colors[mid][2];// pix(0);
                                 unsigned int b = show_img.at<uint8_t>(u, v);
 
                                 int rgb = ((b & 0xff) << 16) + ((b & 0xff) << 8) + (b & 0xff);

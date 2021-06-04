@@ -10,6 +10,7 @@ find_package(catkin REQUIRED COMPONENTS
     roscpp
     std_msgs
     geometry_msgs
+    message_filters
     nav_msgs
     tf
     cv_bridge
@@ -32,6 +33,11 @@ include_directories(
 
 catkin_package()
 
+add_executable(rpvio_mapper
+    src/mapper_node.cpp
+    src/parameters.cpp
+)
+
 add_executable(rpvio_estimator
     src/estimator_node.cpp
     src/parameters.cpp
@@ -52,5 +58,6 @@ add_executable(rpvio_estimator
 
 
 target_link_libraries(rpvio_estimator ${catkin_LIBRARIES} ${OpenCV_LIBS} ${CERES_LIBRARIES}) 
+target_link_libraries(rpvio_mapper ${catkin_LIBRARIES} ${OpenCV_LIBS} ${CERES_LIBRARIES}) 
 
 

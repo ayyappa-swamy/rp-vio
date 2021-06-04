@@ -32,6 +32,7 @@ include_directories(
 add_executable(rpvio_feature_tracker
     src/feature_tracker_node.cpp
     src/parameters.cpp
+    src/VPDetection.cpp
     src/feature_tracker.cpp
     )
 

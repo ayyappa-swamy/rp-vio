@@ -12,6 +12,7 @@
 #include "parameters.h"
 #include "utility/visualization.h"
 
+// void init_mapper_node(int argc, char **argv);
 
 Estimator estimator;
 
@@ -20,7 +21,6 @@ double current_time = -1;
 queue<sensor_msgs::ImuConstPtr> imu_buf;
 queue<sensor_msgs::PointCloudConstPtr> feature_buf;
 queue<sensor_msgs::PointCloudConstPtr> relo_buf;
-queue<sensor_msgs::PointCloudConstPtr> mask_cloud_buf;
 int sum_of_wait = 0;
 
 std::mutex m_buf;
@@ -209,7 +209,7 @@ void relocalization_callback(const sensor_msgs::PointCloudConstPtr &points_msg)
 void mask_cloud_callback(const sensor_msgs::PointCloudConstPtr &points_msg)
 {
     m_buf.lock();
-    mask_cloud_buf.push(points_msg);
+    estimator.mask_map.insert(make_pair(points_msg->header.stamp.toSec(), points_msg));
     m_buf.unlock();
 }
 
@@ -330,21 +330,12 @@ void process()
             pubOdometry(estimator, header);
             pubKeyPoses(estimator, header);
             pubCameraPose(estimator, header);
-            sensor_msgs::PointCloudConstPtr mask_msg;
-            // mask_msg = mask_cloud_buf.front();
-            // for (int mi = 0; mi < mask_cloud_buf.size(); mi++) {
-            //     if (mask_cloud_buf[mi]->header.stamp.toSec() == header.stamp.toSec())
-            //         mask_msg = mask_cloud_buf[mi];
-            // // }
-            pubPointCloud(estimator, header, mask_cloud_buf.front());            
-            mask_cloud_buf.pop();
+            pubPointCloud(estimator, header);
             pubTF(estimator, header);
             pubKeyframe(estimator);
             if (relo_msg != NULL)
                 pubRelocalization(estimator);
             //ROS_ERROR("end: %f, at %f", img_msg->header.stamp.toSec(), ros::Time::now().toSec());
-            
-            // pubPlaneCloud(estimator, header, mask_cloud_buf.front());
         }
         m_estimator.unlock();
         m_buf.lock();
@@ -375,6 +366,8 @@ int main(int argc, char **argv)
     ros::Subscriber sub_restart = n.subscribe("/rpvio_feature_tracker/restart", 2000, restart_callback);
     ros::Subscriber sub_relo_points = n.subscribe("/pose_graph/match_points", 2000, relocalization_callback);
     ros::Subscriber sub_mask_cloud = n.subscribe("/rpvio_feature_tracker/mask_cloud", 1, mask_cloud_callback);
+
+    // init_mapper_node(argc, argv);
 
     std::thread measurement_process{process};
     ros::spin();

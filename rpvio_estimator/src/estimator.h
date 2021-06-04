@@ -10,6 +10,7 @@
 #include "initial/initial_ex_rotation.h"
 #include <std_msgs/Header.h>
 #include <std_msgs/Float32.h>
+#include <sensor_msgs/PointCloud.h>
 
 #include <ceres/ceres.h>
 #include "factor/imu_factor.h"
@@ -121,6 +122,8 @@ class Estimator
     // In global camera frame (c_0)
     map<int, array<double,3>> para_N;
     map<int, array<double,1>> para_d;
+
+    map<double, sensor_msgs::PointCloudConstPtr> mask_map;
 
     vector<int> init_pids;
 

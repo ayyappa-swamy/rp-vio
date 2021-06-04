@@ -44,7 +44,7 @@ void pubKeyPoses(const Estimator &estimator, const std_msgs::Header &header);
 
 void pubCameraPose(const Estimator &estimator, const std_msgs::Header &header);
 
-void pubPointCloud(Estimator &estimator, const std_msgs::Header &header, const sensor_msgs::PointCloudConstPtr &mask_cloud);
+void pubPointCloud(Estimator &estimator, const std_msgs::Header &header);
 
 void pubTF(const Estimator &estimator, const std_msgs::Header &header);
 
@@ -52,4 +52,4 @@ void pubKeyframe(const Estimator &estimator);
 
 void pubRelocalization(const Estimator &estimator);
 
-void pubPlaneCloud(Estimator &estimator, const std_msgs::Header &header, const sensor_msgs::PointCloudConstPtr &mask_cloud);
+MatrixXd covariance_matrix(MatrixXd data);
