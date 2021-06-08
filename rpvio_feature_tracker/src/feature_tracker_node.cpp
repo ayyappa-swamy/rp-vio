@@ -290,8 +290,8 @@ void callback(const sensor_msgs::ImageConstPtr &img_msg, const sensor_msgs::Imag
                     // }
 
                     // Compute the mask cloud
-                    for (unsigned int u = 0; u < binMask.rows; u+=5) {
-                        for (unsigned int v = 0; v < binMask.cols; v+=5) {
+                    for (unsigned int u = 0; u < binMask.rows; u+=20) {
+                        for (unsigned int v = 0; v < binMask.cols; v+=20) {
                             if (binMask.at<uint8_t>(u, v) == 255) {
                                 geometry_msgs::Point32 p;
                                 // Eigen::Vector2d a(v, u);
