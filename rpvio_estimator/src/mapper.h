@@ -175,7 +175,7 @@ struct PlaneMeasurementConstraint {
         // residual[2] = meas_quat.z() - plane_quat.z();
         // residual[3] = meas_quat.w() - plane_quat.w();
 
-        residual[0] = (meas_quat.coeffs().normalized() - plane_quat.coeffs().normalized()).norm();
+        residual[0] = T(100) * (meas_quat.coeffs().normalized() - plane_quat.coeffs().normalized()).norm();
         return true;
     }
     
@@ -283,6 +283,12 @@ void publish_plane_cloud(
                     normal_ci << pp_ci(0), pp_ci(1), pp_ci(2);
                     double d_ci = -pp_ci(3)/normal_ci.norm();
                     normal_ci.normalize();
+                    
+                    // Vector3d ray = c_point;
+                    // ray.normalize();
+
+                    // if (fabs(normal_ci.dot(ray)) < 0.5)
+                    //     continue;
 
                     Vector4d pp2 = pp.normalized();
                     pp2.head<3>() *= -1;

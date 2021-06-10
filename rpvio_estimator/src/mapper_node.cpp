@@ -101,11 +101,6 @@ void optimize_plane_params(
             (find(cur_pids.begin(), cur_pids.end(), plane_id1) != cur_pids.end()) &&
             (find(cur_pids.begin(), cur_pids.end(), plane_id2) != cur_pids.end())
         ) {
-            // ceres::LocalParameterization *local_n_parameterization1 = new ceres::HomogeneousVectorParameterization(4);
-            // ceres::LocalParameterization *local_n_parameterization2 = new ceres::HomogeneousVectorParameterization(4);
-            // problem.AddParameterBlock(plane_params[plane_id1].data(), 3, local_n_parameterization1);
-            // problem.AddParameterBlock(plane_params[plane_id2].data(), 3, local_n_parameterization2);
-
             // Add Orthogonal Constraint
             problem.AddResidualBlock(
                 new ceres::AutoDiffCostFunction<OrthogonalConstraintQuat, 1, 4, 4>(
@@ -193,7 +188,7 @@ void sync_callback(
         params = pt_svd.matrixV().col(pt_svd.matrixV().cols() - 1);
 
         // Vector4d info = covariance_matrix(pts_mat).diagonal().tail(4);
-
+        params.normalize();
         Vector3d pn;
         pn << params(0), params(1), 0;
         double mag = pn.norm();
@@ -202,13 +197,15 @@ void sync_callback(
         Vector4d params_;
         params_ << pn(0), pn(1), pn(2), params(2)/mag;
 
-        // store plane params
-        plane_measurements[fpp.first].push_back(params_.normalized());
+        if (fabs(params_(3)) < 60) { // To filter bad measurements 
+            // store plane params
+            plane_measurements[fpp.first].push_back(params_.normalized());
 
-        if(plane_params.find(fpp.first) == plane_params.end())
-            plane_params[fpp.first] = params_.normalized();
+            if(plane_params.find(fpp.first) == plane_params.end())
+                plane_params[fpp.first] = params_.normalized();
 
-        // ROS_INFO("Info is: ia=%f, ib=%f, ic=%f, id=%f", info(0), info(1), info(2), info(3));
+            // ROS_INFO("Info is: ia=%f, ib=%f, ic=%f, id=%f", info(0), info(1), info(2), info(3));
+        }
     }
 
     map<int, double> init_depths;    
