@@ -186,9 +186,9 @@ void sync_callback(
         Vector3d params;
         Eigen::JacobiSVD<MatrixXd> pt_svd(pts_mat, Eigen::ComputeFullU | Eigen::ComputeFullV);
         params = pt_svd.matrixV().col(pt_svd.matrixV().cols() - 1);
+        params.normalize();
 
         // Vector4d info = covariance_matrix(pts_mat).diagonal().tail(4);
-        params.normalize();
         Vector3d pn;
         pn << params(0), params(1), 0;
         double mag = pn.norm();
@@ -197,7 +197,7 @@ void sync_callback(
         Vector4d params_;
         params_ << pn(0), pn(1), pn(2), params(2)/mag;
 
-        if (fabs(params_(3)) < 60) { // To filter bad measurements 
+        if (fabs(params_(3)) < 70.0) { // To filter bad measurements 
             // store plane params
             plane_measurements[fpp.first].push_back(params_.normalized());
 
@@ -254,6 +254,8 @@ int main(int argc, char **argv)
     sync.registerCallback(boost::bind(&sync_callback, _1, _2, _3));
 
     pub_plane_cloud = n.advertise<sensor_msgs::PointCloud>("plane_cloud", 1);
+    marker_pub = n.advertise<visualization_msgs::Marker>("visualization_marker", 1);
+    frame_pub = n.advertise<sensor_msgs::PointCloud>("frame_cloud", 1);
 
     ros::spin();
 

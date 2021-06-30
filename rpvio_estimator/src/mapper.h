@@ -56,6 +56,7 @@
 #include <message_filters/time_synchronizer.h>
 #include <sensor_msgs/PointCloud.h>
 #include <nav_msgs/Odometry.h>
+#include <visualization_msgs/Marker.h>
 
 #include <eigen3/Eigen/Dense>
 #include <ceres/ceres.h>
@@ -65,6 +66,8 @@ using namespace std;
 using namespace Eigen;
 
 ros::Publisher pub_plane_cloud;
+ros::Publisher marker_pub;
+ros::Publisher frame_pub;
 
 map<double, vector<Vector4d>> plane_measurements;
 
@@ -210,17 +213,63 @@ void publish_plane_cloud(
     sensor_msgs::ChannelFloat32 colors;
     colors.name = "rgb";
 
+    map<int, Isometry3d> plane2world_isos;
+    map<int, Vector4d> plane_seg_params; // min_z, max_z, min_y, max_y
+        
+    vector<int> cur_pids;
+    for (map<int, Vector4d>::iterator it = plane_params.begin(); it != plane_params.end(); ++it){
+        Vector4d pp = it->second;
+
+        Vector3d normal;
+        normal << pp(0), pp(1), pp(2);
+        double d = -pp(3)/normal.norm();
+        normal.normalize();
+        
+        if (fabs(d) < 100) {
+            cur_pids.push_back(it->first);
+            
+            // Find nearest point on the plane (as center)
+            Vector3d center = d * normal;
+
+            Vector3d x_axis;
+            x_axis << 1.0, 0.0, 0.0;
+
+            // Compute the rotation of x-axis w.r.t normal
+            double cos_theta = x_axis.dot(normal);
+            double sin_theta = std::sqrt(1.0 - cos_theta * cos_theta);
+
+            Isometry3d plane2world;
+            plane2world.translation() = center;
+            plane2world.linear() <<
+                cos_theta, -sin_theta, 0.0,
+                sin_theta, cos_theta, 0.0,
+                0.0, 0.0, 1.0; 
+            
+            plane2world_isos[it->first] = plane2world;
+            plane_seg_params[it->first] = Vector4d::Zero();
+        }
+        // ROS_INFO("---------------CURRENT PIDs----------------ID = %d --------------------", it->first);
+    }
+
+    /**
+     * Plan:
+     * 
+     * Compute isometry for each plane frist
+     * 
+     * For each point:
+     *  Transform the world point to its plane coord sys
+     *  Check if its on border
+     *  Update plane segment params
+     *  Compute border points from plane segment params
+     *  Transform border points to world sys
+     *  Create line strip from border points and publish
+     **/
+
     for(int qi = 0; qi < mask_clouds.size(); qi++) {
         // publish plane cloud
         sensor_msgs::PointCloudConstPtr mask_cloud = mask_clouds[qi];
         nav_msgs::OdometryConstPtr odometry_msg = odometry_msgs[qi];
         plane_cloud.header = mask_cloud->header;
-            
-        vector<int> cur_pids;
-        for (map<int, Vector4d>::iterator it = plane_params.begin(); it != plane_params.end(); ++it){
-            cur_pids.push_back(it->first);
-            // ROS_INFO("---------------CURRENT PIDs----------------ID = %d --------------------", it->first);
-        }
 
         ROS_DEBUG("-----------Computing FIXED transforms--------------");
         // Retrieve pose from odometry message
@@ -269,7 +318,7 @@ void publish_plane_cloud(
                 double d = -pp(3)/normal.norm();
                 normal.normalize();
 
-                if (fabs(d) < 100) {
+                // if (fabs(d) < 100) {
                     double lambda = 0.0;
                     double lambda2 = 0.0;
 
@@ -284,10 +333,11 @@ void publish_plane_cloud(
                     double d_ci = -pp_ci(3)/normal_ci.norm();
                     normal_ci.normalize();
                     
-                    // Vector3d ray = c_point;
+                    // Vector3d ray;
+                    // ray << c_point(0), c_point(1), c_point(2);
                     // ray.normalize();
 
-                    // if (fabs(normal_ci.dot(ray)) < 0.5)
+                    // if (fabs(normal_ci.dot(ray)) < 0.6)
                     //     continue;
 
                     Vector4d pp2 = pp.normalized();
@@ -304,9 +354,19 @@ void publish_plane_cloud(
 
                     if ((lambda2 * c_point)(2) < 0) {
                         c_point = lambda * c_point;
+                                            
                     } else {
                         c_point = lambda2 * c_point;
                     }
+
+                    // Vector3d ray;
+                    // ray << c_point(0), c_point(1), c_point(2);
+                    // ray.normalize();
+                    Vector3d principal_ray;
+                    principal_ray << 0.0, 0.0, 1.0;
+
+                    if ((fabs(normal_ci.dot(principal_ray)) < 0.2) || (fabs(normal_ci2.dot(principal_ray)) < 0.2))
+                        continue;
                     
                     // Transform c_point (current camera) to imu (current IMU)
                     Vector3d i_point = Tic.rotation() * c_point + Tic.translation();
@@ -326,12 +386,146 @@ void publish_plane_cloud(
                     // int rgb = pid2HEX[ppid];
                     float float_rgb = *reinterpret_cast<float*>(&rgb);
                     colors.values.push_back(float_rgb);
-                }
+
+                    // Check if it's on border
+                    Vector3d p_pt = plane2world_isos[ppid].inverse() * w_pts_i;
+                    Vector4d borders = plane_seg_params[ppid];
+
+                    if (p_pt(1) < borders(0)) // min y
+                        plane_seg_params[ppid](0) = p_pt(1);
+                    else if (p_pt(1) > borders(1)) // max y
+                        plane_seg_params[ppid](1) = p_pt(1);
+                    else if (p_pt(2) < borders(2)) // min z
+                        plane_seg_params[ppid](2) = p_pt(2);
+                    else if (p_pt(2) > borders(3)) // max z
+                        plane_seg_params[ppid](3) = p_pt(2);
+                // }
             }
         }
     }
-
     // publish current point cloud
     plane_cloud.channels.push_back(colors);
     pub_plane_cloud.publish(plane_cloud);
+
+    map<int, vector<Vector3d>> plane_border_points;
+    visualization_msgs::Marker line_list;
+
+    line_list.header = plane_cloud.header;
+    // line_list.action = visualization_msgs::Marker::ADD;
+    line_list.pose.orientation.w = 1.0;
+
+    line_list.id = 2;
+    line_list.type = visualization_msgs::Marker::LINE_LIST;
+
+    // LINE_LIST markers use only the x component of scale, for the line width
+    line_list.scale.x = 0.5;
+
+    // Line list is red
+    line_list.color.r = 1.0;
+    line_list.color.a = 1.0;
+
+    sensor_msgs::PointCloud frame_cloud;
+    sensor_msgs::ChannelFloat32 p_ids;
+
+    // Compute border points for each plane
+    for (map<int, Vector4d>::iterator it = plane_seg_params.begin(); it != plane_seg_params.end(); ++it){
+        vector<geometry_msgs::Point> b_pts;
+        
+        double y_min = it->second(0);
+        double y_max = it->second(1);
+        double z_min = it->second(2);
+        double z_max = it->second(3);
+
+        // 0: (y_min, z_min)
+        Vector3d bottom_left;
+        bottom_left << 0, y_min, z_min;
+        Vector3d bottom_left_w = plane2world_isos[it->first] * bottom_left;
+        geometry_msgs::Point bl_pt;
+        bl_pt.x = bottom_left_w(0);
+        bl_pt.y = bottom_left_w(1);
+        bl_pt.z = bottom_left_w(2);
+        b_pts.push_back(bl_pt);
+
+        // 1: (y_min, z_max)
+        Vector3d top_left;
+        top_left << 0, y_min, z_max;
+        Vector3d top_left_w = plane2world_isos[it->first] * top_left;
+        geometry_msgs::Point tl_pt;
+        tl_pt.x = top_left_w(0);
+        tl_pt.y = top_left_w(1);
+        tl_pt.z = top_left_w(2);
+        b_pts.push_back(tl_pt);
+
+        // 2: (y_max, z_max)
+        Vector3d top_right;
+        top_right << 0, y_max, z_max;
+        Vector3d top_right_w = plane2world_isos[it->first] * top_right;
+        geometry_msgs::Point tr_pt;
+        tr_pt.x = top_right_w(0);
+        tr_pt.y = top_right_w(1);
+        tr_pt.z = top_right_w(2);
+        b_pts.push_back(tr_pt);
+
+        // 3: (y_max, z_min)
+        Vector3d bottom_right;
+        bottom_right << 0, y_max, z_min;
+        Vector3d bottom_right_w = plane2world_isos[it->first] * bottom_right;
+        geometry_msgs::Point br_pt;
+        br_pt.x = bottom_right_w(0);
+        br_pt.y = bottom_right_w(1);
+        br_pt.z = bottom_right_w(2);
+        b_pts.push_back(br_pt);
+
+        // 0 -> 1
+        line_list.points.push_back(b_pts[0]);
+        line_list.points.push_back(b_pts[1]);
+
+        // 1 -> 2
+        line_list.points.push_back(b_pts[1]);
+        line_list.points.push_back(b_pts[2]);
+
+        // 2 -> 3
+        line_list.points.push_back(b_pts[2]);
+        line_list.points.push_back(b_pts[3]);
+
+        // 3 -> 0
+        line_list.points.push_back(b_pts[3]);
+        line_list.points.push_back(b_pts[0]);
+
+        // 0: (y_min, z_min)
+        geometry_msgs::Point32 bl_pt32;
+        bl_pt32.x = bl_pt.x;
+        bl_pt32.y = bl_pt.y;
+        bl_pt32.z = bl_pt.z;
+        frame_cloud.points.push_back(bl_pt32);
+        p_ids.values.push_back(it->first);
+
+        // 1: (y_min, z_max)
+        geometry_msgs::Point32 tl_pt32;
+        tl_pt32.x = tl_pt.x;
+        tl_pt32.y = tl_pt.y;
+        tl_pt32.z = tl_pt.z;
+        frame_cloud.points.push_back(tl_pt32);
+        p_ids.values.push_back(it->first);
+
+        // 2: (y_max, z_max)
+        geometry_msgs::Point32 tr_pt32;
+        tr_pt32.x = tr_pt.x;
+        tr_pt32.y = tr_pt.y;
+        tr_pt32.z = tr_pt.z;
+        frame_cloud.points.push_back(tr_pt32);
+        p_ids.values.push_back(it->first);
+
+        // 3: (y_max, z_min)
+        geometry_msgs::Point32 br_pt32;
+        br_pt32.x = br_pt.x;
+        br_pt32.y = br_pt.y;
+        br_pt32.z = br_pt.z;
+        frame_cloud.points.push_back(br_pt32);
+        p_ids.values.push_back(it->first);
+    }
+    frame_cloud.channels.push_back(p_ids);
+
+    marker_pub.publish(line_list);
+    frame_pub.publish(frame_cloud);
 }

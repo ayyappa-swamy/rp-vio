@@ -19,6 +19,8 @@
 #include "factor/projection_td_factor.h"
 #include "factor/marginalization_factor.h"
 #include "factor/homography_factor.h"
+// #include "factor/incident_plane_factor.h"
+// #include "factor/orthogonal_plane_factor.h"
 
 #include <unordered_map>
 #include <queue>

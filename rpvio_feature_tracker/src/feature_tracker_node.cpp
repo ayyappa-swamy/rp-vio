@@ -247,10 +247,20 @@ void callback(const sensor_msgs::ImageConstPtr &img_msg, const sensor_msgs::Imag
                     (mid == 175)
                     // true
                 ) {
+                std::vector<std::vector<cv::Point>> contours;
+                
                 cv::Mat mask_img = mask_ptr->image;
                 cv::Mat mask = mask_img == mid;
+                cv::Mat mask_contour(ROW, COL, CV_8UC1, cv::Scalar(0));
+                cv::Mat mask_filled(ROW, COL, CV_8UC1, cv::Scalar(0));
+                mask_filled.setTo(cv::Scalar(255), mask);
+
+                cv::findContours(mask_filled, contours, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE);
+                cv::drawContours(mask_contour, contours, -1, cv::Scalar(255), 1);
+
                 cv::Mat mask_viz(ROW, COL, CV_8UC3, cv::Scalar(0,0,0));
-                mask_viz.setTo(label_colors[mid], mask);
+                mask_viz.setTo(label_colors[mid], mask_contour);
+
                 cv::addWeighted(tmp_img, 1.0, mask_viz, 0.3, 0.0, tmp_img);
 
                 for (int i = 0; i < NUM_OF_CAM; i++)
@@ -260,7 +270,7 @@ void callback(const sensor_msgs::ImageConstPtr &img_msg, const sensor_msgs::Imag
                     cv::Mat binMask(ROW, COL, CV_8UC1, cv::Scalar(0));
                     // cv::Mat bgr[3];
                     // cv::split(mask_viz, bgr);
-                    binMask.setTo(cv::Scalar(255), mask);
+                    binMask.setTo(cv::Scalar(255), mask_contour);
                     // cv::threshold(bgr[1], binMask, 100, 255, CV_THRESH_BINARY);
 
                     // if (mid == largest_pid) {
@@ -290,8 +300,8 @@ void callback(const sensor_msgs::ImageConstPtr &img_msg, const sensor_msgs::Imag
                     // }
 
                     // Compute the mask cloud
-                    for (unsigned int u = 0; u < binMask.rows; u+=20) {
-                        for (unsigned int v = 0; v < binMask.cols; v+=20) {
+                    for (unsigned int u = 0; u < binMask.rows; u+=50) {
+                        for (unsigned int v = 0; v < binMask.cols; v+=50) {
                             if (binMask.at<uint8_t>(u, v) == 255) {
                                 geometry_msgs::Point32 p;
                                 // Eigen::Vector2d a(v, u);

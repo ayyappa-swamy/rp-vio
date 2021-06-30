@@ -875,6 +875,9 @@ void Estimator::optimization()
         Vector3d pts_i = it_per_id.feature_per_frame[0].point;
         int pid = it_per_id.plane_id;
 
+        // ceres::CostFunction *ipf = IncidentPlaneFactor::Create(pts_i);
+        // problem.AddResidualBlock(ipf, loss_function, para_N[pid].data(), para_d[pid].data(), para_Feature[feature_index], para_Pose[imu_i], para_Ex_Pose[0]);
+
         if(pid != largest_pid)
             continue;
 
@@ -915,6 +918,41 @@ void Estimator::optimization()
             f_m_cnt++;
         }
     }
+
+    // // plane ids: 91, 39, 175, 130
+    // /**
+    //  * Layout of scene with plane ids
+    //  *       ______91______
+    //  *      /              \ 
+    //  *     |   162(floor)   |
+    //  *    39     66(ceil)   175
+    //  *     |                |
+    //  *      \______130_____/
+    //  **/
+    // vector<pair<int, int>> ORTHO_PAIRS;
+    // ORTHO_PAIRS.push_back(make_pair(91, 39));
+    // ORTHO_PAIRS.push_back(make_pair(91, 175));
+    // ORTHO_PAIRS.push_back(make_pair(39, 130));
+    // ORTHO_PAIRS.push_back(make_pair(130, 175));
+
+    // vector<int> cur_pids;
+    // for (map<int, array<double, 3>>::iterator it = para_N.begin(); it != para_N.end(); ++it){
+    //     cur_pids.push_back(it->first);
+    // }
+
+    // for (int opair_idx = 0; opair_idx < ORTHO_PAIRS.size(); opair_idx++) {
+    //     int plane_id1 = ORTHO_PAIRS[opair_idx].first;
+    //     int plane_id2 = ORTHO_PAIRS[opair_idx].second;
+        
+    //     if (
+    //         (find(cur_pids.begin(), cur_pids.end(), plane_id1) != cur_pids.end()) &&
+    //         (find(cur_pids.begin(), cur_pids.end(), plane_id2) != cur_pids.end())
+    //     ) {
+    //         ceres::CostFunction *ortho_cost_function = OrthogonalPlaneFactor::Create();
+    //         // Add Orthogonal Constraint
+    //         problem.AddResidualBlock(ortho_cost_function, loss_function, para_N[plane_id1].data(), para_N[plane_id2].data());
+    //     }
+    // }
 
     ROS_DEBUG("visual measurement count: %d", f_m_cnt);
     ROS_DEBUG("prepare for ceres: %f", t_prepare.toc());
