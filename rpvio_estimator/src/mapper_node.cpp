@@ -93,25 +93,25 @@ void optimize_plane_params(
         }
     }
 
-    for (int opair_idx = 0; opair_idx < ORTHO_PAIRS.size(); opair_idx++) {
-        int plane_id1 = ORTHO_PAIRS[opair_idx].first;
-        int plane_id2 = ORTHO_PAIRS[opair_idx].second;
+    // for (int opair_idx = 0; opair_idx < ORTHO_PAIRS.size(); opair_idx++) {
+    //     int plane_id1 = ORTHO_PAIRS[opair_idx].first;
+    //     int plane_id2 = ORTHO_PAIRS[opair_idx].second;
         
-        if (
-            (find(cur_pids.begin(), cur_pids.end(), plane_id1) != cur_pids.end()) &&
-            (find(cur_pids.begin(), cur_pids.end(), plane_id2) != cur_pids.end())
-        ) {
-            // Add Orthogonal Constraint
-            problem.AddResidualBlock(
-                new ceres::AutoDiffCostFunction<OrthogonalConstraintQuat, 1, 4, 4>(
-                    new OrthogonalConstraintQuat()
-                ),
-                NULL,
-                plane_params[plane_id1].data(),     
-                plane_params[plane_id2].data()
-            );
-        }
-    }
+    //     if (
+    //         (find(cur_pids.begin(), cur_pids.end(), plane_id1) != cur_pids.end()) &&
+    //         (find(cur_pids.begin(), cur_pids.end(), plane_id2) != cur_pids.end())
+    //     ) {
+    //         // Add Orthogonal Constraint
+    //         problem.AddResidualBlock(
+    //             new ceres::AutoDiffCostFunction<OrthogonalConstraintQuat, 1, 4, 4>(
+    //                 new OrthogonalConstraintQuat()
+    //             ),
+    //             NULL,
+    //             plane_params[plane_id1].data(),     
+    //             plane_params[plane_id2].data()
+    //         );
+    //     }
+    // }
 
     // for (int ppair_idx = 0; ppair_idx < PARALLEL_PAIRS.size(); ppair_idx++) {
     //     int plane_id1 = PARALLEL_PAIRS[ppair_idx].first;

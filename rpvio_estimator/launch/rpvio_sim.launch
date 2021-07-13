@@ -1,7 +1,7 @@
 <launch>
 
-  <arg name="playback_rate" default="0.5" />
-  <arg name="start_from" default="0" />
+  <arg name="playback_rate" default="0.1" />
+  <arg name="start_from" default="1.2" />
   <arg name="bagfile_path" default="/home/karnik/dataset/rpvio-sim/static/static.bag"/>
 
   <arg name="config_path" default = "$(find rpvio_estimator)/../config/rpvio_sim_config.yaml" />
@@ -26,8 +26,10 @@
     <param name="rpvio_folder" type="string" value="$(arg rpvio_path)" />
   </node>
 
-  <node name="rvizvisualisation" pkg="rviz" type="rviz" output="log" args="-d $(find rpvio_estimator)/../config/rpvio_rviz_config2.rviz" />
+  <node name="rvizvisualisation" pkg="rviz" type="rviz" output="log" args="-d $(find rpvio_estimator)/../config/rpvio_skyline2.rviz" />
 
-  <node name="throttle" pkg="topic_tools" type="throttle" args="messages /imu 400 /imu_throttled"/>
+  <node name="throttle1" pkg="topic_tools" type="throttle" args="messages /imu 150 /imu_throttled"/>
+  <node name="throttle2" pkg="topic_tools" type="throttle" args="messages /image 10 /image_throttled"/>
+  <node name="throttle3" pkg="topic_tools" type="throttle" args="messages /mask 10 /mask_throttled"/>
 
 </launch>

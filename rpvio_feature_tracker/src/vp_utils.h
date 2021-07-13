@@ -36,7 +36,7 @@ void drawClusters( cv::Mat &img, std::vector<KeyLine> &lines, std::vector<std::v
 		cv::Point pt_e = cv::Point( lines[idx].endPointX, lines[idx].endPointY);
 		cv::Point pt_m = ( pt_s + pt_e ) * 0.5;
 
-		cv::line( img, pt_s, pt_e, cv::Scalar(0,0,0), 2, CV_AA );
+		cv::line( img, pt_s, pt_e, cv::Scalar(0,0,0), 1, CV_AA );
         // cv::putText( img, to_string(idx), pt_m, cv::FONT_HERSHEY_PLAIN, 1, cv::Scalar(0, 0, 0));
 	}
 
@@ -97,7 +97,7 @@ void extract_lines_and_vps(
     
     // Detect lines using LSD
     vector<KeyLine> klsd;
-	lsd->detect(image, klsd, 1, 1);
+	lsd->detect(image, klsd, 2, 2);
     
     for (size_t i = 0; i < klsd.size(); i++) {
 		if (klsd[i].lineLength >= LENGTH_THRESH) {
@@ -107,42 +107,44 @@ void extract_lines_and_vps(
 
 	ROS_INFO("Detected %d line segments", (int)lines_klsd.size());
 
-    // Compute binary descriptors
-	bd->compute(image, lines_klsd, lines_lsd_descr);
+	if (lines_klsd.size() > 10){
+		// Compute binary descriptors
+		bd->compute(image, lines_klsd, lines_lsd_descr);
 
-    // Extract vps and clusters
-	std::vector<cv::Point3d> vps_(3);              // Detected vanishing points
-	std::vector<std::vector<int> > clusters_(3);   // Line segment clustering results of each vanishing point
-	VPDetection detector;
-	detector.run( lines_klsd, pp, f, vps_, clusters_ );
+		// Extract vps and clusters
+		std::vector<cv::Point3d> vps_(3);              // Detected vanishing points
+		std::vector<std::vector<int> > clusters_(3);   // Line segment clustering results of each vanishing point
+		VPDetection detector;
+		detector.run( lines_klsd, pp, f, vps_, clusters_ );
 
-	ROS_INFO("Detected vanishing points are : ");
-	for (size_t i = 0; i < vps_.size(); i++)
-	{
-	    ROS_INFO("%f, %f, %f", vps_[i].x, vps_[i].y, vps_[i].z);
-	}
-	
-	std::vector<int> vp_ids = align_vps(vps_);
-	vps[vp_ids[0]] = vps_[0];
-	vps[vp_ids[1]] = vps_[1];
-	vps[vp_ids[2]] = vps_[2];
-	clusters[vp_ids[0]] = clusters_[0];
-	clusters[vp_ids[1]] = clusters_[1];
-	clusters[vp_ids[2]] = clusters_[2];
-	
-
-    // Map vp ids to lines
-	lines_vps.resize(lines_klsd.size(), -1);
-	for ( size_t i = 0; i < clusters.size(); ++i )
-	{ 
-		for ( size_t j = 0; j < clusters[i].size(); ++j )
+		ROS_INFO("Detected vanishing points are : ");
+		for (size_t i = 0; i < vps_.size(); i++)
 		{
-			int idx = clusters[i][j];
-			lines_vps[idx] = (int)i;
+			ROS_INFO("%f, %f, %f", vps_[i].x, vps_[i].y, vps_[i].z);
 		}
-	}
+		
+		std::vector<int> vp_ids = align_vps(vps_);
+		vps[vp_ids[0]] = vps_[0];
+		vps[vp_ids[1]] = vps_[1];
+		vps[vp_ids[2]] = vps_[2];
+		clusters[vp_ids[0]] = clusters_[0];
+		clusters[vp_ids[1]] = clusters_[1];
+		clusters[vp_ids[2]] = clusters_[2];
+		
 
-	drawClusters(image, lines_klsd, clusters);
+		// Map vp ids to lines
+		lines_vps.resize(lines_klsd.size(), -1);
+		for ( size_t i = 0; i < clusters.size(); ++i )
+		{ 
+			for ( size_t j = 0; j < clusters[i].size(); ++j )
+			{
+				int idx = clusters[i][j];
+				lines_vps[idx] = (int)i;
+			}
+		}
+
+		drawClusters(image, lines_klsd, clusters);
+	}
 }
 
 #endif // _VP_UTILS_H_

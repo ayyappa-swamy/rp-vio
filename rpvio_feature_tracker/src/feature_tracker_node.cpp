@@ -63,7 +63,7 @@ void callback(const sensor_msgs::ImageConstPtr &img_msg, const sensor_msgs::Imag
     else
         PUB_THIS_FRAME = false;
 
-    cv_bridge::CvImageConstPtr ptr, mask_ptr;
+    cv_bridge::CvImageConstPtr ptr, ptr2, mask_ptr, mask_ptr_bgr8;
     if (img_msg->encoding == "8UC1")
     {
         sensor_msgs::Image img;
@@ -78,9 +78,12 @@ void callback(const sensor_msgs::ImageConstPtr &img_msg, const sensor_msgs::Imag
     }
     else
         ptr = cv_bridge::toCvCopy(img_msg, sensor_msgs::image_encodings::MONO8);
+    ptr2 = cv_bridge::toCvCopy(img_msg, sensor_msgs::image_encodings::BGR8);
 
     mask_ptr = cv_bridge::toCvCopy(mask_msg, sensor_msgs::image_encodings::MONO8);
+    mask_ptr_bgr8 = cv_bridge::toCvCopy(mask_msg, sensor_msgs::image_encodings::BGR8);
     cv::Mat show_img = ptr->image;
+    cv::Mat show_img2 = ptr2->image;
 
     TicToc t_r;
     for (int i = 0; i < NUM_OF_CAM; i++)
@@ -205,47 +208,87 @@ void callback(const sensor_msgs::ImageConstPtr &img_msg, const sensor_msgs::Imag
             sensor_msgs::ChannelFloat32 colors;
             colors.name = "rgb";
 
-            // vector<cv::Scalar> label_colors;
-            // label_colors.push_back(cv::Scalar(255,0,0));
-            // label_colors.push_back(cv::Scalar(0,255,0));
-            // label_colors.push_back(cv::Scalar(0,0,255));
-            // label_colors.push_back(cv::Scalar(255,255,0));
-            // label_colors.push_back(cv::Scalar(0,255,255));
-            // label_colors.push_back(cv::Scalar(255,0,255));
+            vector<cv::Scalar> label_colors;
+            label_colors.push_back(cv::Scalar(255,0,0));
+            label_colors.push_back(cv::Scalar(0,255,0));
+            label_colors.push_back(cv::Scalar(0,0,255));
+            label_colors.push_back(cv::Scalar(255,255,0));
+            label_colors.push_back(cv::Scalar(0,255,255));
+            label_colors.push_back(cv::Scalar(255,0,255));
 
-            map<int, cv::Scalar> label_colors;
-            label_colors[39] = cv::Scalar(255,0,0);
-            label_colors[66] = cv::Scalar(255,0,255);
-            label_colors[91] = cv::Scalar(0,255,0);
-            label_colors[130] = cv::Scalar(0,0,255);
-            label_colors[162] = cv::Scalar(255,255,0);
-            label_colors[175] = cv::Scalar(0,255,255);
+            // map<int, cv::Scalar> label_colors;
+            // label_colors[39] = cv::Scalar(255,0,0);
+            // label_colors[66] = cv::Scalar(255,0,255);
+            // label_colors[91] = cv::Scalar(0,255,0);
+            // label_colors[130] = cv::Scalar(0,0,255);
+            // label_colors[162] = cv::Scalar(255,255,0);
+            // label_colors[175] = cv::Scalar(0,255,255);
 
             vector<int> unique_pids_vec;
             for (auto& pid: unique_pids) {
                 unique_pids_vec.push_back(pid);
             }
 
-            ROS_INFO("-------------NUMBER OF UNIQUE MASKS ARE : %d---------------", (int)unique_pids_vec.size());
+            ROS_INFO("-------------NUMBER OF UNIQUE MASKS ARE : %d; LARGEST : %d---------------", (int)unique_pids_vec.size(), largest_pid);
 
             Eigen::Matrix3d K;
             K << FOCAL_LENGTH, 0, COL/2,
                     0, FOCAL_LENGTH, ROW/2,
                     0, 0, 1;
 
-            cv::Mat tmp_img = stereo_img.rowRange(0 * ROW, (0 + 1) * ROW);
+            cv::Mat tmp_img = ptr->image.rowRange(0 * ROW, (0 + 1) * ROW);
             cv::cvtColor(show_img, tmp_img, CV_GRAY2RGB);
+            // show_img2.copyTo(tmp_img);
+            // cv::cvtColor(mask_ptr_bgr8->image, tmp_img, CV_GRAY2RGB);
+                        // std::vector<KeyLine> lines_klsd;
+                        // cv::Mat lines_lsd_descr; 
+                        // std::vector<cv::Point3d> vps(3);
+                        // std::vector<std::vector<int> > clusters(3);
+                        // std::vector<int> lines_vps;
+                        // double f = K(0, 0);
+                        // cv::Point2d pp(K(0, 2), K(1, 2));
+                        // int LENGTH_THRESH = 5;
+                        
+                        // // ROS_INFO("Extracting line segments and vanishing points");
+                        // extract_lines_and_vps(
+                        //     tmp_img, 
+                        //     lines_klsd, lines_lsd_descr, 
+                        //     vps, clusters,
+                        //     lines_vps,
+                        //     f, pp, LENGTH_THRESH
+                        // );
+
+                        // if (lines_klsd.size() > 10) {
+                        //     ROS_INFO("Detected vanishing points are : ");
+                        //     for (size_t i = 0; i < vps.size(); i++)
+                        //     {
+                        //         ROS_INFO("%f, %f, %f", vps[i].x, vps[i].y, vps[i].z);
+                        //     }
+                        // }
+
             for (int ppi = 0; ppi < unique_pids_vec.size(); ppi++) {
                 int mid = unique_pids_vec[ppi];
                 ROS_INFO("||||||||||||| ID = %d |||||||||||||||||||||||||", mid);
                 if (
-                    (mid == 91) || 
-                    (mid == 39) ||
+                    // (mid == 91) || 
+                    // (mid == 39) ||
                     // (mid == 66) ||
-                    (mid == 130) || 
+                    // (mid == 130) || 
                     // (mid == 162) || 
-                    (mid == 175)
+                    // (mid == 194)
+                    // (mid == 104)
+                    // (mid == 86) ||
+                    // (mid == 99) ||
+                    // (mid == 136)
+                    // (mid == 42) ||
+                    // (mid == 104) ||
+                    // (mid == 23)
+                    // (mid == 44) // very bad recon, as it is parallel
+                    // (mid == 208)
+                    // (mid == 156)
+                    // (mid == 110) // ground plane in minihattan
                     // true
+                    mid == largest_pid
                 ) {
                 std::vector<std::vector<cv::Point>> contours;
                 
@@ -256,10 +299,15 @@ void callback(const sensor_msgs::ImageConstPtr &img_msg, const sensor_msgs::Imag
                 mask_filled.setTo(cv::Scalar(255), mask);
 
                 cv::findContours(mask_filled, contours, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE);
-                cv::drawContours(mask_contour, contours, -1, cv::Scalar(255), 1);
+                cv::drawContours(mask_contour, contours, -1, cv::Scalar(255), 3);
 
                 cv::Mat mask_viz(ROW, COL, CV_8UC3, cv::Scalar(0,0,0));
-                mask_viz.setTo(label_colors[mid], mask_contour);
+                mask_viz.setTo(label_colors[mid%6], mask);
+                // mask_img.copyTo(mask_viz);
+                // mask_img.copyTo(mask_viz);
+                // mask_img.copyTo(mask_viz);
+                // cv::Mat mask_viz2 = mask_ptr_bgr8->image;
+                // mask_viz2.copyTo(tmp_img);
 
                 cv::addWeighted(tmp_img, 1.0, mask_viz, 0.3, 0.0, tmp_img);
 
@@ -347,7 +395,7 @@ void callback(const sensor_msgs::ImageConstPtr &img_msg, const sensor_msgs::Imag
                     //     Vector2d tmp_prev_uv;
                     //     trackerData[i].m_camera->spaceToPlane(tmp_prev_un_pts, tmp_prev_uv);
                     //     cv::line(tmp_img, trackerData[i].cur_pts[j], cv::Point2f(tmp_prev_uv.x(), tmp_prev_uv.y()), cv::Scalar(255 , 0, 0), 1 , 8, 0);
-                    //     */
+                    //     
                     //     //char name[10];
                     //     //sprintf(name, "%d", trackerData[i].plane_ids[j]);
                     //     //cv::putText(tmp_img, name, trackerData[i].cur_pts[j], cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 0));

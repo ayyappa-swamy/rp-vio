@@ -64,7 +64,7 @@ void readParameters(ros::NodeHandle &n)
 
     WINDOW_SIZE = 20;
     STEREO_TRACK = false;
-    FOCAL_LENGTH = 460;
+    FOCAL_LENGTH = 320;
     PUB_THIS_FRAME = false;
 
     if (FREQ == 0)

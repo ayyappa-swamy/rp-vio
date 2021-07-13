@@ -21,16 +21,16 @@ sed -i "s@~@$HOME@g" ~/catkin_ws/src/rp-vio/config/rpvio_sim_config.yaml
 
 ########## c1 run #############
 
-mkdir c1
+mkdir minihattan
 echo -e "######c1######\n" > report.txt
 
 for((i = 1; i <=1; i++))
 do
-    roslaunch rpvio_estimator rpvio_sim.launch bagfile_path:=$dataset/c1/c1.bag
+    roslaunch rpvio_estimator rpvio_sim.launch bagfile_path:=$dataset/minihattan/minihattan.bag
     cp /home/tvvsst-ayyappa/output/rpvio_result_no_loop.csv ./rpvio_est.csv
-    python ~/catkin_ws/src/rp-vio/scripts/convert_vins_to_tum.py rpvio_est.csv c1/est_traj_$i.txt
+    python ~/catkin_ws/src/rp-vio/scripts/convert_vins_to_tum.py rpvio_est.csv minihattan/est_traj_$i.txt
     rm rpvio_est.csv
-    evo_ape tum $dataset/c1/groundtruth.txt c1/est_traj_$i.txt --align --save_plot c1/est_traj_$i.pdf |& tee -a report.txt
+    evo_ape tum $dataset/minihattan/groundtruth.txt minihattan/est_traj_$i.txt --align --save_plot minihattan/est_traj_$i.pdf |& tee -a report.txt
 done
 
 ########### c2 run #############

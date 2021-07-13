@@ -2,8 +2,8 @@
 
 #common parameters
 imu_topic: "/imu_throttled"
-image_topic: "/image"
-mask_topic: "/mask"
+image_topic: "/image_throttled"
+mask_topic: "/mask_throttled"
 output_path: "/home/tvvsst-ayyappa/output/"
 
 #camera calibration 
@@ -39,7 +39,7 @@ extrinsicTranslation: !!opencv-matrix
 
 #feature traker parameters
 max_cnt: 250            # max feature number in feature tracking
-min_dist: 30            # min distance between two features 
+min_dist: 10            # min distance between two features 
 freq: 10                # frequence (Hz) of publish tracking result. At least 10Hz for good estimation. If set 0, the frequence will be same as raw image 
 H_threshold: 1.0        # ransac threshold (pixel)
 show_track: 1           # publish tracking image as topic
