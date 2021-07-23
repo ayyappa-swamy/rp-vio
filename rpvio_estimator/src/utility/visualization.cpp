@@ -864,12 +864,12 @@ void pubPointCloud(Estimator &estimator, const std_msgs::Header &header)
         used_num = it_per_id.feature_per_frame.size();
         if (!(used_num >= 2 && it_per_id.start_frame < WINDOW_SIZE - 2))
             continue;
-        //if (it_per_id->start_frame > WINDOW_SIZE * 3.0 / 4.0 || it_per_id->solve_flag != 1)
-        //        continue;
+        if (it_per_id.start_frame > WINDOW_SIZE * 3.0 / 4.0 || it_per_id.solve_flag != 1)
+               continue;
 
-        // if (it_per_id.start_frame == 0 && it_per_id.feature_per_frame.size() <= 2 
-            // && it_per_id.solve_flag == 1 )
-        // {
+        if (it_per_id.start_frame == 0 && it_per_id.feature_per_frame.size() <= 2 
+            && it_per_id.solve_flag == 1 )
+        {
             int imu_i = it_per_id.start_frame;
             Vector3d pts_i = it_per_id.feature_per_frame[0].point * it_per_id.estimated_depth;
             Vector3d w_pts_i = estimator.Rs[imu_i] * (estimator.ric[0] * pts_i + estimator.tic[0]) + estimator.Ps[imu_i];
@@ -879,7 +879,7 @@ void pubPointCloud(Estimator &estimator, const std_msgs::Header &header)
             p.y = w_pts_i(1);
             p.z = w_pts_i(2);
             margin_cloud.points.push_back(p);
-        // }
+        }
     }
     pub_margin_cloud.publish(margin_cloud);
 }

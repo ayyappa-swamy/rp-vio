@@ -38,8 +38,8 @@ extrinsicTranslation: !!opencv-matrix
    data: [0.50, 0, 0]
 
 #feature traker parameters
-max_cnt: 250            # max feature number in feature tracking
-min_dist: 10            # min distance between two features 
+max_cnt: 500            # max feature number in feature tracking
+min_dist: 5            # min distance between two features 
 freq: 10                # frequence (Hz) of publish tracking result. At least 10Hz for good estimation. If set 0, the frequence will be same as raw image 
 H_threshold: 1.0        # ransac threshold (pixel)
 show_track: 1           # publish tracking image as topic
@@ -52,10 +52,10 @@ max_num_iterations: 8   # max solver itrations, to guarantee real time
 keyframe_parallax: 10.0 # keyframe selection threshold (pixel)
 
 #discrete-time imu noise parameters       
-acc_n: 0.074427240     # accelerometer measurement noise standard deviation.
-gyr_n: 0.002759607     # gyroscope measurement noise standard deviation.
-acc_w: 3.9471004e-7    # accelerometer bias random work noise standard deviation.
-gyr_w: 3.1538983e-8    # gyroscope bias random work noise standard deviation.
+acc_n: 0.144580252     # accelerometer measurement noise standard deviation. orig: 2.353595984 ours: 
+gyr_n: 0.005360735     # gyroscope measurement noise standard deviation. orig: 0.087266436
+acc_w: 2.03189e-07    # accelerometer bias random work noise standard deviation. orig: 0.000000012
+gyr_w: 1.62356e-08    # gyroscope bias random work noise standard deviation. orig: 0.000000001
 g_norm: 9.80665        # gravity magnitude
 
 #unsynchronization parameters

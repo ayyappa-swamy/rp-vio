@@ -1,14 +1,19 @@
 <launch>
 
-  <arg name="playback_rate" default="0.1" />
-  <arg name="start_from" default="1.2" />
+  <arg name="playback_rate" default="0.2" />
+  <arg name="start_from" default="2" />
   <arg name="bagfile_path" default="/home/karnik/dataset/rpvio-sim/static/static.bag"/>
 
   <arg name="config_path" default = "$(find rpvio_estimator)/../config/rpvio_sim_config.yaml" />
   <arg name="rpvio_path" default = "$(find rpvio_feature_tracker)/../config/../" />
-  
+  <arg name="sequence_name" default = "minihattan" />
+
   <!-- Bag playback -->
   <node name="rosbag_playback" pkg="rosbag" type="play" required="true" args=" --delay=10 --queue=1000 -r $(arg playback_rate) -s $(arg start_from) $(arg bagfile_path)"/>
+
+  <node name="throttle1" pkg="topic_tools" type="throttle" args="messages /imu 200 /imu_throttled"/>
+  <node name="throttle2" pkg="topic_tools" type="throttle" args="messages /image 20 /image_throttled"/>
+  <node name="throttle3" pkg="topic_tools" type="throttle" args="messages /mask 20 /mask_throttled"/>
 
   <!-- RP-VIO nodes -->
   <node name="rpvio_feature_tracker" pkg="rpvio_feature_tracker" type="rpvio_feature_tracker" output="log">
@@ -16,20 +21,19 @@
     <param name="rpvio_folder" type="string" value="$(arg rpvio_path)" />
   </node>
 
-  <node name="rpvio_estimator" pkg="rpvio_estimator" type="rpvio_estimator" output="screen">
+  <node name="rpvio_estimator" pkg="rpvio_estimator" type="rpvio_estimator" output="log">
     <param name="config_file" type="string" value="$(arg config_path)" />
     <param name="rpvio_folder" type="string" value="$(arg rpvio_path)" />
   </node>
 
-  <node name="rpvio_mapper" pkg="rpvio_estimator" type="rpvio_mapper" output="screen">
+  <node name="benchmark_publisher" pkg="benchmark_publisher" type="benchmark_publisher" output="screen">
+    <param name="data_name" type="string" value="$(find benchmark_publisher)/config/$(arg sequence_name)/data.csv" />
+  </node>
+
+  <node name="rpvio_mapper" pkg="rpvio_estimator" type="rpvio_mapper" output="log">
     <param name="config_file" type="string" value="$(arg config_path)" />
     <param name="rpvio_folder" type="string" value="$(arg rpvio_path)" />
   </node>
 
   <node name="rvizvisualisation" pkg="rviz" type="rviz" output="log" args="-d $(find rpvio_estimator)/../config/rpvio_skyline2.rviz" />
-
-  <node name="throttle1" pkg="topic_tools" type="throttle" args="messages /imu 150 /imu_throttled"/>
-  <node name="throttle2" pkg="topic_tools" type="throttle" args="messages /image 10 /image_throttled"/>
-  <node name="throttle3" pkg="topic_tools" type="throttle" args="messages /mask 10 /mask_throttled"/>
-
 </launch>

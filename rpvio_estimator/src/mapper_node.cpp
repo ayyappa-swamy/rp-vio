@@ -77,21 +77,21 @@ void optimize_plane_params(
     // }
 
     // Add Plane measurement constraint
-    for(auto &p: plane_measurements)
-    {
-        for (int mid = 1; mid < p.second.size(); mid++) {
-            Vector4d v = p.second[mid];
-            v.normalize();
-            Quaterniond quat(v[3], v[0], v[1], v[2]);
-            problem.AddResidualBlock(
-                new ceres::AutoDiffCostFunction<PlaneMeasurementConstraint, 1, 4>(
-                    new PlaneMeasurementConstraint(quat)
-                ),
-                NULL,
-                plane_params[p.first].data()
-            );
-        }
-    }
+    // for(auto &p: plane_measurements)
+    // {
+    //     for (int mid = 1; mid < p.second.size(); mid++) {
+    //         Vector4d v = p.second[mid];
+    //         v.normalize();
+    //         Quaterniond quat(v[3], v[0], v[1], v[2]);
+    //         problem.AddResidualBlock(
+    //             new ceres::AutoDiffCostFunction<PlaneMeasurementConstraint, 1, 4>(
+    //                 new PlaneMeasurementConstraint(quat)
+    //             ),
+    //             NULL,
+    //             plane_params[p.first].data()
+    //         );
+    //     }
+    // }
 
     // for (int opair_idx = 0; opair_idx < ORTHO_PAIRS.size(); opair_idx++) {
     //     int plane_id1 = ORTHO_PAIRS[opair_idx].first;
@@ -213,7 +213,7 @@ void sync_callback(
         init_depths[p.first] = p.second(3)/p.second.head<3>().norm();
     }
     
-    optimize_plane_params(plane_params);
+    // optimize_plane_params(plane_params);
 
     for (auto& p: plane_params) {
         p.second.normalize();

@@ -27,6 +27,47 @@ bool first_image_flag = true;
 double last_image_time = 0;
 bool init_pub = 0;
 
+map<unsigned long, uchar> color_map;
+
+uchar rgb2code(int r, int g, int b)
+{
+    unsigned long hex = ((r & 0xff) << 16) + ((g & 0xff) << 8) + (b & 0xff);
+
+    if ((r == 182) && (g == 93) && (b == 7))
+        return rgb2code((int)0, (int)0, (int)0);
+
+    if (color_map.find(hex) == color_map.end()) {
+        color_map[hex] = color_map.size();
+    }
+
+    return color_map[hex];
+}
+
+void processMaskMessage(const sensor_msgs::ImageConstPtr &input_mask_msg, cv::Mat &output_mask)
+{
+    sensor_msgs::Image output_mask_msg;
+
+    cv_bridge::CvImagePtr input_mask_ptr;
+    input_mask_ptr = cv_bridge::toCvCopy(input_mask_msg, sensor_msgs::image_encodings::BGR8);
+    
+    // Extract RGB mask from input mask message
+    cv::Mat input_mask;
+    input_mask = input_mask_ptr->image;
+    
+    // cv::imshow("input mask", input_mask);
+    // cv::waitKey(0);
+    // cv::destroyAllWindows();
+
+    // Convert RGB mask to CV_32U (32-bit single channel image)
+    for (int i = 0; i < input_mask.rows; i++) {
+        for (int j = 0; j < input_mask.cols; j++) {
+            cv::Vec3b colors = input_mask.at<cv::Vec3b>(i, j);
+            
+            output_mask.at<uchar>(i, j) = rgb2code(colors[0], colors[1], colors[2]);
+        }
+    }
+}
+
 void callback(const sensor_msgs::ImageConstPtr &img_msg, const sensor_msgs::ImageConstPtr &mask_msg)
 {
     if(first_image_flag)
@@ -63,7 +104,8 @@ void callback(const sensor_msgs::ImageConstPtr &img_msg, const sensor_msgs::Imag
     else
         PUB_THIS_FRAME = false;
 
-    cv_bridge::CvImageConstPtr ptr, ptr2, mask_ptr, mask_ptr_bgr8;
+    cv_bridge::CvImageConstPtr ptr, ptr2;
+    // cv_bridge::CvImagePtr mask_ptr, mask_ptr_bgr8;
     if (img_msg->encoding == "8UC1")
     {
         sensor_msgs::Image img;
@@ -80,8 +122,12 @@ void callback(const sensor_msgs::ImageConstPtr &img_msg, const sensor_msgs::Imag
         ptr = cv_bridge::toCvCopy(img_msg, sensor_msgs::image_encodings::MONO8);
     ptr2 = cv_bridge::toCvCopy(img_msg, sensor_msgs::image_encodings::BGR8);
 
-    mask_ptr = cv_bridge::toCvCopy(mask_msg, sensor_msgs::image_encodings::MONO8);
-    mask_ptr_bgr8 = cv_bridge::toCvCopy(mask_msg, sensor_msgs::image_encodings::BGR8);
+    // const sensor_msgs::Image processed_mask = processMaskMessage(mask_msg); 
+    cv::Mat pmask_img(ROW, COL, CV_8UC1, cv::Scalar(0));
+    processMaskMessage(mask_msg, pmask_img);
+    const cv::Mat cmask_img(pmask_img);
+    
+    // mask_ptr_bgr8 = cv_bridge::toCvCopy(mask_msg, sensor_msgs::image_encodings::BGR8);
     cv::Mat show_img = ptr->image;
     cv::Mat show_img2 = ptr2->image;
 
@@ -90,7 +136,7 @@ void callback(const sensor_msgs::ImageConstPtr &img_msg, const sensor_msgs::Imag
     {
         ROS_DEBUG("processing camera %d", i);
         if (i != 1 || !STEREO_TRACK)
-            trackerData[i].readImage(ptr->image.rowRange(ROW * i, ROW * (i + 1)), mask_ptr->image.rowRange(ROW * i,ROW * (i + 1)), img_msg->header.stamp.toSec());
+            trackerData[i].readImage(ptr->image.rowRange(ROW * i, ROW * (i + 1)), cmask_img.rowRange(ROW * i,ROW * (i + 1)), img_msg->header.stamp.toSec());
         else
         {
             if (EQUALIZE)
@@ -268,7 +314,7 @@ void callback(const sensor_msgs::ImageConstPtr &img_msg, const sensor_msgs::Imag
 
             for (int ppi = 0; ppi < unique_pids_vec.size(); ppi++) {
                 int mid = unique_pids_vec[ppi];
-                ROS_INFO("||||||||||||| ID = %d |||||||||||||||||||||||||", mid);
+                // ROS_INFO("||||||||||||| ID = %d |||||||||||||||||||||||||", mid);
                 if (
                     // (mid == 91) || 
                     // (mid == 39) ||
@@ -279,7 +325,7 @@ void callback(const sensor_msgs::ImageConstPtr &img_msg, const sensor_msgs::Imag
                     // (mid == 104)
                     // (mid == 86) ||
                     // (mid == 99) ||
-                    // (mid == 136)
+                    // (mid == 81)
                     // (mid == 42) ||
                     // (mid == 104) ||
                     // (mid == 23)
@@ -287,12 +333,13 @@ void callback(const sensor_msgs::ImageConstPtr &img_msg, const sensor_msgs::Imag
                     // (mid == 208)
                     // (mid == 156)
                     // (mid == 110) // ground plane in minihattan
-                    // true
-                    mid == largest_pid
+                    true
+                    // mid == largest_pid
+                    // false
                 ) {
                 std::vector<std::vector<cv::Point>> contours;
                 
-                cv::Mat mask_img = mask_ptr->image;
+                cv::Mat mask_img = pmask_img;
                 cv::Mat mask = mask_img == mid;
                 cv::Mat mask_contour(ROW, COL, CV_8UC1, cv::Scalar(0));
                 cv::Mat mask_filled(ROW, COL, CV_8UC1, cv::Scalar(0));
@@ -456,6 +503,11 @@ int main(int argc, char **argv)
     if (SHOW_TRACK)
         cv::namedWindow("vis", cv::WINDOW_NORMAL);
     */
+
+    // initialize color map with black color
+    unsigned long black = (unsigned long)0;
+    color_map[black] = (uchar) 0;
+
     ros::spin();
     return 0;
 }

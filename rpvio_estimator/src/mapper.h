@@ -265,7 +265,7 @@ void publish_plane_cloud(
      *  Create line strip from border points and publish
      **/
 
-    for(int qi = mask_clouds.size()-1; qi < mask_clouds.size(); qi++) {
+    for(int qi = 0; qi < mask_clouds.size(); qi++) {
         // publish plane cloud
         sensor_msgs::PointCloudConstPtr mask_cloud = mask_clouds[qi];
         nav_msgs::OdometryConstPtr odometry_msg = odometry_msgs[qi];
