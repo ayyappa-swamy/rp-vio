@@ -33,7 +33,7 @@ uchar rgb2code(int r, int g, int b)
 {
     unsigned long hex = ((r & 0xff) << 16) + ((g & 0xff) << 8) + (b & 0xff);
 
-    if ((r == 182) && (g == 93) && (b == 7))
+    if ((r == 7) && (g == 93) && (b == 182))
         return rgb2code((int)0, (int)0, (int)0);
 
     if (color_map.find(hex) == color_map.end()) {
@@ -286,23 +286,24 @@ void callback(const sensor_msgs::ImageConstPtr &img_msg, const sensor_msgs::Imag
             cv::cvtColor(show_img, tmp_img, CV_GRAY2RGB);
             // show_img2.copyTo(tmp_img);
             // cv::cvtColor(mask_ptr_bgr8->image, tmp_img, CV_GRAY2RGB);
-                        // std::vector<KeyLine> lines_klsd;
-                        // cv::Mat lines_lsd_descr; 
-                        // std::vector<cv::Point3d> vps(3);
-                        // std::vector<std::vector<int> > clusters(3);
-                        // std::vector<int> lines_vps;
-                        // double f = K(0, 0);
-                        // cv::Point2d pp(K(0, 2), K(1, 2));
-                        // int LENGTH_THRESH = 5;
+                        std::vector<KeyLine> lines_klsd;
+                        cv::Mat lines_lsd_descr; 
+                        std::vector<cv::Point3d> vps(3);
+                        std::vector<std::vector<int> > clusters(3);
+                        std::vector<int> lines_vps;
+                        double f = K(0, 0);
+                        cv::Point2d pp(K(0, 2), K(1, 2));
+                        int LENGTH_THRESH = 2;
                         
-                        // // ROS_INFO("Extracting line segments and vanishing points");
-                        // extract_lines_and_vps(
-                        //     tmp_img, 
-                        //     lines_klsd, lines_lsd_descr, 
-                        //     vps, clusters,
-                        //     lines_vps,
-                        //     f, pp, LENGTH_THRESH
-                        // );
+                        cv::Mat building_mask = pmask_img > 0;
+                        ROS_INFO("Extracting line segments and vanishing points");
+                        extract_lines_and_vps(
+                            tmp_img, 
+                            lines_klsd, lines_lsd_descr, 
+                            vps, clusters,
+                            lines_vps,
+                            f, pp, LENGTH_THRESH, pmask_img
+                        );
 
                         // if (lines_klsd.size() > 10) {
                         //     ROS_INFO("Detected vanishing points are : ");
@@ -348,15 +349,15 @@ void callback(const sensor_msgs::ImageConstPtr &img_msg, const sensor_msgs::Imag
                 cv::findContours(mask_filled, contours, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE);
                 cv::drawContours(mask_contour, contours, -1, cv::Scalar(255), 3);
 
-                cv::Mat mask_viz(ROW, COL, CV_8UC3, cv::Scalar(0,0,0));
-                mask_viz.setTo(label_colors[mid%6], mask);
+                // cv::Mat mask_viz(ROW, COL, CV_8UC3, cv::Scalar(0,0,0));
+                // mask_viz.setTo(label_colors[mid%6], mask);
                 // mask_img.copyTo(mask_viz);
                 // mask_img.copyTo(mask_viz);
                 // mask_img.copyTo(mask_viz);
                 // cv::Mat mask_viz2 = mask_ptr_bgr8->image;
                 // mask_viz2.copyTo(tmp_img);
 
-                cv::addWeighted(tmp_img, 1.0, mask_viz, 0.3, 0.0, tmp_img);
+                // cv::addWeighted(tmp_img, 1.0, mask_viz, 0.3, 0.0, tmp_img);
 
                 for (int i = 0; i < NUM_OF_CAM; i++)
                 {
@@ -365,7 +366,7 @@ void callback(const sensor_msgs::ImageConstPtr &img_msg, const sensor_msgs::Imag
                     cv::Mat binMask(ROW, COL, CV_8UC1, cv::Scalar(0));
                     // cv::Mat bgr[3];
                     // cv::split(mask_viz, bgr);
-                    binMask.setTo(cv::Scalar(255), mask_contour);
+                    binMask.setTo(cv::Scalar(255), mask_filled);
                     // cv::threshold(bgr[1], binMask, 100, 255, CV_THRESH_BINARY);
 
                     // if (mid == largest_pid) {
@@ -395,8 +396,8 @@ void callback(const sensor_msgs::ImageConstPtr &img_msg, const sensor_msgs::Imag
                     // }
 
                     // Compute the mask cloud
-                    for (unsigned int u = 0; u < binMask.rows; u+=50) {
-                        for (unsigned int v = 0; v < binMask.cols; v+=50) {
+                    for (unsigned int u = 0; u < binMask.rows; u+=10) {
+                        for (unsigned int v = 0; v < binMask.cols; v+=10) {
                             if (binMask.at<uint8_t>(u, v) == 255) {
                                 geometry_msgs::Point32 p;
                                 // Eigen::Vector2d a(v, u);

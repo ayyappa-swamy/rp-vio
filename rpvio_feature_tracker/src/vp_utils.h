@@ -16,6 +16,50 @@ using namespace Eigen;
 using namespace cv::line_descriptor;
 
 /**
+ * Draws the plane segments on an image, 
+ * coloured based on normal directions (that are calculated using vanishing points)
+ **/
+void drawPlaneSegments( cv::Mat &img, std::vector<KeyLine> &lines, std::vector<std::vector<int> > &clusters, cv::Mat &mask)
+{
+	map<uchar, Vector3i> plane_vplines;
+
+	std::vector<cv::Scalar> plane_colors( 2 );
+	plane_colors[0] = cv::Scalar( 0, 0, 255 );
+	plane_colors[1] = cv::Scalar( 255, 0, 0 );
+	// plane_colors[2] = cv::Scalar( 0, 255, 0 );
+	
+	for ( size_t i = 0; i < clusters.size(); ++i )
+	{
+		for ( size_t j = 0; j < clusters[i].size(); ++j )
+		{
+			size_t idx = clusters[i][j];
+
+			cv::Point pt_s = cv::Point( lines[idx].startPointX, lines[idx].startPointY );
+			cv::Point pt_e = cv::Point( lines[idx].endPointX, lines[idx].endPointY );
+			cv::Point pt_m = ( pt_s + pt_e ) * 0.5;
+			
+			uchar plane_id = mask.at<uchar>((int)pt_m.y, (int)pt_m.x);
+			if (plane_vplines.find(plane_id) == plane_vplines.end()){
+				plane_vplines[plane_id] = Vector3i::Zero();
+			}
+			plane_vplines[plane_id](i)++;
+		}
+	}
+
+	for (auto pvlines: plane_vplines)
+	{
+		cv::Mat mask_img = mask.clone();
+		cv::Mat mask = mask_img == pvlines.first;
+		cv::Mat mask_filled(ROW, COL, CV_8UC3, cv::Scalar(0,0,0));
+                
+		int colour_id = pvlines.second[0] > pvlines.second[2] ?  0 : 1;
+		mask_filled.setTo(plane_colors[colour_id], mask);
+		
+		cv::addWeighted( img, 1.0, mask_filled, 1.0, 0.0, img);
+	}	
+}
+
+/**
  * Draws the line segments on an image, coloured based on vanishing point directions
  **/
 void drawClusters( cv::Mat &img, std::vector<KeyLine> &lines, std::vector<std::vector<int> > &clusters )
@@ -88,7 +132,7 @@ void extract_lines_and_vps(
     std::vector<KeyLine> &lines_klsd, cv::Mat &lines_lsd_descr, 
     std::vector<cv::Point3d> &vps, std::vector<std::vector<int> > &clusters,
     std::vector<int> &lines_vps,
-    double f, cv::Point2d pp, int LENGTH_THRESH = 0
+    double f, cv::Point2d pp, int LENGTH_THRESH = 0, cv::Mat mask = cv::Mat()
 )
 {
     cv::Ptr<BinaryDescriptor> bd = BinaryDescriptor::createBinaryDescriptor();
@@ -97,17 +141,23 @@ void extract_lines_and_vps(
     
     // Detect lines using LSD
     vector<KeyLine> klsd;
-	lsd->detect(image, klsd, 2, 2);
+	lsd->detect(image, klsd, 2, 2, mask > 0);
     
     for (size_t i = 0; i < klsd.size(); i++) {
-		if (klsd[i].lineLength >= LENGTH_THRESH) {
+		cv::Point pt_s = cv::Point( klsd[i].startPointX, klsd[i].startPointY);
+		cv::Point pt_e = cv::Point( klsd[i].endPointX, klsd[i].endPointY);
+		cv::Point pt_m = ( pt_s + pt_e ) * 0.5;
+		if (
+			(klsd[i].lineLength >= LENGTH_THRESH) && 
+			(mask.at<uchar>((int)pt_m.y, (int)pt_m.x) > 0)
+		){
 			lines_klsd.push_back(klsd[i]);
 		}
 	}
 
 	ROS_INFO("Detected %d line segments", (int)lines_klsd.size());
 
-	if (lines_klsd.size() > 10){
+	if (lines_klsd.size() > 0){
 		// Compute binary descriptors
 		bd->compute(image, lines_klsd, lines_lsd_descr);
 
@@ -143,7 +193,8 @@ void extract_lines_and_vps(
 			}
 		}
 
-		drawClusters(image, lines_klsd, clusters);
+		// drawClusters(image, lines_klsd, clusters);
+		drawPlaneSegments(image, lines_klsd, clusters, mask);
 	}
 }
 

@@ -59,7 +59,7 @@ gyr_w: 1.62356e-08    # gyroscope bias random work noise standard deviation. ori
 g_norm: 9.80665        # gravity magnitude
 
 #unsynchronization parameters
-estimate_td: 0                  
+estimate_td: 1                  
 td: -0.03079132514112524        # initial value of time offset. unit: s. readed image clock + td = real image clock (IMU clock)
 
 #rolling shutter parameters
