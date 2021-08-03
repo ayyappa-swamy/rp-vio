@@ -3,6 +3,7 @@
 map<int, Vector4d> plane_params;
 vector<sensor_msgs::PointCloudConstPtr> mask_clouds;
 vector<nav_msgs::OdometryConstPtr> odometry_msgs;
+map<int, vector<Vector3d>> reg_points;
 
 void optimize_plane_params(
     map<int, Vector4d> &plane_params
@@ -148,6 +149,185 @@ void optimize_plane_params(
     std::cout << summary.BriefReport() << std::endl;
 }
 
+double z_min = 1000;
+
+void history_callback(
+    const sensor_msgs::PointCloudConstPtr &features_msg
+)
+{
+    // map<int, vector<Vector3d>> reg_points;
+
+    // Loop through all feature points
+    for(int fi = 0; fi < features_msg->points.size(); fi++) {
+        Vector3d fpoint;
+        geometry_msgs::Point32 p = features_msg->points[fi];
+        fpoint << p.x, p.y, p.z;
+
+        int plane_id = (int)features_msg->channels[0].values[fi];
+
+        reg_points[plane_id].push_back(fpoint);
+    }
+
+    visualization_msgs::Marker line_list;
+
+    line_list.header = features_msg->header;
+    // line_list.action = visualization_msgs::Marker::ADD;
+    line_list.pose.orientation.w = 1.0;
+
+    line_list.id = 2;
+    line_list.type = visualization_msgs::Marker::LINE_LIST;
+
+    // LINE_LIST markers use only the x component of scale, for the line width
+    line_list.scale.x = 0.5;
+
+    // Line list is green
+    line_list.color.g = 1.0;
+    line_list.color.a = 1.0;
+
+    sensor_msgs::PointCloud frame_cloud;
+    sensor_msgs::ChannelFloat32 p_ids;
+
+    // Fit planes ==> create map planeid vs. params
+    for (auto const& fpp: reg_points) {
+        Vector3d point_sum = Vector3d::Zero();
+        
+        double z_max = -1000;
+
+        for (int pti = 0; pti < fpp.second.size(); pti++) {
+            if (fpp.second[pti].norm() > 70)
+                continue;
+            
+            point_sum += fpp.second[pti];
+
+            if (fpp.second[pti].z() < z_min)
+                z_min = fpp.second[pti].z();
+
+            if (fpp.second[pti].z() > z_max)
+                z_max = fpp.second[pti].z();
+        }
+        
+        // Find mid point
+        Vector3d mid_point = point_sum / fpp.second.size();
+        ROS_INFO("mid_point (%d): (%f, %f, %f)", fpp.first, mid_point.x(), mid_point.y(), mid_point.z());
+
+        Vector3d far_point = mid_point;
+        double max_distance = 0.0;
+        // Find the farthest point from mid_point on ground
+        for (int pti = 0; pti < fpp.second.size(); pti++) {
+            Vector3d cur_point = fpp.second[pti];
+            double cur_distance = (cur_point.head<2>() - mid_point.head<2>()).norm();
+
+            if ((cur_distance > max_distance) && (cur_distance < 50)) {
+                far_point = cur_point;
+                max_distance = cur_distance;
+            }
+        }
+        ROS_INFO("far_point (%d): (%f, %f, %f)", fpp.first, far_point.x(), far_point.y(), far_point.z());
+
+        vector<geometry_msgs::Point> b_pts;
+
+        // 0: (y_min, z_min)
+        Vector3d bottom_left;
+        bottom_left << mid_point.x(), mid_point.y(), z_min;
+        geometry_msgs::Point bl_pt;
+        bl_pt.x = bottom_left(0);
+        bl_pt.y = bottom_left(1);
+        bl_pt.z = bottom_left(2);
+        b_pts.push_back(bl_pt);
+
+        // 1: (y_min, z_max)
+        Vector3d top_left;
+        top_left << mid_point.x(), mid_point.y(), z_max;
+        geometry_msgs::Point tl_pt;
+        tl_pt.x = top_left(0);
+        tl_pt.y = top_left(1);
+        tl_pt.z = top_left(2);
+        b_pts.push_back(tl_pt);
+
+        // 2: (y_max, z_max)
+        Vector3d top_right;
+        top_right << far_point.x(), far_point.y(), z_max;
+        geometry_msgs::Point tr_pt;
+        tr_pt.x = top_right(0);
+        tr_pt.y = top_right(1);
+        tr_pt.z = top_right(2);
+        b_pts.push_back(tr_pt);
+
+        // 3: (y_max, z_min)
+        Vector3d bottom_right;
+        bottom_right << far_point.x(), far_point.y(), z_min;
+        geometry_msgs::Point br_pt;
+        br_pt.x = bottom_right(0);
+        br_pt.y = bottom_right(1);
+        br_pt.z = bottom_right(2);
+        b_pts.push_back(br_pt);
+
+        double area = 0.0;
+        area = (bottom_left - top_left).norm() * (bottom_left - bottom_right).norm();
+
+        Vector3d x_axis(1, 0, 0);
+        Vector3d y_axis(0, 1, 0);
+
+        double x_angle = fabs((bottom_left - bottom_right).normalized().dot(x_axis));
+        double y_angle = fabs((bottom_left - bottom_right).normalized().dot(y_axis));
+
+        if ((area < 100) && (min(x_angle, y_angle) < 0.2))
+        {
+            // 0 -> 1
+            line_list.points.push_back(b_pts[0]);
+            line_list.points.push_back(b_pts[1]);
+
+            // 1 -> 2
+            line_list.points.push_back(b_pts[1]);
+            line_list.points.push_back(b_pts[2]);
+
+            // 2 -> 3
+            line_list.points.push_back(b_pts[2]);
+            line_list.points.push_back(b_pts[3]);
+
+            // 3 -> 0
+            line_list.points.push_back(b_pts[3]);
+            line_list.points.push_back(b_pts[0]);
+
+            // 0: (y_min, z_min)
+            geometry_msgs::Point32 bl_pt32;
+            bl_pt32.x = bl_pt.x;
+            bl_pt32.y = bl_pt.y;
+            bl_pt32.z = bl_pt.z;
+            frame_cloud.points.push_back(bl_pt32);
+            p_ids.values.push_back(fpp.first);
+
+            // 1: (y_min, z_max)
+            geometry_msgs::Point32 tl_pt32;
+            tl_pt32.x = tl_pt.x;
+            tl_pt32.y = tl_pt.y;
+            tl_pt32.z = tl_pt.z;
+            frame_cloud.points.push_back(tl_pt32);
+            p_ids.values.push_back(fpp.first);
+
+            // 2: (y_max, z_max)
+            geometry_msgs::Point32 tr_pt32;
+            tr_pt32.x = tr_pt.x;
+            tr_pt32.y = tr_pt.y;
+            tr_pt32.z = tr_pt.z;
+            frame_cloud.points.push_back(tr_pt32);
+            p_ids.values.push_back(fpp.first);
+
+            // 3: (y_max, z_min)
+            geometry_msgs::Point32 br_pt32;
+            br_pt32.x = br_pt.x;
+            br_pt32.y = br_pt.y;
+            br_pt32.z = br_pt.z;
+            frame_cloud.points.push_back(br_pt32);
+            p_ids.values.push_back(fpp.first);
+        }
+    }
+    
+    marker_pub.publish(line_list);
+    frame_cloud.channels.push_back(p_ids);
+    frame_pub.publish(frame_cloud);
+}
+
 void sync_callback(
     const sensor_msgs::PointCloudConstPtr &features_msg,
     const sensor_msgs::PointCloudConstPtr &mask_cloud,
@@ -170,11 +350,11 @@ void sync_callback(
 
     // Fit planes ==> create map planeid vs. params
     for (auto const& fpp: reg_points) {
-        if (
-            (fpp.first == 162) ||
-            (fpp.first == 66)
-        )
-            continue;
+        // if (
+        //     (fpp.first == 162) ||
+        //     (fpp.first == 66)
+        // )
+        //     continue;
 
         MatrixXd pts_mat(fpp.second.size(), 3);
     
@@ -241,21 +421,23 @@ int main(int argc, char **argv)
     ros::console::set_logger_level(ROSCONSOLE_DEFAULT_NAME, ros::console::levels::Info);
     readParameters(n);
 
-    message_filters::Subscriber<sensor_msgs::PointCloud> sub_feature_cloud(n, "/rpvio_estimator/point_cloud", 2);
-    message_filters::Subscriber<sensor_msgs::PointCloud> sub_mask_cloud(n, "/rpvio_feature_tracker/mask_cloud", 1);
-    message_filters::Subscriber<nav_msgs::Odometry> sub_odometry(n, "/rpvio_estimator/odometry", 2);
+    // message_filters::Subscriber<sensor_msgs::PointCloud> sub_feature_cloud(n, "/rpvio_estimator/history_cloud", 2);
+    // message_filters::Subscriber<sensor_msgs::PointCloud> sub_mask_cloud(n, "/rpvio_feature_tracker/mask_cloud", 1);
+    // message_filters::Subscriber<nav_msgs::Odometry> sub_odometry(n, "/rpvio_estimator/odometry", 2);
 
-    message_filters::TimeSynchronizer<sensor_msgs::PointCloud, sensor_msgs::PointCloud, nav_msgs::Odometry> sync(
-        sub_feature_cloud,
-        sub_mask_cloud,
-        sub_odometry,
-        5
-    );
-    sync.registerCallback(boost::bind(&sync_callback, _1, _2, _3));
+    // message_filters::TimeSynchronizer<sensor_msgs::PointCloud, sensor_msgs::PointCloud, nav_msgs::Odometry> sync(
+    //     sub_feature_cloud,
+    //     sub_mask_cloud,
+    //     sub_odometry,
+    //     5
+    // );
+    // sync.registerCallback(boost::bind(&sync_callback, _1, _2, _3));
 
-    pub_plane_cloud = n.advertise<sensor_msgs::PointCloud>("plane_cloud", 1);
-    marker_pub = n.advertise<visualization_msgs::Marker>("visualization_marker", 1);
-    frame_pub = n.advertise<sensor_msgs::PointCloud>("frame_cloud", 1);
+    ros::Subscriber sub_history_cloud = n.subscribe("/rpvio_estimator/history_cloud", 100, history_callback);
+
+    // pub_plane_cloud = n.advertise<sensor_msgs::PointCloud>("plane_cloud", 1);
+    marker_pub = n.advertise<visualization_msgs::Marker>("visualization_marker", 10);
+    frame_pub = n.advertise<sensor_msgs::PointCloud>("frame_cloud", 10);
 
     ros::spin();
 

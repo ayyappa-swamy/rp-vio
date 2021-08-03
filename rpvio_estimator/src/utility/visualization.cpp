@@ -857,6 +857,7 @@ void pubPointCloud(Estimator &estimator, const std_msgs::Header &header)
     // pub margined potin
     sensor_msgs::PointCloud margin_cloud;
     margin_cloud.header = header;
+    sensor_msgs::ChannelFloat32 plane_ids_ch2; 
 
     for (auto &it_per_id : estimator.f_manager.feature)
     { 
@@ -879,8 +880,10 @@ void pubPointCloud(Estimator &estimator, const std_msgs::Header &header)
             p.y = w_pts_i(1);
             p.z = w_pts_i(2);
             margin_cloud.points.push_back(p);
+            plane_ids_ch2.values.push_back(it_per_id.plane_id);
         }
     }
+    margin_cloud.channels.push_back(plane_ids_ch2);
     pub_margin_cloud.publish(margin_cloud);
 }
 

@@ -21,7 +21,7 @@
     <param name="rpvio_folder" type="string" value="$(arg rpvio_path)" />
   </node>
 
-  <node name="rpvio_estimator" pkg="rpvio_estimator" type="rpvio_estimator" output="log">
+  <node name="rpvio_estimator" pkg="rpvio_estimator" type="rpvio_estimator" output="screen">
     <param name="config_file" type="string" value="$(arg config_path)" />
     <param name="rpvio_folder" type="string" value="$(arg rpvio_path)" />
   </node>
