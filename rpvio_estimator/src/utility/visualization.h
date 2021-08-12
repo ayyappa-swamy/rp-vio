@@ -5,7 +5,17 @@
 #include <std_msgs/Float32.h>
 #include <std_msgs/Bool.h>
 #include <sensor_msgs/Imu.h>
+
+
+#include <sensor_msgs/PointCloud2.h>
+// #include <pcl_conversions/pcl_conversions.h>
+// #include <pcl/point_cloud.h>
+// #include <pcl/point_types.h>
+
 #include <sensor_msgs/PointCloud.h>
+#include <sensor_msgs/point_cloud_conversion.h>
+
+
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/image_encodings.h>
 #include <nav_msgs/Path.h>

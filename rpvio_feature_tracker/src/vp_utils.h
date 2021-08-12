@@ -194,7 +194,7 @@ void extract_lines_and_vps(
 		}
 
 		// drawClusters(image, lines_klsd, clusters);
-		drawPlaneSegments(image, lines_klsd, clusters, mask);
+		// drawPlaneSegments(image, lines_klsd, clusters, mask);
 	}
 }
 

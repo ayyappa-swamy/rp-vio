@@ -313,7 +313,7 @@ void callback(const sensor_msgs::ImageConstPtr &img_msg, const sensor_msgs::Imag
                         //     }
                         // }
 
-            for (int ppi = 0; ppi < unique_pids_vec.size(); ppi++) {
+            /*for (int ppi = 0; ppi < unique_pids_vec.size(); ppi++) {
                 int mid = unique_pids_vec[ppi];
                 // ROS_INFO("||||||||||||| ID = %d |||||||||||||||||||||||||", mid);
                 if (
@@ -366,7 +366,7 @@ void callback(const sensor_msgs::ImageConstPtr &img_msg, const sensor_msgs::Imag
                     cv::Mat binMask(ROW, COL, CV_8UC1, cv::Scalar(0));
                     // cv::Mat bgr[3];
                     // cv::split(mask_viz, bgr);
-                    binMask.setTo(cv::Scalar(255), mask_filled);
+                    binMask.setTo(cv::Scalar(255), mask_contour);
                     // cv::threshold(bgr[1], binMask, 100, 255, CV_THRESH_BINARY);
 
                     // if (mid == largest_pid) {
@@ -450,14 +450,14 @@ void callback(const sensor_msgs::ImageConstPtr &img_msg, const sensor_msgs::Imag
                     // }
                 }
                 }
-            }
+            }*/
 
-            mask_cloud.channels.push_back(colors);
-            mask_cloud.channels.push_back(mask_ids);
+            // mask_cloud.channels.push_back(colors);
+            // mask_cloud.channels.push_back(mask_ids);
             //cv::imshow("vis", stereo_img);
             //cv::waitKey(5);
             pub_match.publish(ptr->toImageMsg());
-            pub_mask_cloud.publish(mask_cloud);
+            // pub_mask_cloud.publish(mask_cloud);
         }
     }
     ROS_INFO("whole feature tracker processing costs: %f", t_r.toc());

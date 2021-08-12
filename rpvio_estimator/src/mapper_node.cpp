@@ -149,13 +149,14 @@ void optimize_plane_params(
     std::cout << summary.BriefReport() << std::endl;
 }
 
-double z_min = 1000;
+double z_min = 0;
 
 void history_callback(
     const sensor_msgs::PointCloudConstPtr &features_msg
 )
 {
     // map<int, vector<Vector3d>> reg_points;
+    visualization_msgs::Marker line_list;
 
     // Loop through all feature points
     for(int fi = 0; fi < features_msg->points.size(); fi++) {
@@ -168,7 +169,6 @@ void history_callback(
         reg_points[plane_id].push_back(fpoint);
     }
 
-    visualization_msgs::Marker line_list;
 
     line_list.header = features_msg->header;
     // line_list.action = visualization_msgs::Marker::ADD;
@@ -189,18 +189,52 @@ void history_callback(
 
     // Fit planes ==> create map planeid vs. params
     for (auto const& fpp: reg_points) {
+        MatrixXd pts_mat(fpp.second.size(), 3);
+        MatrixXd plane_residuals(fpp.second.size(), 1);
+    
+        for (int pti = 0; pti < fpp.second.size(); pti++) {
+            pts_mat.row(pti) = fpp.second[pti].normalized().transpose();
+        }
+
+        // find svd
+        Vector3d params;
+        Eigen::JacobiSVD<MatrixXd> pt_svd(pts_mat, Eigen::ComputeFullU | Eigen::ComputeFullV);
+        params = pt_svd.matrixV().col(pt_svd.matrixV().cols() - 1);
+        params.normalize();
+
+        // Vector4d info = covariance_matrix(pts_mat).diagonal().tail(4);
+        Vector3d pn;
+        pn << params(0), params(1), 0;
+        double mag = pn.norm();
+        pn.normalize();
+        
+        Vector4d params_;
+        params_ << pn(0), pn(1), pn(2), params(2)/mag;
+
+        Vector3d params_dir;
+        params_dir << params_(0), params_(1), params_(3);
+        params_dir.normalize();
+
+        plane_residuals = (pts_mat * params_dir).col(0);
+        double variance = 0.0;
+
+        for (int pti = 0; pti < fpp.second.size(); pti++) {
+            if (fabs(plane_residuals(pti)) > variance)
+                variance = fabs(plane_residuals(pti));
+        }
+
         Vector3d point_sum = Vector3d::Zero();
         
         double z_max = -1000;
 
         for (int pti = 0; pti < fpp.second.size(); pti++) {
-            if (fpp.second[pti].norm() > 70)
-                continue;
+            // if (fpp.second[pti].norm() > 200)
+            //     continue;
             
             point_sum += fpp.second[pti];
 
-            if (fpp.second[pti].z() < z_min)
-                z_min = fpp.second[pti].z();
+            // if (fpp.second[pti].z() < z_min)
+            //     z_min = fpp.second[pti].z();
 
             if (fpp.second[pti].z() > z_max)
                 z_max = fpp.second[pti].z();
@@ -208,7 +242,7 @@ void history_callback(
         
         // Find mid point
         Vector3d mid_point = point_sum / fpp.second.size();
-        ROS_INFO("mid_point (%d): (%f, %f, %f)", fpp.first, mid_point.x(), mid_point.y(), mid_point.z());
+        ROS_INFO("variance for mid_point (%d): (%f, %f, %f) is %f", fpp.first, mid_point.x(), mid_point.y(), mid_point.z(), variance);
 
         Vector3d far_point = mid_point;
         double max_distance = 0.0;
@@ -217,18 +251,27 @@ void history_callback(
             Vector3d cur_point = fpp.second[pti];
             double cur_distance = (cur_point.head<2>() - mid_point.head<2>()).norm();
 
-            if ((cur_distance > max_distance) && (cur_distance < 50)) {
+            if ((cur_distance > max_distance) && (cur_distance < 100)) {
                 far_point = cur_point;
                 max_distance = cur_distance;
             }
         }
         ROS_INFO("far_point (%d): (%f, %f, %f)", fpp.first, far_point.x(), far_point.y(), far_point.z());
 
+        Vector3d x_axis(1, 0, 0);
+        Vector3d y_axis(0, 1, 0);
+
+        double x_angle = fabs((mid_point - far_point).normalized().dot(x_axis));
+        double y_angle = fabs((mid_point - far_point).normalized().dot(y_axis));
+
+        Vector3d dir = (x_angle > y_angle) ? x_axis : y_axis;
+
         vector<geometry_msgs::Point> b_pts;
 
         // 0: (y_min, z_min)
         Vector3d bottom_left;
         bottom_left << mid_point.x(), mid_point.y(), z_min;
+        bottom_left = bottom_left - (max_distance * dir);
         geometry_msgs::Point bl_pt;
         bl_pt.x = bottom_left(0);
         bl_pt.y = bottom_left(1);
@@ -237,7 +280,8 @@ void history_callback(
 
         // 1: (y_min, z_max)
         Vector3d top_left;
-        top_left << mid_point.x(), mid_point.y(), z_max;
+        top_left << mid_point.x(), mid_point.y(), z_max+5;
+        top_left = top_left - (max_distance * dir);
         geometry_msgs::Point tl_pt;
         tl_pt.x = top_left(0);
         tl_pt.y = top_left(1);
@@ -246,7 +290,8 @@ void history_callback(
 
         // 2: (y_max, z_max)
         Vector3d top_right;
-        top_right << far_point.x(), far_point.y(), z_max;
+        top_right << mid_point.x(), mid_point.y(), z_max+5;
+        top_right = top_right + (max_distance * dir);
         geometry_msgs::Point tr_pt;
         tr_pt.x = top_right(0);
         tr_pt.y = top_right(1);
@@ -255,7 +300,8 @@ void history_callback(
 
         // 3: (y_max, z_min)
         Vector3d bottom_right;
-        bottom_right << far_point.x(), far_point.y(), z_min;
+        bottom_right << mid_point.x(), mid_point.y(), z_min;
+        bottom_right = bottom_right + (max_distance * dir);
         geometry_msgs::Point br_pt;
         br_pt.x = bottom_right(0);
         br_pt.y = bottom_right(1);
@@ -265,13 +311,7 @@ void history_callback(
         double area = 0.0;
         area = (bottom_left - top_left).norm() * (bottom_left - bottom_right).norm();
 
-        Vector3d x_axis(1, 0, 0);
-        Vector3d y_axis(0, 1, 0);
-
-        double x_angle = fabs((bottom_left - bottom_right).normalized().dot(x_axis));
-        double y_angle = fabs((bottom_left - bottom_right).normalized().dot(y_axis));
-
-        if ((area < 100) && (min(x_angle, y_angle) < 0.2))
+        if (area < 30)
         {
             // 0 -> 1
             line_list.points.push_back(b_pts[0]);
@@ -373,11 +413,19 @@ void sync_callback(
         pn << params(0), params(1), 0;
         double mag = pn.norm();
         pn.normalize();
+
+        Vector3d x_axis(1, 0, 0);
+        Vector3d y_axis(0, 1, 0);
+
+        double x_angle = fabs(pn.dot(x_axis));
+        double y_angle = fabs(pn.dot(y_axis));
+
+        pn = (x_angle > y_angle) ? x_axis : y_axis;
         
         Vector4d params_;
         params_ << pn(0), pn(1), pn(2), params(2)/mag;
 
-        if (fabs(params_(3)) < 70.0) { // To filter bad measurements 
+        if (fabs(params_(3)) < 100.0) { // To filter bad measurements 
             // store plane params
             plane_measurements[fpp.first].push_back(params_.normalized());
 
@@ -433,9 +481,9 @@ int main(int argc, char **argv)
     // );
     // sync.registerCallback(boost::bind(&sync_callback, _1, _2, _3));
 
-    ros::Subscriber sub_history_cloud = n.subscribe("/rpvio_estimator/history_cloud", 100, history_callback);
+    ros::Subscriber sub_history_cloud = n.subscribe("/rpvio_estimator/point_cloud", 100, history_callback);
 
-    // pub_plane_cloud = n.advertise<sensor_msgs::PointCloud>("plane_cloud", 1);
+    pub_plane_cloud = n.advertise<sensor_msgs::PointCloud>("plane_cloud", 1);
     marker_pub = n.advertise<visualization_msgs::Marker>("visualization_marker", 10);
     frame_pub = n.advertise<sensor_msgs::PointCloud>("frame_cloud", 10);
 
