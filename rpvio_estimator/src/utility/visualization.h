@@ -29,14 +29,15 @@
 #include "../parameters.h"
 #include "utility.h"
 #include <fstream>
+#include <string>
 
-extern ros::Publisher pub_odometry;
+extern ros::Publisher pub_odometry, pub_gt_odometry;
 extern ros::Publisher pub_path, pub_pose;
 extern ros::Publisher pub_cloud, pub_map;
 extern ros::Publisher pub_key_poses;
 extern ros::Publisher pub_ref_pose, pub_cur_pose;
 extern ros::Publisher pub_key;
-extern nav_msgs::Path path;
+extern nav_msgs::Path path, gt_path;
 extern ros::Publisher pub_pose_graph;
 extern int IMAGE_ROW, IMAGE_COL;
 
@@ -61,5 +62,7 @@ void pubTF(const Estimator &estimator, const std_msgs::Header &header);
 void pubKeyframe(const Estimator &estimator);
 
 void pubRelocalization(const Estimator &estimator);
+
+void pubGroundTruth(Estimator &estimator, const std_msgs::Header &header);
 
 MatrixXd covariance_matrix(MatrixXd data);

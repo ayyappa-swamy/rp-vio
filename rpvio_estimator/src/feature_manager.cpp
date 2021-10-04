@@ -292,7 +292,12 @@ void FeatureManager::triangulate(Vector3d Ps[], Vector3d tic[], Matrix3d ric[])
                 continue;
         }
         ROS_ASSERT(svd_idx == svd_A.rows());
-        Eigen::Vector4d svd_V = Eigen::JacobiSVD<Eigen::MatrixXd>(svd_A, Eigen::ComputeThinV).matrixV().rightCols<1>();
+        Eigen::JacobiSVD<Eigen::MatrixXd> svd(svd_A, Eigen::ComputeThinU | Eigen::ComputeThinV);
+        Eigen::MatrixXd psuedo_A_inv = svd.matrixV() * svd.singularValues().asDiagonal().inverse() * svd.matrixU().transpose();
+        // ROS_INFO("pseudo_A_inv rows: %d, cols: %d", psuedo_A_inv.rows(), psuedo_A_inv.cols());
+        Eigen::MatrixXd covarianceMat = Eigen::MatrixXd::Zero(4, 4);
+
+        Eigen::Vector4d svd_V = svd.matrixV().rightCols<1>();
         double svd_method = svd_V[2] / svd_V[3];
         //it_per_id->estimated_depth = -b / A;
         //it_per_id->estimated_depth = svd_V[2] / svd_V[3];
@@ -300,11 +305,90 @@ void FeatureManager::triangulate(Vector3d Ps[], Vector3d tic[], Matrix3d ric[])
         it_per_id.estimated_depth = svd_method;
         //it_per_id->estimated_depth = INIT_DEPTH;
 
+        // Compute the uncertainity
+        imu_j = imu_i - 1;
+        svd_idx = 0;
+        for (auto &it_per_frame : it_per_id.feature_per_frame)
+        {
+            imu_j++;
+
+            Eigen::Vector3d t1 = Ps[imu_j] + Rs[imu_j] * tic[0];
+            Eigen::Matrix3d R1 = Rs[imu_j] * ric[0];
+            Eigen::Vector3d t = R0.transpose() * (t1 - t0);
+            Eigen::Matrix3d R = R0.transpose() * R1;
+            Eigen::Matrix<double, 3, 4> P;
+            P.leftCols<3>() = R.transpose();
+            P.rightCols<1>() = -R.transpose() * t;
+
+            Eigen::Matrix2d B = Eigen::Matrix2d::Identity();
+            double b_val = P.row(2).dot(svd_V);
+            B = b_val * B;
+            Eigen::MatrixXd psuedo_a_inv = psuedo_A_inv.block<4, 2>(0, svd_idx*2);
+            svd_idx++;
+            covarianceMat = covarianceMat + (psuedo_a_inv * B * B.transpose() * psuedo_a_inv.transpose());
+        }
+
+        covarianceMat = covarianceMat / it_per_id.feature_per_frame.size();
+
+        it_per_id.estimated_covariance = covarianceMat.diagonal().hnormalized()[2];
+        // ROS_INFO("covariance is %lf", it_per_id.estimated_covariance);
         if (it_per_id.estimated_depth < 0.1)
         {
             it_per_id.estimated_depth = INIT_DEPTH;
         }
 
+    }
+}
+
+void FeatureManager::triangulateGT(Vector3d Ps_gt[], Matrix3d Rs_gt[], Vector3d tic[], Matrix3d ric[])
+{
+    for (auto &it_per_id : feature)
+    {
+        it_per_id.used_num = it_per_id.feature_per_frame.size();
+        if (!(it_per_id.used_num >= 2 && it_per_id.start_frame < WINDOW_SIZE - 2))
+            continue;
+
+        if (it_per_id.gt_depth > 0)
+            continue;
+
+        int imu_i = it_per_id.start_frame, imu_j = imu_i - 1;
+
+        ROS_ASSERT(NUM_OF_CAM == 1);
+        Eigen::MatrixXd svd_A(2 * it_per_id.feature_per_frame.size(), 4);
+        int svd_idx = 0;
+
+        Eigen::Matrix<double, 3, 4> P0;
+        Eigen::Vector3d t0 = Ps_gt[imu_i] + Rs_gt[imu_i] * tic[0];
+        Eigen::Matrix3d R0 = Rs_gt[imu_i] * ric[0];
+        P0.leftCols<3>() = Eigen::Matrix3d::Identity();
+        P0.rightCols<1>() = Eigen::Vector3d::Zero();
+
+        for (auto &it_per_frame : it_per_id.feature_per_frame)
+        {
+            imu_j++;
+
+            Eigen::Vector3d t1 = Ps_gt[imu_j] + Rs_gt[imu_j] * tic[0];
+            Eigen::Matrix3d R1 = Rs_gt[imu_j] * ric[0];
+            Eigen::Vector3d t = R0.transpose() * (t1 - t0);
+            Eigen::Matrix3d R = R0.transpose() * R1;
+            Eigen::Matrix<double, 3, 4> P;
+            P.leftCols<3>() = R.transpose();
+            P.rightCols<1>() = -R.transpose() * t;
+            Eigen::Vector3d f = it_per_frame.point.normalized();
+            svd_A.row(svd_idx++) = f[0] * P.row(2) - f[2] * P.row(0);
+            svd_A.row(svd_idx++) = f[1] * P.row(2) - f[2] * P.row(1);
+
+            if (imu_i == imu_j)
+                continue;
+        }
+        ROS_ASSERT(svd_idx == svd_A.rows());
+        Eigen::JacobiSVD<Eigen::MatrixXd> svd(svd_A, Eigen::ComputeThinU | Eigen::ComputeThinV);
+        Eigen::MatrixXd psuedo_A_inv = svd.matrixV() * svd.singularValues().asDiagonal().inverse() * svd.matrixU().transpose();
+
+        Eigen::Vector4d svd_V = svd.matrixV().rightCols<1>();
+        double svd_method = svd_V[2] / svd_V[3];
+
+        it_per_id.gt_depth = svd_method;
     }
 }
 

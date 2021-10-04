@@ -52,6 +52,9 @@ class FeaturePerId
     bool is_outlier;
     bool is_margin;
     double estimated_depth;
+    double gt_depth;
+    double estimated_covariance;
+    Vector3d covariances;
     int solve_flag; // 0 haven't solve yet; 1 solve succ; 2 solve fail;
 
     Vector3d gt_p;
@@ -89,6 +92,7 @@ class FeatureManager
     void clearDepth(const VectorXd &x);
     VectorXd getDepthVector();
     void triangulate(Vector3d Ps[], Vector3d tic[], Matrix3d ric[]);
+    void triangulateGT(Vector3d Ps[], Matrix3d Rs[], Vector3d tic[], Matrix3d ric[]);
     void removeBackShiftDepth(Eigen::Matrix3d marg_R, Eigen::Vector3d marg_P, Eigen::Matrix3d new_R, Eigen::Vector3d new_P);
     void removeBack();
     void removeFront(int frame_count);

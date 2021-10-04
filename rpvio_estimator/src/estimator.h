@@ -8,6 +8,7 @@
 #include "initial/initial_sfm.h"
 #include "initial/initial_alignment.h"
 #include "initial/initial_ex_rotation.h"
+#include <ros/ros.h>
 #include <std_msgs/Header.h>
 #include <std_msgs/Float32.h>
 #include <sensor_msgs/PointCloud.h>
@@ -21,6 +22,12 @@
 #include "factor/homography_factor.h"
 // #include "factor/incident_plane_factor.h"
 // #include "factor/orthogonal_plane_factor.h"
+
+#include <iostream>
+#include <fstream>
+#include <string>
+#include <sstream>
+#include <map>
 
 #include <unordered_map>
 #include <queue>
@@ -55,6 +62,9 @@ class Estimator
     void double2vector();
     bool failureDetection();
 
+    void readGroundTruthFile();
+    void readTimeSyncFile();
+    void loadGroundTruth();
 
     enum SolverFlag
     {
@@ -151,4 +161,22 @@ class Estimator
     Vector3d relo_relative_t;
     Quaterniond relo_relative_q;
     double relo_relative_yaw;
+
+    // variables for ground truth
+    int SKIP;
+    int gt_counter;
+
+    Quaterniond baseRgt;
+    Vector3d baseTgt;
+    
+    bool isBaseComputed;
+    bool isGroundTruthInitialized;
+
+    Vector3d Ps_gt[(WINDOW_SIZE + 1)];
+    Matrix3d Rs_gt[(WINDOW_SIZE + 1)];
+
+    map<string, Vector3d> mgt_translations;
+    map<string, Quaterniond> mgt_rotations;
+
+    map<string, string> mBagTime_to_gtTime;
 };

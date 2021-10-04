@@ -336,6 +336,7 @@ void process()
             if (relo_msg != NULL)
                 pubRelocalization(estimator);
             //ROS_ERROR("end: %f, at %f", img_msg->header.stamp.toSec(), ros::Time::now().toSec());
+            pubGroundTruth(estimator, header);
         }
         m_estimator.unlock();
         m_buf.lock();
@@ -369,6 +370,7 @@ int main(int argc, char **argv)
 
     // init_mapper_node(argc, argv);
 
+    estimator.loadGroundTruth();
     std::thread measurement_process{process};
     ros::spin();
 

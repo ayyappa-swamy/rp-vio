@@ -19,6 +19,7 @@ int ESTIMATE_TD;
 int ROLLING_SHUTTER;
 std::string EX_CALIB_RESULT_PATH;
 std::string RPVIO_RESULT_PATH;
+std::string RPVIO_GT_PATH;
 std::string IMU_TOPIC;
 double ROW, COL;
 double TD, TR;
@@ -60,6 +61,11 @@ void readParameters(ros::NodeHandle &n)
     fsSettings["output_path"] >> OUTPUT_PATH;
     RPVIO_RESULT_PATH = OUTPUT_PATH + "/rpvio_result_no_loop.csv";
     std::cout << "result path " << RPVIO_RESULT_PATH << std::endl;
+
+    std::string GROUND_TRUTH_PATH;
+    fsSettings["gt_path"] >> GROUND_TRUTH_PATH;
+    RPVIO_GT_PATH = GROUND_TRUTH_PATH;
+    std::cout << "ground truth path " << RPVIO_GT_PATH << std::endl;
 
     // create folder if not exists
     FileSystemHelper::createDirectoryIfNotExists(OUTPUT_PATH.c_str());

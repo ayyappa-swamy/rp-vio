@@ -66,6 +66,10 @@ void processMaskMessage(const sensor_msgs::ImageConstPtr &input_mask_msg, cv::Ma
             output_mask.at<uchar>(i, j) = rgb2code(colors[0], colors[1], colors[2]);
         }
     }
+        
+    // cv::imshow("output mask", output_mask);
+    // cv::waitKey(0);
+    // cv::destroyAllWindows();
 }
 
 void callback(const sensor_msgs::ImageConstPtr &img_msg, const sensor_msgs::ImageConstPtr &mask_msg)

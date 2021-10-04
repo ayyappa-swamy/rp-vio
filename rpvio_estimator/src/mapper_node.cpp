@@ -3,7 +3,35 @@
 map<int, Vector4d> plane_params;
 vector<sensor_msgs::PointCloudConstPtr> mask_clouds;
 vector<nav_msgs::OdometryConstPtr> odometry_msgs;
-map<int, vector<Vector3d>> reg_points;
+// map<int, vector<Vector3d>> reg_points;
+
+map<int, Vector4d> gt_params;
+
+void read_gt_plane_params()
+{
+    std::string GT_FILE_PATH = RPVIO_GT_PATH + "gt_params.txt";
+    ifstream gt_file(GT_FILE_PATH);
+    std::string line;
+	
+	if (gt_file.is_open())
+	{	
+		while(getline(gt_file, line))
+		{
+			stringstream line_stream(line);
+			int pid;
+            double a, b, c, d;
+
+			line_stream >> pid >> a >> b >> c >> d;
+
+            gt_params[pid] = Vector4d(a, b, c, d);
+		}
+	}
+	else cout << "Unable to open ground truth file: " << RPVIO_GT_PATH << endl;
+
+	cout << "Number of planes are " << to_string(gt_params.size()) << endl;
+
+    gt_file.close();
+}
 
 void optimize_plane_params(
     map<int, Vector4d> &plane_params
@@ -155,7 +183,7 @@ void history_callback(
     const sensor_msgs::PointCloudConstPtr &features_msg
 )
 {
-    // map<int, vector<Vector3d>> reg_points;
+    map<int, vector<Vector3d>> reg_points;
     visualization_msgs::Marker line_list;
 
     // Loop through all feature points
@@ -178,7 +206,7 @@ void history_callback(
     line_list.type = visualization_msgs::Marker::LINE_LIST;
 
     // LINE_LIST markers use only the x component of scale, for the line width
-    line_list.scale.x = 0.5;
+    line_list.scale.x = 0.3;
 
     // Line list is green
     line_list.color.g = 1.0;
@@ -190,38 +218,38 @@ void history_callback(
     // Fit planes ==> create map planeid vs. params
     for (auto const& fpp: reg_points) {
         MatrixXd pts_mat(fpp.second.size(), 3);
-        MatrixXd plane_residuals(fpp.second.size(), 1);
+        // MatrixXd plane_residuals(fpp.second.size(), 1);
     
         for (int pti = 0; pti < fpp.second.size(); pti++) {
-            pts_mat.row(pti) = fpp.second[pti].normalized().transpose();
+            pts_mat.row(pti) = fpp.second[pti].homogeneous().transpose();
         }
 
         // find svd
-        Vector3d params;
+        Vector4d params;
         Eigen::JacobiSVD<MatrixXd> pt_svd(pts_mat, Eigen::ComputeFullU | Eigen::ComputeFullV);
         params = pt_svd.matrixV().col(pt_svd.matrixV().cols() - 1);
         params.normalize();
 
-        // Vector4d info = covariance_matrix(pts_mat).diagonal().tail(4);
+        // // Vector4d info = covariance_matrix(pts_mat).diagonal().tail(4);
         Vector3d pn;
         pn << params(0), params(1), 0;
         double mag = pn.norm();
         pn.normalize();
         
-        Vector4d params_;
-        params_ << pn(0), pn(1), pn(2), params(2)/mag;
+        // Vector4d params_;
+        // params_ << pn(0), pn(1), pn(2), params(2)/mag;
 
-        Vector3d params_dir;
-        params_dir << params_(0), params_(1), params_(3);
-        params_dir.normalize();
+        // Vector3d params_dir;
+        // params_dir << params_(0), params_(1), params_(3);
+        // params_dir.normalize();
 
-        plane_residuals = (pts_mat * params_dir).col(0);
-        double variance = 0.0;
+        // plane_residuals = (pts_mat * params_dir).col(0);
+        // double variance = 0.0;
 
-        for (int pti = 0; pti < fpp.second.size(); pti++) {
-            if (fabs(plane_residuals(pti)) > variance)
-                variance = fabs(plane_residuals(pti));
-        }
+        // for (int pti = 0; pti < fpp.second.size(); pti++) {
+        //     if (fabs(plane_residuals(pti)) > variance)
+        //         variance = fabs(plane_residuals(pti));
+        // }
 
         Vector3d point_sum = Vector3d::Zero();
         
@@ -242,7 +270,7 @@ void history_callback(
         
         // Find mid point
         Vector3d mid_point = point_sum / fpp.second.size();
-        ROS_INFO("variance for mid_point (%d): (%f, %f, %f) is %f", fpp.first, mid_point.x(), mid_point.y(), mid_point.z(), variance);
+        // ROS_INFO("variance for mid_point (%d): (%f, %f, %f) is %f", fpp.first, mid_point.x(), mid_point.y(), mid_point.z(), variance);
 
         Vector3d far_point = mid_point;
         double max_distance = 0.0;
@@ -265,6 +293,7 @@ void history_callback(
         double y_angle = fabs((mid_point - far_point).normalized().dot(y_axis));
 
         Vector3d dir = (x_angle > y_angle) ? x_axis : y_axis;
+        // Vector3d dir = (far_point - mid_point).normalized();
 
         vector<geometry_msgs::Point> b_pts;
 
@@ -280,7 +309,7 @@ void history_callback(
 
         // 1: (y_min, z_max)
         Vector3d top_left;
-        top_left << mid_point.x(), mid_point.y(), z_max+5;
+        top_left << mid_point.x(), mid_point.y(), z_max;
         top_left = top_left - (max_distance * dir);
         geometry_msgs::Point tl_pt;
         tl_pt.x = top_left(0);
@@ -290,7 +319,7 @@ void history_callback(
 
         // 2: (y_max, z_max)
         Vector3d top_right;
-        top_right << mid_point.x(), mid_point.y(), z_max+5;
+        top_right << mid_point.x(), mid_point.y(), z_max;
         top_right = top_right + (max_distance * dir);
         geometry_msgs::Point tr_pt;
         tr_pt.x = top_right(0);
@@ -311,7 +340,7 @@ void history_callback(
         double area = 0.0;
         area = (bottom_left - top_left).norm() * (bottom_left - bottom_right).norm();
 
-        if (area < 30)
+        if (max_distance*2 < 5)
         {
             // 0 -> 1
             line_list.points.push_back(b_pts[0]);
@@ -366,6 +395,162 @@ void history_callback(
     marker_pub.publish(line_list);
     frame_cloud.channels.push_back(p_ids);
     frame_pub.publish(frame_cloud);
+}
+
+void history_callback2(
+    const sensor_msgs::PointCloudConstPtr &features_msg
+)
+{
+    map<int, vector<Vector3d>> reg_points;
+    visualization_msgs::Marker line_list;
+    visualization_msgs::MarkerArray ma;
+
+    std::string GT_FILE_PATH = RPVIO_GT_PATH + "error_params.txt";
+    ofstream errors_file(GT_FILE_PATH, std::fstream::out | std::fstream::app);    
+
+    // Loop through all feature points
+    for(int fi = 0; fi < features_msg->points.size(); fi++) {
+        Vector3d fpoint;
+        geometry_msgs::Point32 p = features_msg->points[fi];
+        fpoint << p.x, p.y, p.z;
+
+        int plane_id = (int)features_msg->channels[0].values[fi];
+
+        reg_points[plane_id].push_back(fpoint);
+    }
+
+
+    line_list.header = features_msg->header;
+    // line_list.action = visualization_msgs::Marker::ADD;
+    line_list.pose.orientation.w = 1.0;
+
+    line_list.id = 2;
+    line_list.type = visualization_msgs::Marker::LINE_LIST;
+
+    // LINE_LIST markers use only the x component of scale, for the line width
+    line_list.scale.x = 0.3;
+
+    // Line list is green
+    line_list.color.g = 1.0;
+    line_list.color.a = 1.0;
+
+    sensor_msgs::PointCloud frame_cloud;
+    sensor_msgs::ChannelFloat32 p_ids;
+
+    // Fit planes ==> create map planeid vs. params
+    for (auto const& fpp: reg_points) {
+        MatrixXd pts_mat(fpp.second.size(), 4);
+        Vector3d point_sum = Vector3d::Zero();
+        Vector3d mid_point = Vector3d::Zero();
+    
+        for (int pti = 0; pti < fpp.second.size(); pti++) {
+            Vector3d pt = fpp.second[pti];
+            // pt.z = 0.0;
+            pts_mat.row(pti) = pt.homogeneous().transpose();
+            pt[2] = 0.0;
+            point_sum += pt;
+        }
+        mid_point = point_sum / fpp.second.size();
+
+        // find svd
+        Vector4d params;
+        Eigen::JacobiSVD<MatrixXd> pt_svd(pts_mat, Eigen::ComputeFullU | Eigen::ComputeFullV);
+        params = pt_svd.matrixV().col(pt_svd.matrixV().cols() - 1);
+        params.normalize();
+
+        // // Vector4d info = covariance_matrix(pts_mat).diagonal().tail(4);
+        Vector3d pn;
+        pn << params(0), params(1), params(2);
+        double mag = pn.norm();
+        pn.normalize();
+
+        // align the plane normal with vanishing point directions
+        Vector3d x_axis(1, 0, 0);
+        Vector3d y_axis(0, 1, 0);
+
+        double x_angle = pn.dot(x_axis);
+        double y_angle = pn.dot(y_axis);
+
+        Vector3d normal_dir = (x_angle > y_angle) ? x_axis : y_axis;
+        Vector3d plane_dir = (x_angle > y_angle) ? y_axis : x_axis;
+
+        Vector4d params_;
+        params_ << normal_dir(0), normal_dir(1), normal_dir(2), params(3)/mag;
+
+        auto gtit = gt_params.find(fpp.first);
+        if (gtit != gt_params.end()){
+            double gt_d = gt_params[fpp.first][3];
+            double error = fabs(fabs(params_[3]) - fabs(gt_d));
+            if (error < 6)
+                errors_file << to_string(error) << std::endl;
+        }
+
+        // Find the mean point-plane distance
+        MatrixXd pp_distances = (pts_mat * params_);
+        double pp_mean = pp_distances.mean();
+
+        // Find the variance of point-plane distance
+        MatrixXd mean_vec = pp_mean * MatrixXd::Ones(pp_distances.rows(), 1);
+        double pp_variance = (pp_distances - mean_vec).squaredNorm() / pts_mat.rows();
+
+        // Find the variance of the breadth
+        MatrixXd variance_mat = (pts_mat.block(0, 0, pts_mat.rows(), 3).rowwise() - mid_point.transpose()) * plane_dir;
+        variance_mat.cwiseAbs();
+        double breadth_variance = min(variance_mat.maxCoeff(), 10.0);
+
+        vector<geometry_msgs::Point> end_pts;
+
+        // 0
+        Vector3d bottom_left;
+        bottom_left << mid_point.x(), mid_point.y(), 0.0;
+        bottom_left = bottom_left - (breadth_variance * plane_dir);
+        geometry_msgs::Point bl_pt;
+        bl_pt.x = bottom_left(0);
+        bl_pt.y = bottom_left(1);
+        bl_pt.z = bottom_left(2);
+        end_pts.push_back(bl_pt);
+
+        // 1
+        Vector3d bottom_right;
+        bottom_right << mid_point.x(), mid_point.y(), 0.0;
+        bottom_right = bottom_right + (breadth_variance * plane_dir);
+        geometry_msgs::Point br_pt;
+        br_pt.x = bottom_right(0);
+        br_pt.y = bottom_right(1);
+        br_pt.z = bottom_right(2);
+        end_pts.push_back(br_pt);
+
+        // 0 -> 1
+        line_list.points.push_back(end_pts[0]);
+        line_list.points.push_back(end_pts[1]);
+
+        visualization_msgs::Marker ellipse;
+        ellipse.scale.x = min(max(pp_variance * 3, 0.1), 0.9);
+        ellipse.scale.y = min(max(breadth_variance * 2, 0.1), 10.0);
+        ellipse.scale.z = 0.05;
+
+        ellipse.type = visualization_msgs::Marker::SPHERE;
+        ellipse.color.a = 1.0;
+        ellipse.color.b = 1.0;
+        ellipse.header = features_msg->header;
+        ellipse.id = fpp.first;
+
+        Vector4d ellipse_major = plane_dir.homogeneous().normalized();
+
+        ellipse.pose.position.x = mid_point.x();
+        ellipse.pose.position.y = mid_point.y();
+        ellipse.pose.position.z = mid_point.z();
+        ellipse.pose.orientation.x = ellipse_major(0);
+        ellipse.pose.orientation.y = ellipse_major(1);
+        ellipse.pose.orientation.z = ellipse_major(2);
+        ellipse.pose.orientation.w = ellipse_major(3);
+
+        ma.markers.push_back(ellipse);
+    }
+
+    marker_pub.publish(line_list);
+    ellipse_pub.publish(ma);
+    errors_file.close();
 }
 
 void sync_callback(
@@ -481,11 +666,14 @@ int main(int argc, char **argv)
     // );
     // sync.registerCallback(boost::bind(&sync_callback, _1, _2, _3));
 
-    ros::Subscriber sub_history_cloud = n.subscribe("/rpvio_estimator/point_cloud", 100, history_callback);
+    ros::Subscriber sub_history_cloud = n.subscribe("/rpvio_estimator/point_cloud", 10, history_callback2);
 
     pub_plane_cloud = n.advertise<sensor_msgs::PointCloud>("plane_cloud", 1);
-    marker_pub = n.advertise<visualization_msgs::Marker>("visualization_marker", 10);
-    frame_pub = n.advertise<sensor_msgs::PointCloud>("frame_cloud", 10);
+    marker_pub = n.advertise<visualization_msgs::Marker>("visualization_marker", 5);
+    frame_pub = n.advertise<sensor_msgs::PointCloud>("frame_cloud", 5);
+    ellipse_pub = n.advertise<visualization_msgs::MarkerArray>("covar_markers", 10);
+
+    read_gt_plane_params();
 
     ros::spin();
 

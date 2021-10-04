@@ -15,6 +15,8 @@ using namespace std;
 using namespace Eigen;
 using namespace cv::line_descriptor;
 
+int im_id = 0;
+
 /**
  * Draws the plane segments on an image, 
  * coloured based on normal directions (that are calculated using vanishing points)
@@ -48,6 +50,9 @@ void drawPlaneSegments( cv::Mat &img, std::vector<KeyLine> &lines, std::vector<s
 
 	for (auto pvlines: plane_vplines)
 	{
+		// if (pvlines.first != 6)
+		// 	continue;
+		
 		cv::Mat mask_img = mask.clone();
 		cv::Mat mask = mask_img == pvlines.first;
 		cv::Mat mask_filled(ROW, COL, CV_8UC3, cv::Scalar(0,0,0));
@@ -56,6 +61,7 @@ void drawPlaneSegments( cv::Mat &img, std::vector<KeyLine> &lines, std::vector<s
 		mask_filled.setTo(plane_colors[colour_id], mask);
 		
 		cv::addWeighted( img, 1.0, mask_filled, 1.0, 0.0, img);
+		// cv::imwrite("masked_image"+to_string(im_id)+".png", img);
 	}	
 }
 

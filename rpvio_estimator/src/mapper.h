@@ -44,6 +44,11 @@
  **/
 #include "parameters.h"
 
+#include <iostream>
+#include <fstream>
+#include <string>
+#include <sstream>
+
 #include <stdio.h>
 #include <queue>
 #include <map>
@@ -57,6 +62,7 @@
 #include <sensor_msgs/PointCloud.h>
 #include <nav_msgs/Odometry.h>
 #include <visualization_msgs/Marker.h>
+#include <visualization_msgs/MarkerArray.h>
 
 #include <eigen3/Eigen/Dense>
 #include <ceres/ceres.h>
@@ -67,6 +73,7 @@ using namespace Eigen;
 
 ros::Publisher pub_plane_cloud;
 ros::Publisher marker_pub;
+ros::Publisher ellipse_pub;
 ros::Publisher frame_pub;
 
 map<double, vector<Vector4d>> plane_measurements;

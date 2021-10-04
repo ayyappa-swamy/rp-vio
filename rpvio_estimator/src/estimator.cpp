@@ -6,6 +6,69 @@ Estimator::Estimator(): f_manager{Rs}
     clearState();
 }
 
+void Estimator::readTimeSyncFile()
+{   
+    std::string TS_FILE_PATH = RPVIO_GT_PATH + "timestamp_sync.txt";
+    ifstream ts_file(TS_FILE_PATH);
+    std::string line;
+	
+	if (ts_file.is_open())
+	{	
+		while(getline(ts_file, line))
+		{
+			stringstream line_stream(line);
+			string bag_time;
+            string gt_time;
+
+			line_stream >> bag_time >> gt_time;
+
+            mBagTime_to_gtTime[bag_time] = gt_time;
+		}
+	}
+	else cout << "Unable to open time sync file: " << TS_FILE_PATH << endl;
+
+	cout << "Number of headers are " << to_string(mBagTime_to_gtTime.size()) << endl;
+
+    ts_file.close();
+}
+
+void Estimator::readGroundTruthFile()
+{
+    std::string GT_FILE_PATH = RPVIO_GT_PATH + "groundtruth.txt";
+    ifstream gt_file(GT_FILE_PATH);
+    std::string line;
+	
+	if (gt_file.is_open())
+	{	
+		while(getline(gt_file, line))
+		{
+			stringstream line_stream(line);
+			string t;
+            float px, py, pz;
+            float qw, qx, qy, qz;
+
+			line_stream >> t >> px >> py >> pz >> qw >> qx >> qy >> qz;
+
+            t = t.substr(0, 16);
+            t.insert(10, 1, '.');
+
+            mgt_translations[t] = Vector3d(px, py, pz);
+			mgt_rotations[t] = Quaterniond(qw, qx, qy, qz);
+		}
+	}
+	else cout << "Unable to open ground truth file: " << RPVIO_GT_PATH << endl;
+
+	cout << "Number of headers are " << to_string(mgt_translations.size()) << endl;
+
+    gt_file.close();
+}
+
+void Estimator::loadGroundTruth()
+{
+    readGroundTruthFile();
+    readTimeSyncFile();
+}
+
 void Estimator::setParameter()
 {
     for (int i = 0; i < NUM_OF_CAM; i++)
@@ -83,6 +146,12 @@ void Estimator::clearState()
 
     drift_correct_r = Matrix3d::Identity();
     drift_correct_t = Vector3d::Zero();
+
+    // reset ground truth flags
+    SKIP = 50;
+    gt_counter = 0;
+    isBaseComputed = false;
+    isGroundTruthInitialized = false;
 }
 
 void Estimator::processIMU(double dt, const Vector3d &linear_acceleration, const Vector3d &angular_velocity)
@@ -613,6 +682,7 @@ void Estimator::solveOdometry()
     {
         TicToc t_tri;
         f_manager.triangulate(Ps, tic, ric);
+        f_manager.triangulateGT(Ps_gt, Rs_gt, tic, ric);
         ROS_DEBUG("triangulation costs %f", t_tri.toc());
         optimization();
     }
@@ -861,7 +931,7 @@ void Estimator::optimization()
     int f_m_cnt = 0;
     int feature_index = -1;
     int largest_pid = f_manager.getLargestPlaneId(init_pids);
-    ROS_INFO("Using features from plane %d", largest_pid);
+    // ROS_INFO("Using features from plane %d", largest_pid);
     for (auto &it_per_id : f_manager.feature)
     {
         it_per_id.used_num = it_per_id.feature_per_frame.size();

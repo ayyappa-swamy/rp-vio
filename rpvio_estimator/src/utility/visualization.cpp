@@ -2,14 +2,14 @@
 
 using namespace ros;
 using namespace Eigen;
-ros::Publisher pub_odometry, pub_latest_odometry;
-ros::Publisher pub_path, pub_relo_path;
-ros::Publisher pub_point_cloud, pub_pointcloud, pub_margin_cloud;//, pub_plane_cloud;
+ros::Publisher pub_odometry, pub_latest_odometry, pub_gt_odometry;
+ros::Publisher pub_path, pub_relo_path, pub_gt_path;
+ros::Publisher pub_point_cloud, pub_pointcloud, pub_point_cloud_all, pub_margin_cloud, pub_gt_point_cloud;//, pub_plane_cloud;
 ros::Publisher pub_key_poses;
 ros::Publisher pub_relo_relative_pose;
 ros::Publisher pub_camera_pose;
 ros::Publisher pub_camera_pose_visual;
-nav_msgs::Path path, relo_path;
+nav_msgs::Path path, relo_path, gt_path;
 
 ros::Publisher pub_keyframe_pose;
 ros::Publisher pub_keyframe_point;
@@ -46,10 +46,14 @@ void registerPub(ros::NodeHandle &n)
     pub_latest_odometry = n.advertise<nav_msgs::Odometry>("imu_propagate", 1000);
     pub_path = n.advertise<nav_msgs::Path>("path", 1000);
     pub_relo_path = n.advertise<nav_msgs::Path>("relocalization_path", 1000);
+    pub_gt_path = n.advertise<nav_msgs::Path>("gt_path", 1000);
     pub_odometry = n.advertise<nav_msgs::Odometry>("odometry", 1000);
-    pub_point_cloud = n.advertise<sensor_msgs::PointCloud>("point_cloud", 1000);
-    pub_pointcloud = n.advertise<sensor_msgs::PointCloud2>("pointcloud", 1000);
+    pub_gt_odometry = n.advertise<nav_msgs::Odometry>("gt_odometry", 1000);
+    pub_point_cloud = n.advertise<sensor_msgs::PointCloud>("point_cloud", 10);
+    pub_pointcloud = n.advertise<sensor_msgs::PointCloud2>("pointcloud", 10);
+    pub_point_cloud_all = n.advertise<sensor_msgs::PointCloud>("point_cloud_all", 10);
     pub_margin_cloud = n.advertise<sensor_msgs::PointCloud>("history_cloud", 1000);
+    pub_gt_point_cloud = n.advertise<sensor_msgs::PointCloud>("gt_point_cloud", 10);
     // pub_plane_cloud = n.advertise<sensor_msgs::PointCloud>("plane_cloud", 2);
     pub_key_poses = n.advertise<visualization_msgs::Marker>("key_poses", 1000);
     pub_camera_pose = n.advertise<nav_msgs::Odometry>("camera_pose", 1000);
@@ -122,8 +126,8 @@ void printStatistics(const Estimator &estimator, double t)
     sum_of_path += (estimator.Ps[WINDOW_SIZE] - last_path).norm();
     last_path = estimator.Ps[WINDOW_SIZE];
     ROS_DEBUG("sum of path %f", sum_of_path);
-    if (ESTIMATE_TD)
-        ROS_INFO("td %f", estimator.td);
+    // if (ESTIMATE_TD)
+        // ROS_INFO("td %f", estimator.td);
 }
 
 void pubOdometry(const Estimator &estimator, const std_msgs::Header &header)
@@ -136,9 +140,11 @@ void pubOdometry(const Estimator &estimator, const std_msgs::Header &header)
         odometry.child_frame_id = "world";
         Quaterniond tmp_Q;
         tmp_Q = Quaterniond(estimator.Rs[WINDOW_SIZE]);
-        odometry.pose.pose.position.x = estimator.Ps[WINDOW_SIZE].x();
-        odometry.pose.pose.position.y = estimator.Ps[WINDOW_SIZE].y();
-        odometry.pose.pose.position.z = estimator.Ps[WINDOW_SIZE].z();
+        Vector3d tmp_T;
+        tmp_T = Vector3d(estimator.Ps[WINDOW_SIZE]);
+        odometry.pose.pose.position.x = tmp_T.x();
+        odometry.pose.pose.position.y = tmp_T.y();
+        odometry.pose.pose.position.z = tmp_T.z();
         odometry.pose.pose.orientation.x = tmp_Q.x();
         odometry.pose.pose.orientation.y = tmp_Q.y();
         odometry.pose.pose.orientation.z = tmp_Q.z();
@@ -259,11 +265,142 @@ void pubCameraPose(const Estimator &estimator, const std_msgs::Header &header)
     }
 }
 
+/**
+ * Publishes ground truth pose, point cloud, path
+ **/
+void pubGroundTruth(Estimator &estimator, const std_msgs::Header &header)
+{
+    Quaterniond tmp_Q;
+    tmp_Q = Quaterniond(estimator.Rs[WINDOW_SIZE]);
+    Vector3d tmp_T;
+    tmp_T = Vector3d(estimator.Ps[WINDOW_SIZE]);
+
+    nav_msgs::Odometry gt_odometry;
+    gt_odometry.header = header;
+    gt_odometry.header.frame_id = "world";
+    gt_odometry.child_frame_id = "world";
+
+    std::string bag_time = std::to_string(header.stamp.toSec()).substr(0, 17);
+    auto ts_map_it = estimator.mBagTime_to_gtTime.find(bag_time);
+
+    if (ts_map_it != estimator.mBagTime_to_gtTime.end())
+    {               
+        std::string gt_time = ts_map_it->second;
+        Vector3d gt_T = estimator.mgt_translations.find(gt_time)->second;
+        Quaterniond gt_Q = estimator.mgt_rotations.find(gt_time)->second;
+        
+        if (estimator.gt_counter++ < estimator.SKIP)
+        {
+            estimator.baseRgt = tmp_Q * gt_Q.inverse();
+            estimator.baseTgt = tmp_T - estimator.baseRgt * gt_T;
+        }
+        else
+        {
+            // gt_T = estimator.baseTgt + estimator.baseRgt * gt_T;
+            // gt_Q = estimator.baseRgt * gt_Q;
+
+            if (estimator.isGroundTruthInitialized) {
+                // Slide Window
+                for (int i = 1; i < WINDOW_SIZE+1; i++)
+                {
+                    estimator.Ps_gt[i-1] = estimator.Ps_gt[i];
+                    estimator.Rs_gt[i-1] = estimator.Rs_gt[i];
+                }
+
+                // Update latest frame gt pose
+                estimator.Ps_gt[WINDOW_SIZE] = gt_T;
+                estimator.Rs_gt[WINDOW_SIZE] = gt_Q;
+            } else {
+                // Update gt pose vectors
+                for (int i = 0; i < WINDOW_SIZE+1; i++)
+                {
+                    std::string time_string = std::to_string(estimator.Headers[i].stamp.toSec()).substr(0, 17);
+                    std::string gt_time_string = estimator.mBagTime_to_gtTime.find(time_string)->second;
+
+                    Vector3d p_gt = estimator.mgt_translations.find(gt_time_string)->second;
+                    // estimator.Ps_gt[i] = estimator.baseTgt + estimator.baseRgt * p_gt;
+                    estimator.Ps_gt[i] = p_gt;
+
+                    Quaterniond r_gt = estimator.mgt_rotations.find(gt_time_string)->second;
+                    // estimator.Rs_gt[i] = estimator.baseRgt * r_gt;
+                    estimator.Rs_gt[i] = r_gt;
+                }
+                // estimator.isGroundTruthInitialized = true;
+            }
+
+            // Now triangulate with ground truth poses
+            estimator.f_manager.triangulateGT(
+                estimator.Ps_gt,
+                estimator.Rs_gt,
+                estimator.tic,
+                estimator.ric
+            );
+
+            // Publish ground truth point cloud
+            sensor_msgs::PointCloud gt_point_cloud;
+            gt_point_cloud.header = header;
+
+            sensor_msgs::ChannelFloat32 gt_plane_ids_ch; 
+
+            for (auto &it_per_id : estimator.f_manager.feature)
+            {
+                // if (it_per_id.plane_id != 6)
+                //     continue;
+
+                int used_num;
+                used_num = it_per_id.feature_per_frame.size();
+                if (!(used_num >= 2 && it_per_id.start_frame < WINDOW_SIZE - 2))
+                    continue;
+                if (it_per_id.start_frame > WINDOW_SIZE * 3.0 / 4.0 || it_per_id.solve_flag != 1)
+                    continue;
+
+                int imu_i = it_per_id.start_frame;
+                Vector3d pts_i = it_per_id.feature_per_frame[0].point * it_per_id.gt_depth;
+                Vector3d w_pts_i = estimator.Rs_gt[imu_i] * (estimator.ric[0] * pts_i + estimator.tic[0]) + estimator.Ps_gt[imu_i];
+
+                geometry_msgs::Point32 p;
+                p.x = w_pts_i(0);
+                p.y = w_pts_i(1);
+                p.z = w_pts_i(2)+3;
+
+                gt_point_cloud.points.push_back(p);
+                gt_plane_ids_ch.values.push_back(it_per_id.plane_id);
+            }
+            gt_point_cloud.channels.push_back(gt_plane_ids_ch);
+            pub_gt_point_cloud.publish(gt_point_cloud);
+            
+            // Publish ground truth odometry
+            gt_odometry.pose.pose.position.x = gt_T.x();
+            gt_odometry.pose.pose.position.y = gt_T.y();
+            gt_odometry.pose.pose.position.z = gt_T.z();
+            gt_odometry.pose.pose.orientation.x = gt_Q.x();
+            gt_odometry.pose.pose.orientation.y = gt_Q.y();
+            gt_odometry.pose.pose.orientation.z = gt_Q.z();
+            gt_odometry.pose.pose.orientation.w = gt_Q.w();
+            pub_gt_odometry.publish(gt_odometry);
+
+            // Publish ground truth path
+            geometry_msgs::PoseStamped gt_pose_stamped;
+            gt_pose_stamped.header = header;
+            gt_pose_stamped.header.frame_id = "world";
+            gt_pose_stamped.pose = gt_odometry.pose.pose;
+            gt_path.header = header;
+            gt_path.header.frame_id = "world";
+            gt_path.poses.push_back(gt_pose_stamped);
+            pub_gt_path.publish(gt_path);   
+        }
+    }
+    else 
+    {
+        ROS_INFO("gt pose not found for rp header %lf", header.stamp.toSec());
+    }
+}
 
 void pubPointCloud(Estimator &estimator, const std_msgs::Header &header)
 {
-    sensor_msgs::PointCloud point_cloud, loop_point_cloud;
+    sensor_msgs::PointCloud point_cloud, point_cloud_all, loop_point_cloud;
     point_cloud.header = header;
+    point_cloud_all.header = header;
     loop_point_cloud.header = header;
 
     bool is_plane_cloud_created = true;
@@ -289,9 +426,13 @@ void pubPointCloud(Estimator &estimator, const std_msgs::Header &header)
 
     sensor_msgs::PointCloud2 pointcloud;
     sensor_msgs::ChannelFloat32 plane_ids_ch; 
+    sensor_msgs::ChannelFloat32 plane_ids_ch_all; 
 
     for (auto &it_per_id : estimator.f_manager.feature)
     {
+        // if (it_per_id.plane_id != 6)
+        //     continue;
+
         int used_num;
         used_num = it_per_id.feature_per_frame.size();
         if (!(used_num >= 2 && it_per_id.start_frame < WINDOW_SIZE - 2))
@@ -310,12 +451,21 @@ void pubPointCloud(Estimator &estimator, const std_msgs::Header &header)
         geometry_msgs::Point32 p;
         p.x = w_pts_i(0);
         p.y = w_pts_i(1);
-        p.z = w_pts_i(2);
-        point_cloud.points.push_back(p);
-        plane_ids_ch.values.push_back(it_per_id.plane_id);
+        p.z = w_pts_i(2)+3;
+
+        if (it_per_id.estimated_covariance < 100) {
+            point_cloud.points.push_back(p);
+            plane_ids_ch.values.push_back(it_per_id.plane_id);    
+        }
+        else {
+            point_cloud_all.points.push_back(p);
+            plane_ids_ch_all.values.push_back(it_per_id.plane_id);
+        }
     }
     point_cloud.channels.push_back(plane_ids_ch);
     pub_point_cloud.publish(point_cloud);
+    point_cloud_all.channels.push_back(plane_ids_ch_all);
+    pub_point_cloud_all.publish(point_cloud_all);
     sensor_msgs::convertPointCloudToPointCloud2(point_cloud, pointcloud);
     pub_pointcloud.publish(pointcloud);
 
@@ -871,6 +1021,9 @@ void pubPointCloud(Estimator &estimator, const std_msgs::Header &header)
             continue;
         if (it_per_id.start_frame > WINDOW_SIZE * 3.0 / 4.0 || it_per_id.solve_flag != 1)
                continue;
+
+        if (it_per_id.estimated_covariance > 100)
+            continue;
 
         if (it_per_id.start_frame == 0 && it_per_id.feature_per_frame.size() <= 2 
             && it_per_id.solve_flag == 1 )

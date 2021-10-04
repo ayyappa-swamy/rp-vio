@@ -5,6 +5,7 @@ imu_topic: "/imu_throttled"
 image_topic: "/image_throttled"
 mask_topic: "/mask_throttled"
 output_path: "/home/tvvsst-ayyappa/output/"
+gt_path: "/home/tvvsst-ayyappa/catkin_ws/src/rp-vio/data/minihattan/"
 
 #camera calibration 
 model_type: PINHOLE
