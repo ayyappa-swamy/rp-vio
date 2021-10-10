@@ -453,7 +453,11 @@ void pubPointCloud(Estimator &estimator, const std_msgs::Header &header)
         p.y = w_pts_i(1);
         p.z = w_pts_i(2)+3;
 
-        if (it_per_id.estimated_covariance < 100) {
+        double point_distance = (w_pts_i - estimator.Ps[imu_i]).norm();
+
+        if ( 
+            (point_distance < 50) && (point_distance > 5)
+        ) {
             point_cloud.points.push_back(p);
             plane_ids_ch.values.push_back(it_per_id.plane_id);    
         }

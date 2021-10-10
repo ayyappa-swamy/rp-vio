@@ -398,9 +398,22 @@ void history_callback(
 }
 
 void history_callback2(
-    const sensor_msgs::PointCloudConstPtr &features_msg
+    const sensor_msgs::PointCloudConstPtr &features_msg,
+    const nav_msgs::OdometryConstPtr &odometry_msg
 )
 {
+    Vector3d trans;
+    trans <<
+        odometry_msg->pose.pose.position.x,
+        odometry_msg->pose.pose.position.y,
+        odometry_msg->pose.pose.position.z;
+
+    double quat_x = odometry_msg->pose.pose.orientation.x;
+    double quat_y = odometry_msg->pose.pose.orientation.y;
+    double quat_z = odometry_msg->pose.pose.orientation.z;
+    double quat_w = odometry_msg->pose.pose.orientation.w;
+    Quaterniond quat(quat_w, quat_x, quat_y, quat_z);
+
     map<int, vector<Vector3d>> reg_points;
     visualization_msgs::Marker line_list;
     visualization_msgs::MarkerArray ma;
@@ -467,6 +480,7 @@ void history_callback2(
         // align the plane normal with vanishing point directions
         Vector3d x_axis(1, 0, 0);
         Vector3d y_axis(0, 1, 0);
+        Vector3d z_axis(0, 0, 1);
 
         double x_angle = pn.dot(x_axis);
         double y_angle = pn.dot(y_axis);
@@ -477,12 +491,28 @@ void history_callback2(
         Vector4d params_;
         params_ << normal_dir(0), normal_dir(1), normal_dir(2), params(3)/mag;
 
+        Vector3d camera_normal = quat * z_axis + trans;
+        camera_normal[2] = 0.0;
+        camera_normal.normalize();
+
+
         auto gtit = gt_params.find(fpp.first);
         if (gtit != gt_params.end()){
             double gt_d = gt_params[fpp.first][3];
             double error = fabs(fabs(params_[3]) - fabs(gt_d));
-            if (error < 6)
-                errors_file << to_string(error) << std::endl;
+            
+            Vector3d gt_normal = gt_params[fpp.first].head<3>();
+            gt_normal[2] = 0.0;
+            gt_normal.normalize();
+            double viewing_angle = acos(camera_normal.dot(gt_normal));
+            // if (error < 6)
+            if (
+                (fpp.second.size() > 20) &&
+                (fabs(params_[3]) < 10) &&
+                ((pts_mat * params).norm() < 1)
+            ) {
+                errors_file << to_string(error) << " " << to_string(viewing_angle) << std::endl;
+            }
         }
 
         // Find the mean point-plane distance
@@ -666,7 +696,17 @@ int main(int argc, char **argv)
     // );
     // sync.registerCallback(boost::bind(&sync_callback, _1, _2, _3));
 
-    ros::Subscriber sub_history_cloud = n.subscribe("/rpvio_estimator/point_cloud", 10, history_callback2);
+    // ros::Subscriber sub_history_cloud = n.subscribe("/rpvio_estimator/point_cloud", 10, history_callback2);
+
+    message_filters::Subscriber<sensor_msgs::PointCloud> sub_point_cloud(n, "/rpvio_estimator/point_cloud", 10);
+    message_filters::Subscriber<nav_msgs::Odometry> sub_odometry(n, "/rpvio_estimator/odometry", 10);
+
+    message_filters::TimeSynchronizer<sensor_msgs::PointCloud, nav_msgs::Odometry> sync(
+        sub_point_cloud,
+        sub_odometry,
+        5
+    );
+    sync.registerCallback(boost::bind(&history_callback2, _1, _2));
 
     pub_plane_cloud = n.advertise<sensor_msgs::PointCloud>("plane_cloud", 1);
     marker_pub = n.advertise<visualization_msgs::Marker>("visualization_marker", 5);
