@@ -134,14 +134,17 @@ num = 80
 x_init =  30.0
 y_init =  -5.0
 z_init =  0.0
+yaw_init = 0.0
 
 x_des_traj_init = x_init
 y_des_traj_init = y_init
 z_des_traj_init = z_init
+yaw_des_traj_init = yaw_init
 
 vx_des = 1.0
 vy_des = -0.70
 vz_des = -0.2
+vyaw_des = -np.pi/200
 
 ############################################################## Hyperparameters
 t_fin = 75
@@ -170,11 +173,13 @@ A_mat = -np.vstack(( temp_1, temp_2, A, temp_3, temp_4   ))
 x_fin = x_des_traj_init+vx_des*t_fin
 y_fin = y_des_traj_init+vy_des*t_fin
 z_fin = z_des_traj_init+vz_des*t_fin
+yaw_fin = yaw_des_traj_init+vyaw_des*t_fin
 
 t_interp = np.linspace(0, t_fin, num)
 x_interp = x_des_traj_init + ((x_fin-x_des_traj_init)/t_fin) * t_interp
 y_interp = y_des_traj_init + ((y_fin-y_des_traj_init)/t_fin) * t_interp
 z_interp = z_des_traj_init + ((z_fin-z_des_traj_init)/t_fin) * t_interp
+yaw_interp = yaw_des_traj_init + ((yaw_fin-yaw_des_traj_init)/t_fin) * t_interp
 
 # A_mat = A
 # print(temp_1.shape)
@@ -188,15 +193,18 @@ cov = np.linalg.pinv(R)
 eps_kx = np.random.multivariate_normal(mu, 0.03*cov, (num_goal, ))
 eps_ky = np.random.multivariate_normal(mu, 0.03*cov, (num_goal, ))
 eps_kz = np.random.multivariate_normal(mu, 0.03*cov, (num_goal, ))
+eps_kyaw = np.random.multivariate_normal(mu, 0.01*cov, (num_goal, ))
 
 x_samples = x_interp+eps_kx
 y_samples = y_interp+eps_ky
 z_samples = z_interp+eps_kz
+yaw_samples = yaw_interp+0.0*eps_kyaw
 
 print(eps_kx.shape)
 print(x_samples.shape)
 print(y_samples.shape)
 print(z_samples.shape)
+print(yaw_samples.shape)
 
 """ Create a box world"""
 line_set = o3d.geometry.LineSet(
@@ -233,10 +241,11 @@ ax = plt.axes(projection='3d')
 
 traj_points = []
 traj_colors = []
+traj_frames = []
 
 both = False
 
-for x_s, y_s, z_s in zip(x_samples, y_samples, z_samples):
+for x_s, y_s, z_s, yaw_s in zip(x_samples, y_samples, z_samples, yaw_samples):
     # ax.plot3D(x_s.T, y_s.T, z_s.T, 'blue', linewidth=0.1)
     
     is_colliding = bworld2.is_colliding_trajectory(x_s, y_s, z_s)
@@ -247,8 +256,17 @@ for x_s, y_s, z_s in zip(x_samples, y_samples, z_samples):
         else:
             colors = [[1, 0, 0] for i in range(len(x_s))]
 
-        pts = [[x, y, z] for x, y, z in zip(x_s, y_s, z_s)]
+        pts = []
+        for x, y, z, yaw in zip(x_s, y_s, z_s, yaw_s):
+            t_frame = o3d.geometry.TriangleMesh.create_coordinate_frame()
+            R = np.eye(3)
+            R[:2, :2] = np.array([[np.cos(yaw), -np.sin(yaw)], [np.sin(yaw), np.cos(yaw)]])
+            t_frame.rotate(R)
+            t_frame.translate([x, y, z])
+            traj_frames += [t_frame]
 
+            pts += [[x, y, z]]
+        
         traj_points += pts
         traj_colors += colors
 
@@ -261,4 +279,4 @@ pcd = o3d.geometry.PointCloud()
 pcd.points = o3d.utility.Vector3dVector(np.array(traj_points))
 pcd.colors = o3d.utility.Vector3dVector(np.array(traj_colors))
 
-o3d.visualization.draw_geometries([pcd, coord_frame, line_set] + bworld2.geometries)
+o3d.visualization.draw_geometries([pcd, coord_frame, line_set] + bworld2.geometries + traj_frames)
