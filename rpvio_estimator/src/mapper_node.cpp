@@ -209,11 +209,13 @@ void history_callback(
     line_list.scale.x = 0.3;
 
     // Line list is green
-    line_list.color.g = 1.0;
+    line_list.color.r = 1.0;
     line_list.color.a = 1.0;
 
     sensor_msgs::PointCloud frame_cloud;
     sensor_msgs::ChannelFloat32 p_ids;
+
+    std::cout << "----------Number of planes are : " << std::to_string(reg_points.size()) << endl;
 
     // Fit planes ==> create map planeid vs. params
     for (auto const& fpp: reg_points) {
@@ -340,8 +342,8 @@ void history_callback(
         double area = 0.0;
         area = (bottom_left - top_left).norm() * (bottom_left - bottom_right).norm();
 
-        if (max_distance*2 < 5)
-        {
+        // if (max_distance*2 < 10)
+        // {
             // 0 -> 1
             line_list.points.push_back(b_pts[0]);
             line_list.points.push_back(b_pts[1]);
@@ -389,7 +391,7 @@ void history_callback(
             br_pt32.z = br_pt.z;
             frame_cloud.points.push_back(br_pt32);
             p_ids.values.push_back(fpp.first);
-        }
+        // }
     }
     
     marker_pub.publish(line_list);
@@ -696,17 +698,17 @@ int main(int argc, char **argv)
     // );
     // sync.registerCallback(boost::bind(&sync_callback, _1, _2, _3));
 
-    // ros::Subscriber sub_history_cloud = n.subscribe("/rpvio_estimator/point_cloud", 10, history_callback2);
+    ros::Subscriber sub_history_cloud = n.subscribe("/rpvio_estimator/point_cloud", 10, history_callback);
 
-    message_filters::Subscriber<sensor_msgs::PointCloud> sub_point_cloud(n, "/rpvio_estimator/point_cloud", 10);
-    message_filters::Subscriber<nav_msgs::Odometry> sub_odometry(n, "/rpvio_estimator/odometry", 10);
+    // message_filters::Subscriber<sensor_msgs::PointCloud> sub_point_cloud(n, "/rpvio_estimator/point_cloud", 10);
+    // message_filters::Subscriber<nav_msgs::Odometry> sub_odometry(n, "/rpvio_estimator/odometry", 10);
 
-    message_filters::TimeSynchronizer<sensor_msgs::PointCloud, nav_msgs::Odometry> sync(
-        sub_point_cloud,
-        sub_odometry,
-        5
-    );
-    sync.registerCallback(boost::bind(&history_callback2, _1, _2));
+    // message_filters::TimeSynchronizer<sensor_msgs::PointCloud, nav_msgs::Odometry> sync(
+    //     sub_point_cloud,
+    //     sub_odometry,
+    //     5
+    // );
+    // sync.registerCallback(boost::bind(&history_callback2, _1, _2));
 
     pub_plane_cloud = n.advertise<sensor_msgs::PointCloud>("plane_cloud", 1);
     marker_pub = n.advertise<visualization_msgs::Marker>("visualization_marker", 5);

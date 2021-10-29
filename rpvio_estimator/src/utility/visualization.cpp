@@ -451,7 +451,7 @@ void pubPointCloud(Estimator &estimator, const std_msgs::Header &header)
         geometry_msgs::Point32 p;
         p.x = w_pts_i(0);
         p.y = w_pts_i(1);
-        p.z = w_pts_i(2)+3;
+        p.z = w_pts_i(2);
 
         double point_distance = (w_pts_i - estimator.Ps[imu_i]).norm();
 

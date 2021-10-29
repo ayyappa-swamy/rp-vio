@@ -39,6 +39,11 @@ add_executable(rpvio_mapper
     src/parameters.cpp
 )
 
+add_executable(rpvio_planner
+    src/planner_node.cpp
+    src/parameters.cpp
+)
+
 add_executable(rpvio_estimator
     src/estimator_node.cpp
     src/parameters.cpp
@@ -60,5 +65,6 @@ add_executable(rpvio_estimator
 
 target_link_libraries(rpvio_estimator ${catkin_LIBRARIES} ${OpenCV_LIBS} ${CERES_LIBRARIES}) 
 target_link_libraries(rpvio_mapper ${catkin_LIBRARIES} ${OpenCV_LIBS} ${CERES_LIBRARIES}) 
+target_link_libraries(rpvio_planner ${catkin_LIBRARIES} ${OpenCV_LIBS} ${CERES_LIBRARIES}) 
 
 

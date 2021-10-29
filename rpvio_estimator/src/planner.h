@@ -42,11 +42,13 @@
 #include <thread>
 #include <mutex>
 #include <condition_variable>
+#include <random>
 #include <ros/ros.h>
 
 #include <message_filters/subscriber.h>
 #include <message_filters/time_synchronizer.h>
 #include <sensor_msgs/PointCloud.h>
+#include <nav_msgs/Path.h>
 #include <nav_msgs/Odometry.h>
 #include <visualization_msgs/Marker.h>
 #include <visualization_msgs/MarkerArray.h>
@@ -54,6 +56,7 @@
 #include <eigen3/Eigen/Dense>
 #include <ceres/ceres.h>
 #include <ceres/rotation.h>
+#include "eigenmvn.h"
 
 using namespace std;
 using namespace Eigen;
@@ -61,3 +64,13 @@ using namespace Eigen;
 ros::Publisher pub_paths;
 
 map<double, vector<Vector4d>> plane_measurements;
+
+MatrixXd diff(MatrixXd input)
+{
+  MatrixXd output;
+  output = MatrixXd::Zero(input.rows()-1, input.cols());
+
+  output = input.block(1, 0, input.rows()-1, input.cols()) - input.block(0, 0, input.rows()-1, input.cols());
+
+  return output;
+}

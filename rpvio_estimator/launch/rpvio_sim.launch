@@ -30,7 +30,12 @@
     <param name="data_name" type="string" value="$(find benchmark_publisher)/config/$(arg sequence_name)/data.csv" />
   </node>
 
-  <node name="rpvio_mapper" pkg="rpvio_estimator" type="rpvio_mapper" output="log">
+  <node name="rpvio_mapper" pkg="rpvio_estimator" type="rpvio_mapper" output="screen">
+    <param name="config_file" type="string" value="$(arg config_path)" />
+    <param name="rpvio_folder" type="string" value="$(arg rpvio_path)" />
+  </node>
+
+  <node name="rpvio_planner" pkg="rpvio_estimator" type="rpvio_planner" output="screen">
     <param name="config_file" type="string" value="$(arg config_path)" />
     <param name="rpvio_folder" type="string" value="$(arg rpvio_path)" />
   </node>

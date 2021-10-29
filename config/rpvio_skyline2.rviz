@@ -4,9 +4,8 @@ Panels:
     Name: Displays
     Property Tree Widget:
       Expanded:
+        - /Global Options1
         - /VIO1
-        - /VIO1/current_point1
-        - /current_point_all1
       Splitter Ratio: 0.579250693
     Tree Height: 150
   - Class: rviz/Selection
@@ -56,7 +55,7 @@ Visualization Manager:
       Cell Size: 1
       Class: rviz/Grid
       Color: 130; 130; 130
-      Enabled: true
+      Enabled: false
       Line Style:
         Line Width: 0.0299999993
         Value: Lines
@@ -69,7 +68,7 @@ Visualization Manager:
       Plane: XY
       Plane Cell Count: 500
       Reference Frame: <Fixed Frame>
-      Value: true
+      Value: false
     - Class: rviz/Group
       Displays:
         - Alpha: 1
@@ -478,17 +477,14 @@ Visualization Manager:
     - Class: voxblox_rviz_plugin/VoxbloxMesh
       Enabled: true
       Name: VoxbloxMesh
-      Topic: /simulation_eval/mesh
-      Unreliable: true
-      Value: true
     - Class: rviz/Marker
-      Enabled: true
+      Enabled: false
       Marker Topic: /rpvio_mapper/visualization_marker
       Name: Plane Segment BBox
       Namespaces:
-        "": true
+        {}
       Queue Size: 100
-      Value: true
+      Value: false
     - Alpha: 0.200000003
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
@@ -554,7 +550,7 @@ Visualization Manager:
       Color: 255; 0; 0
       Color Transformer: FlatColor
       Decay Time: 0
-      Enabled: true
+      Enabled: false
       Invert Rainbow: false
       Max Color: 255; 255; 255
       Max Intensity: 4096
@@ -571,10 +567,18 @@ Visualization Manager:
       Unreliable: false
       Use Fixed Frame: true
       Use rainbow: true
+      Value: false
+    - Class: rviz/MarkerArray
+      Enabled: true
+      Marker Topic: /rpvio_planner/gaussian_paths
+      Name: MarkerArray
+      Namespaces:
+        "": true
+      Queue Size: 100
       Value: true
   Enabled: true
   Global Options:
-    Background Color: 48; 48; 48
+    Background Color: 255; 255; 255
     Default Light: true
     Fixed Frame: world
     Frame Rate: 30
@@ -595,25 +599,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/XYOrbit
-      Distance: 34.7798958
+      Distance: 29.6507683
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.0599999987
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 4.07513714
-        Y: -4.39734697
-        Z: -1.5418791e-05
+        X: 18.8432255
+        Y: -5.02953434
+        Z: -1.73261396e-05
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.0500000007
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.00999999978
-      Pitch: 0.259797066
+      Pitch: 0.79479599
       Target Frame: <Fixed Frame>
       Value: XYOrbit (rviz)
-      Yaw: 2.87483311
+      Yaw: 1.86983609
     Saved: ~
 Window Geometry:
   Displays:
