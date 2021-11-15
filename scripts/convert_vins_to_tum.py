@@ -7,7 +7,7 @@ def main():
     parser.add_argument('output_file_path', help='Path to the output txt file')
     args = parser.parse_args()
 
-    data = pd.read_csv(args.input_file_path, usecols=range(8), names=list('txyzwijk'))
+    data = pd.read_csv(args.input_file_path, usecols=range(8), names=list('txyzwijk'), skiprows=1, sep=r'\s+')
 
     with open(args.output_file_path,'w') as f:
         for i in range(len(data['t'])):

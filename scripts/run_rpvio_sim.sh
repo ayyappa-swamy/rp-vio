@@ -1,9 +1,10 @@
+#!/bin/bash 
 dataset=$1
 
 rm -r $dataset/results/rpvio-sim/
 mkdir -p $dataset/results/rpvio-sim/
 cd $dataset/results/rpvio-sim/
-sed -i "s@~@$HOME@g" ~/catkin_ws/src/rp-vio/config/rpvio_sim_config.yaml
+sed -i "s@~@$HOME@g" ~/rpvio_ws/src/rp-vio/config/rpvio_sim_config.yaml
 
 # ########## static run #############
 
@@ -27,10 +28,10 @@ echo -e "######c1######\n" > report.txt
 for((i = 1; i <=1; i++))
 do
     roslaunch rpvio_estimator rpvio_sim.launch bagfile_path:=$dataset/minihattan/minihattan.bag
-    cp /home/tvvsst-ayyappa/output/rpvio_result_no_loop.csv ./rpvio_est.csv
-    python ~/catkin_ws/src/rp-vio/scripts/convert_vins_to_tum.py rpvio_est.csv minihattan/est_traj_$i.txt
+    cp /home/tvvsstas/rpvio_ws/src/rp-vio/output/rpvio_result_no_loop.csv ./rpvio_est.csv
+    python3 ~/rpvio_ws/src/rp-vio/scripts/convert_vins_to_tum.py rpvio_est.csv minihattan/est_traj_$i.txt
     rm rpvio_est.csv
-    evo_ape tum $dataset/minihattan/groundtruth.txt minihattan/est_traj_$i.txt --align --save_plot minihattan/est_traj_$i.pdf |& tee -a report.txt
+    evo_ape tum $dataset/minihattan/gt_data_tum.txt minihattan/est_traj_$i.txt --align --save_plot minihattan/est_traj_$i.pdf |& tee -a report.txt
 done
 
 ########### c2 run #############
