@@ -679,6 +679,29 @@ void sync_callback(
     ROS_DEBUG("**************************************");
 }
 
+/**
+ * Mapping callback
+ * Subscribes to current point cloud, current pose, current image, current 2D plane mask
+ * Publishes 3D plane segments
+ * 
+ * Steps involved:
+ * 1.   Clusters features in point cloud based on plane ids
+ * 2.   Fit/Find plane normal and depth for each cluster (using 3D point and/or image)
+ * 3.   Rectify the plane mask using the plane parameters
+ * 4.   Find the plane segment width and height or the end points of bounding box of the plane
+ * 5.   Create or compute the vertices of the 3D plane segment
+ * 6.   Publish 3D plane segment polygons
+ **/
+void mapping_callback(
+    const sensor_msgs::PointCloudConstPtr &features_msg,
+    const nav_msgs::OdometryConstPtr &odometry_msg,
+    const sensor_msgs::ImageConstPtr &img_msg,
+    const sensor_msgs::ImageConstPtr &mask_msg
+)
+{
+    
+}
+
 int main(int argc, char **argv)
 {
     ros::init(argc, argv, "rpvio_mapper");
