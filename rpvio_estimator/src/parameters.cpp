@@ -24,6 +24,8 @@ std::string IMU_TOPIC;
 double ROW, COL;
 double TD, TR;
 
+std::string COLOR_PALETTE_PATH;
+
 template <typename T>
 T readParam(ros::NodeHandle &n, std::string name)
 {
@@ -66,6 +68,8 @@ void readParameters(ros::NodeHandle &n)
     fsSettings["gt_path"] >> GROUND_TRUTH_PATH;
     RPVIO_GT_PATH = GROUND_TRUTH_PATH;
     std::cout << "ground truth path " << RPVIO_GT_PATH << std::endl;
+
+    fsSettings["color_palette_path"] >> COLOR_PALETTE_PATH;
 
     // create folder if not exists
     FileSystemHelper::createDirectoryIfNotExists(OUTPUT_PATH.c_str());

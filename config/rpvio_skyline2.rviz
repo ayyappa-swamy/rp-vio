@@ -5,7 +5,7 @@ Panels:
     Property Tree Widget:
       Expanded:
         - /Global Options1
-        - /VIO1
+        - /tracked image1
       Splitter Ratio: 0.579250693
     Tree Height: 150
   - Class: rviz/Selection
@@ -325,7 +325,7 @@ Visualization Manager:
       Value: true
     - Class: rviz/Image
       Enabled: true
-      Image Topic: /rpvio_feature_tracker/feature_img
+      Image Topic: /rpvio_mapper/masked_image
       Max Value: 1
       Median window: 5
       Min Value: 0
@@ -474,9 +474,6 @@ Visualization Manager:
           Value: false
       Enabled: true
       Name: VIO
-    - Class: voxblox_rviz_plugin/VoxbloxMesh
-      Enabled: true
-      Name: VoxbloxMesh
     - Class: rviz/Marker
       Enabled: false
       Marker Topic: /rpvio_mapper/visualization_marker
@@ -599,25 +596,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/XYOrbit
-      Distance: 29.6507683
+      Distance: 33.2088623
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.0599999987
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 18.8432255
-        Y: -5.02953434
-        Z: -1.73261396e-05
+        X: 5.81962681
+        Y: -2.85289335
+        Z: -2.87702314e-05
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.0500000007
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.00999999978
-      Pitch: 0.79479599
+      Pitch: 0.339795679
       Target Frame: <Fixed Frame>
       Value: XYOrbit (rviz)
-      Yaw: 1.86983609
+      Yaw: 2.46483707
     Saved: ~
 Window Geometry:
   Displays:

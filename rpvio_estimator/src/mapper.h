@@ -66,9 +66,13 @@
 #include <visualization_msgs/MarkerArray.h>
 #include <cv_bridge/cv_bridge.h>
 
+#include <opencv2/opencv.hpp>
+#include <opencv2/line_descriptor.hpp>
 #include <eigen3/Eigen/Dense>
 #include <ceres/ceres.h>
 #include <ceres/rotation.h>
+
+#include "utility/color_ids.h"
 
 using namespace std;
 using namespace Eigen;
@@ -77,6 +81,7 @@ ros::Publisher pub_plane_cloud;
 ros::Publisher marker_pub;
 ros::Publisher ellipse_pub;
 ros::Publisher frame_pub;
+ros::Publisher masked_im_pub;
 
 map<double, vector<Vector4d>> plane_measurements;
 
@@ -537,4 +542,57 @@ void publish_plane_cloud(
 
     marker_pub.publish(line_list);
     frame_pub.publish(frame_cloud);
+}
+
+void draw_quad(cv::Mat &image, cv::Mat mask_image, int plane_id)
+{
+    cv::Mat plane_mask;
+
+    unsigned long hex = id2color(plane_id);
+    int r = ((hex >> 16) & 0xFF);
+    int g = ((hex >> 8) & 0xFF);
+    int b = ((hex) & 0xFF);
+
+    cv::Scalar id_color(r, g, b);
+    cv::inRange(mask_image, id_color, id_color, plane_mask);
+
+    cv::Mat dilated;
+    cv::dilate(plane_mask, dilated, cv::Mat(), cv::Point(-1, -1), 5);
+    cv::erode(dilated, dilated, cv::Mat(), cv::Point(-1, -1), 7);
+    ROS_INFO("Dilated the plane mask with id %d", plane_id);
+
+    // find contours
+    vector<vector<cv::Point> > contours;
+    vector<cv::Vec4i> hierarchy;
+    cv::findContours( dilated, contours, hierarchy, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE );
+    // std::cout << "largest contour has " << contours[0].size() << "points" << std::endl;
+    ROS_INFO("Found %d contours", (int)contours.size());
+
+    if (contours.size() > 0)
+    {
+        ROS_INFO("Largest contour has %d points", (int)contours[0].size());
+
+        // simplify contours
+        double epsilon = 0.01*cv::arcLength(contours[0], true);
+        vector<cv::Point> approx_contour;
+        cv::approxPolyDP(contours[0], approx_contour, epsilon, true);
+        // std::cout << "simplified contour has" << approx_contour.size() << "points" << std::endl;
+        ROS_INFO("Simplified contour has %d points", (int)approx_contour.size());
+        
+        if (approx_contour.size() >= 4) {
+            // Draw the simplified contour
+            vector<vector<cv::Point> > approx_contours;
+            approx_contours.push_back(approx_contour);
+            ROS_INFO("Drawing the contour");
+            cv::drawContours(image, approx_contours, 0, id_color, cv::FILLED);
+        }
+    }
+}
+
+void draw_quads(cv::Mat &image, cv::Mat mask_image, vector<int> plane_ids)
+{
+    for (int i = 0; i < plane_ids.size(); i++)
+    {
+        draw_quad(image, mask_image, plane_ids[i]);
+    }
 }

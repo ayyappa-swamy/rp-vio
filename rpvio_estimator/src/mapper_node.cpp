@@ -699,7 +699,43 @@ void mapping_callback(
     const sensor_msgs::ImageConstPtr &mask_msg
 )
 {
+    // Step 1: Cluster all the feature points based on their plane ids
+    map<int, vector<Vector3d>> plane_points;
     
+    // Loop through all feature points
+    for(int fi = 0; fi < features_msg->points.size(); fi++) {
+        Vector3d fpoint;
+        geometry_msgs::Point32 p = features_msg->points[fi];
+        fpoint << p.x, p.y, p.z;
+
+        int plane_id = (int)features_msg->channels[0].values[fi];
+
+        plane_points[plane_id].push_back(fpoint);
+    }
+    ROS_INFO("Clustered the feature points based on %d planes", plane_points.size());
+
+    // Convert three channel mask image to single channel (with plane ids)
+    cv_bridge::CvImagePtr mask_ptr = cv_bridge::toCvCopy(mask_msg, sensor_msgs::image_encodings::BGR8);
+    cv_bridge::CvImagePtr img_ptr = cv_bridge::toCvCopy(img_msg, sensor_msgs::image_encodings::BGR8);
+
+    cv::Mat mask_img = mask_ptr->image;
+    cv::Mat raw_img = img_ptr->image;
+
+    vector<int> plane_ids;
+    for (auto it = plane_points.begin(); it != plane_points.end(); ++it) {
+        if (it->second.size() >= 4)
+            plane_ids.push_back(it->first);
+    }
+
+    ROS_INFO("Drawing quads for %d planes", plane_ids.size());
+    draw_quads(raw_img, mask_img, plane_ids);
+
+    ROS_INFO("Publising marked image");
+    std_msgs::Header img_header;
+    img_header = img_msg->header;
+    sensor_msgs::ImagePtr marked_image_msg = cv_bridge::CvImage(img_header, sensor_msgs::image_encodings::BGR8, raw_img).toImageMsg();
+    // Publish raw images with marked quads
+    masked_im_pub.publish(marked_image_msg);
 }
 
 int main(int argc, char **argv)
@@ -708,6 +744,7 @@ int main(int argc, char **argv)
     ros::NodeHandle n("~");
     ros::console::set_logger_level(ROSCONSOLE_DEFAULT_NAME, ros::console::levels::Info);
     readParameters(n);
+    load_color_palette(COLOR_PALETTE_PATH);
 
     // message_filters::Subscriber<sensor_msgs::PointCloud> sub_feature_cloud(n, "/rpvio_estimator/history_cloud", 2);
     // message_filters::Subscriber<sensor_msgs::PointCloud> sub_mask_cloud(n, "/rpvio_feature_tracker/mask_cloud", 1);
@@ -721,24 +758,29 @@ int main(int argc, char **argv)
     // );
     // sync.registerCallback(boost::bind(&sync_callback, _1, _2, _3));
 
-    ros::Subscriber sub_history_cloud = n.subscribe("/rpvio_estimator/point_cloud", 10, history_callback);
+    // ros::Subscriber sub_history_cloud = n.subscribe("/rpvio_estimator/point_cloud", 10, history_callback);
 
-    // message_filters::Subscriber<sensor_msgs::PointCloud> sub_point_cloud(n, "/rpvio_estimator/point_cloud", 10);
-    // message_filters::Subscriber<nav_msgs::Odometry> sub_odometry(n, "/rpvio_estimator/odometry", 10);
+    message_filters::Subscriber<sensor_msgs::PointCloud> sub_point_cloud(n, "/rpvio_estimator/point_cloud", 1000);
+    message_filters::Subscriber<nav_msgs::Odometry> sub_odometry(n, "/rpvio_estimator/odometry", 1000);
+    message_filters::Subscriber<sensor_msgs::Image> sub_image(n, "/image_throttled", 100);
+    message_filters::Subscriber<sensor_msgs::Image> sub_mask(n, "/mask_throttled", 100);
 
-    // message_filters::TimeSynchronizer<sensor_msgs::PointCloud, nav_msgs::Odometry> sync(
-    //     sub_point_cloud,
-    //     sub_odometry,
-    //     5
-    // );
-    // sync.registerCallback(boost::bind(&history_callback2, _1, _2));
+    message_filters::TimeSynchronizer<sensor_msgs::PointCloud, nav_msgs::Odometry, sensor_msgs::Image, sensor_msgs::Image> sync(
+        sub_point_cloud,
+        sub_odometry,
+        sub_image,
+        sub_mask,
+        2000
+    );
+    sync.registerCallback(boost::bind(&mapping_callback, _1, _2, _3, _4));
 
     pub_plane_cloud = n.advertise<sensor_msgs::PointCloud>("plane_cloud", 1);
     marker_pub = n.advertise<visualization_msgs::Marker>("visualization_marker", 5);
     frame_pub = n.advertise<sensor_msgs::PointCloud>("frame_cloud", 5);
     ellipse_pub = n.advertise<visualization_msgs::MarkerArray>("covar_markers", 10);
+    masked_im_pub = n.advertise<sensor_msgs::Image>("masked_image", 10);
 
-    read_gt_plane_params();
+    // read_gt_plane_params();
 
     ros::spin();
 

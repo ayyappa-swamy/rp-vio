@@ -39,6 +39,7 @@ extern int ESTIMATE_TD;
 extern int ROLLING_SHUTTER;
 extern double ROW, COL;
 
+extern std::string COLOR_PALETTE_PATH;
 
 void readParameters(ros::NodeHandle &n);
 
