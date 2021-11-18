@@ -161,7 +161,7 @@ void extract_lines_and_vps(
 		}
 	}
 
-	ROS_INFO("Detected %d line segments", (int)lines_klsd.size());
+	// ROS_INFO("Detected %d line segments", (int)lines_klsd.size());
 
 	if (lines_klsd.size() > 0){
 		// Compute binary descriptors
@@ -173,11 +173,11 @@ void extract_lines_and_vps(
 		VPDetection detector;
 		detector.run( lines_klsd, pp, f, vps_, clusters_ );
 
-		ROS_INFO("Detected vanishing points are : ");
-		for (size_t i = 0; i < vps_.size(); i++)
-		{
-			ROS_INFO("%f, %f, %f", vps_[i].x, vps_[i].y, vps_[i].z);
-		}
+		// ROS_INFO("Detected vanishing points are : ");
+		// for (size_t i = 0; i < vps_.size(); i++)
+		// {
+		// 	ROS_INFO("%f, %f, %f", vps_[i].x, vps_[i].y, vps_[i].z);
+		// }
 		
 		std::vector<int> vp_ids = align_vps(vps_);
 		vps[vp_ids[0]] = vps_[0];

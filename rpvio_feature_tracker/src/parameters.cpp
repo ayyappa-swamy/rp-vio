@@ -5,6 +5,7 @@ std::string MASK_TOPIC;
 std::string IMU_TOPIC;
 std::vector<std::string> CAM_NAMES;
 std::string FISHEYE_MASK;
+std::string COLOR_PALETTE_PATH;
 int MAX_CNT;
 int MIN_DIST;
 int WINDOW_SIZE;
@@ -18,6 +19,7 @@ int COL;
 int FOCAL_LENGTH;
 int FISHEYE;
 bool PUB_THIS_FRAME;
+
 
 template <typename T>
 T readParam(ros::NodeHandle &n, std::string name)
@@ -49,6 +51,7 @@ void readParameters(ros::NodeHandle &n)
     fsSettings["image_topic"] >> IMAGE_TOPIC;
     fsSettings["mask_topic"] >> MASK_TOPIC;
     fsSettings["imu_topic"] >> IMU_TOPIC;
+    fsSettings["color_palette_path"] >> COLOR_PALETTE_PATH;
     MAX_CNT = fsSettings["max_cnt"];
     MIN_DIST = fsSettings["min_dist"];
     ROW = fsSettings["image_height"];
@@ -58,6 +61,7 @@ void readParameters(ros::NodeHandle &n)
     SHOW_TRACK = fsSettings["show_track"];
     EQUALIZE = fsSettings["equalize"];
     FISHEYE = fsSettings["fisheye"];
+
     if (FISHEYE == 1)
         FISHEYE_MASK = RPVIO_FOLDER_PATH + "config/fisheye_mask.jpg";
     CAM_NAMES.push_back(config_file);

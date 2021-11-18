@@ -10,6 +10,7 @@
 
 #include "feature_tracker.h"
 #include "vp_utils.h"
+#include "color_ids.h"
 
 #define SHOW_UNDISTORTION 0
 
@@ -26,22 +27,6 @@ int pub_count = 1;
 bool first_image_flag = true;
 double last_image_time = 0;
 bool init_pub = 0;
-
-map<unsigned long, uchar> color_map;
-
-uchar rgb2code(int r, int g, int b)
-{
-    unsigned long hex = ((r & 0xff) << 16) + ((g & 0xff) << 8) + (b & 0xff);
-
-    if ((r == 7) && (g == 93) && (b == 182))
-        return rgb2code((int)0, (int)0, (int)0);
-
-    if (color_map.find(hex) == color_map.end()) {
-        color_map[hex] = color_map.size();
-    }
-
-    return color_map[hex];
-}
 
 void processMaskMessage(const sensor_msgs::ImageConstPtr &input_mask_msg, cv::Mat &output_mask)
 {
@@ -63,7 +48,7 @@ void processMaskMessage(const sensor_msgs::ImageConstPtr &input_mask_msg, cv::Ma
         for (int j = 0; j < input_mask.cols; j++) {
             cv::Vec3b colors = input_mask.at<cv::Vec3b>(i, j);
             
-            output_mask.at<uchar>(i, j) = rgb2code(colors[0], colors[1], colors[2]);
+            output_mask.at<uchar>(i, j) = (uchar)color2id(colors[0], colors[1], colors[2]);
         }
     }
         
@@ -460,6 +445,7 @@ void callback(const sensor_msgs::ImageConstPtr &img_msg, const sensor_msgs::Imag
             // mask_cloud.channels.push_back(mask_ids);
             //cv::imshow("vis", stereo_img);
             //cv::waitKey(5);
+            // cv::imwrite("/home/tvvsstas/rpvio_ws/src/rp-vio/data/frames_vps/c1_vp_"+to_string(pub_count) + ".png", ptr->image);
             pub_match.publish(ptr->toImageMsg());
             // pub_mask_cloud.publish(mask_cloud);
         }
@@ -474,6 +460,7 @@ int main(int argc, char **argv)
     ros::NodeHandle n("~");
     ros::console::set_logger_level(ROSCONSOLE_DEFAULT_NAME, ros::console::levels::Info);
     readParameters(n);
+    load_color_palette(COLOR_PALETTE_PATH);
 
     for (int i = 0; i < NUM_OF_CAM; i++)
         trackerData[i].readIntrinsicParameter(CAM_NAMES[i]);
@@ -508,10 +495,6 @@ int main(int argc, char **argv)
     if (SHOW_TRACK)
         cv::namedWindow("vis", cv::WINDOW_NORMAL);
     */
-
-    // initialize color map with black color
-    unsigned long black = (unsigned long)0;
-    color_map[black] = (uchar) 0;
 
     ros::spin();
     return 0;

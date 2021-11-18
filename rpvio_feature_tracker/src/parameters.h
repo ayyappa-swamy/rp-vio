@@ -24,4 +24,6 @@ extern int EQUALIZE;
 extern int FISHEYE;
 extern bool PUB_THIS_FRAME;
 
+extern std::string COLOR_PALETTE_PATH;
+
 void readParameters(ros::NodeHandle &n);
