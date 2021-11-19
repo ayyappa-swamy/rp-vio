@@ -166,8 +166,8 @@ class BoxWorld:
     geometries = None
 
     def __init__(self, bound):
-        vrange = np.arange(0, bound, 0.2)
-        vx, vy, vz = np.meshgrid(vrange, vrange, vrange)
+        vrange = np.arange(0, bound, 0.4)
+        vx, vy, vz = np.meshgrid(vrange, vrange, np.arange(1, bound, 4))
         self.vox_centers = np.vstack((vx.flatten(), vy.flatten(), vz.flatten())).T
 
     def show(self):
@@ -209,8 +209,15 @@ class BoxWorld:
         noisy_sdfs = None
 
         for box in self.boxes:
-            center_noise = variance * np.random.randn(3, 1) + mean
-            dims_noise = variance * np.random.randn(3, 1) + mean
+            # center_noise = variance * np.random.randn(3, 1) + mean
+            # dims_noise = variance * np.random.randn(3, 1) + mean
+            # center_noise = variance * np.random.random((3, 1)) + mean
+            # dims_noise = variance * np.random.random((3, 1)) + mean
+            ## Uniform distro
+            b = mean + variance
+            a = mean - variance
+            center_noise = (b - a) * np.random.random_sample((3, 1)) + a
+            dims_noise = (b - a) * np.random.random_sample((3, 1)) + a
 
             sdfs = [box.get_sdf(pt, center_noise, dims_noise) for pt in self.vox_centers]
             
@@ -225,21 +232,23 @@ class BoxWorld:
         return np.abs(self.gt_sdfs - noisy_sdfs)
     
     def plot_sdf_error_distro(self):
-        means = [1,0.5]
+        means = [2,1,0.5,0]
+        covariances = [1, 0.6, 0.2]
         errors = np.array([])
 
-        for mean in means:
-            for i in range(100):
-                errors = np.concatenate((errors, self.get_error_sdfs(mean=mean, variance=0.2)))
+        fig, ax = plt.subplots(len(covariances), 1)
+        for var_id, variance in enumerate(covariances):
+            for mean_id, mean in enumerate(means):
+                for i in range(50):
+                    errors = np.concatenate((errors, self.get_error_sdfs(mean=mean, variance=variance)))
             
-            hist, bins = np.histogram(errors[errors<5], bins=100, density=True)
-            width = 0.4 * (bins[1] - bins[0])
-            center = (bins[:-1] + bins[1:]) / 2
-            plt.bar(center, hist, align='center', width=width, alpha=0.5, label="varinace = 0.2, mean (m) ="+str(mean))
+                hist, bins = np.histogram(errors[errors<5], bins=50, density=True)
+                width = (1/len(means)) * (bins[1] - bins[0])
+                center = (bins[:-1] + bins[1:]) / 2
+                ax[var_id].bar(center + (mean_id/len(means)) * 0.5, hist, align='center', width=width, alpha=0.4, label="variance = " + str(variance) + ", mean (m) ="+str(mean))
 
-        plt.legend(loc='upper right')
-        plt.xlabel('error of (sdf) in meters')
-        plt.ylabel('probability of error')
+                ax[var_id].legend(loc='upper right')
+
         plt.title('Probability distribution of sdf error w.r.t ground truth sdf')
         plt.show()
 

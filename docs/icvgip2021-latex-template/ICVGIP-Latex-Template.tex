@@ -29,7 +29,7 @@
 \acmPrice{15.00}
 
 \begin{document}
-\title{SDF based reconstruction of skylines from monocular images using Visual Inertial Odometry}
+\title{SDF based reconstruction of skylines from monocular UAV images using Visual Inertial Odometry}
 \titlenote{Produces the permission block, and
   copyright information}
 
@@ -49,9 +49,22 @@
 
 
 \begin{abstract}
+Abstract1:
 Reconstruction of the skyline is essential for an aerial robot navigating in urban scenes. It is achieved by a dense mapping of the environment followed by path planning.
 Existing approaches for dense mapping of urban scenes from monocular images using visual inertial odometry are computationally intensive. 
-We therefore, present a direct approach of computing an SDF representation of the skyline that relies on inherent planar structures in the urban environment. Our method can be directly incorporated into the mapping stage of a monocular visual-inertial navigation system. We also provide a module-wise comparision of computation time involved to showcase the efficacy of our method.
+We therefore, present a direct approach of computing an SDF representation of the skyline that relies on inherent planar structures in the urban environment. We show that our method can be directly incorporated into the mapping stage of a monocular visual-inertial navigation system. We also provide a module-wise comparision of computation time involved to showcase the efficacy of our method.
+
+Abstract2:
+ESDF (Euclidean Signed Distance Function) representation of an environment is suitable for path planning and obstacle avoidance. Obtaining dense point clouds, required for ESDF computaion, from monocular images is computationally intensive.
+
+We propose a reconstruction approach that uses the sparse map generated from a visual-inertial odometry pipeline. Our method uses a light-weight map representation that enables  faster computation of ESDFs as well as human-readable meshes. We showcase its application for the reconstruction of skylines from monocular UAV images in a synthetic environment. Further, we also report module-wise timing. We show that our method fits into the mapping stage of a monocular visual-inertial navigation system
+
+Abstract3:
+We present an incremental approach for SDF based reconstruction of skylines from segmented monocular RGB images using Visual-Inertial Odometry (VIO). We use the feature map obtained from a VIO pipeline along with the vanishing point directions extracted from the images, to estimate the parameters of planar structures inherent in buildings. Unlike 
+traditional SDF based mapping algorithms that require dense point clouds, we compute the TSDF directly from the plane segment parameters. Our results show that i 
+
+Abstract 4:
+Dense reconstruction of the skyline is essential for an aerial robot navigating in urban environments. A TSDF voxel map, if obtained, can be converted to ESDF map required for obstacle avoidance and path planning. However, traditional approaches for estimating the TSDF values rely on dense point clouds, which are computationally expensive to obtain from monocular images. We therefore, present a direct, plane geometry based incremental approach for computing the TSDF values using Visual Inertial Odometry (VIO). Our approach uses the sparse feature map obtained from a VIO pipeline and the vanishing point directions extracted from the images, to estimate the parameters of planar structures in the scene. The resulting map representation is lightweight, describes the layout of environment and can be used to generate human-readable meshes with reduced computational complexity. We report the results of reconstruction in a photorealistic synthetic environment. Our evaluation shows that the proposed approach produces a lightweight representation of the environment that captures the geometry of the scene.
 \end{abstract}
 
 %
