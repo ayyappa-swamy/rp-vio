@@ -736,6 +736,176 @@ void mapping_callback(
     sensor_msgs::ImagePtr marked_image_msg = cv_bridge::CvImage(img_header, sensor_msgs::image_encodings::BGR8, raw_img).toImageMsg();
     // Publish raw images with marked quads
     masked_im_pub.publish(marked_image_msg);
+    
+    Vector3d trans;
+    trans <<
+        odometry_msg->pose.pose.position.x,
+        odometry_msg->pose.pose.position.y,
+        odometry_msg->pose.pose.position.z;
+
+    double quat_x = odometry_msg->pose.pose.orientation.x;
+    double quat_y = odometry_msg->pose.pose.orientation.y;
+    double quat_z = odometry_msg->pose.pose.orientation.z;
+    double quat_w = odometry_msg->pose.pose.orientation.w;
+    Quaterniond quat(quat_w, quat_x, quat_y, quat_z);
+    
+    visualization_msgs::Marker line_list;
+    visualization_msgs::MarkerArray ma;
+
+    line_list.header = features_msg->header;
+    // line_list.action = visualization_msgs::Marker::ADD;
+    line_list.pose.orientation.w = 1.0;
+
+    line_list.id = 2;
+    line_list.type = visualization_msgs::Marker::LINE_LIST;
+
+    // LINE_LIST markers use only the x component of scale, for the line width
+    line_list.scale.x = 0.3;
+
+    // Line list is green
+    line_list.color.g = 1.0;
+    line_list.color.a = 1.0;
+
+    sensor_msgs::PointCloud frame_cloud;
+    sensor_msgs::ChannelFloat32 p_ids;
+
+    // Fit planes ==> create map planeid vs. params
+    for (auto const& fpp: plane_points) {
+        MatrixXd pts_mat(fpp.second.size(), 4);
+        Vector3d point_sum = Vector3d::Zero();
+        Vector3d mid_point = Vector3d::Zero();
+    
+        for (int pti = 0; pti < fpp.second.size(); pti++) {
+            Vector3d pt = fpp.second[pti];
+            // pt.z = 0.0;
+            pts_mat.row(pti) = pt.homogeneous().transpose();
+            pt[2] = 0.0;
+            point_sum += pt;
+        }
+        mid_point = point_sum / fpp.second.size();
+
+        // find svd
+        Vector4d params;
+        Eigen::JacobiSVD<MatrixXd> pt_svd(pts_mat, Eigen::ComputeFullU | Eigen::ComputeFullV);
+        params = pt_svd.matrixV().col(pt_svd.matrixV().cols() - 1);
+        params.normalize();
+
+        // // Vector4d info = covariance_matrix(pts_mat).diagonal().tail(4);
+        Vector3d pn;
+        pn << params(0), params(1), params(2);
+        double mag = pn.norm();
+        pn.normalize();
+
+        // align the plane normal with vanishing point directions
+        Vector3d x_axis(1, 0, 0);
+        Vector3d y_axis(0, 1, 0);
+        Vector3d z_axis(0, 0, 1);
+
+        double x_angle = pn.dot(x_axis);
+        double y_angle = pn.dot(y_axis);
+
+        Vector3d dir = (x_angle > y_angle) ? x_axis : y_axis;
+
+        vector<geometry_msgs::Point> b_pts;
+        
+        Vector3d normal_dir = (x_angle > y_angle) ? x_axis : y_axis;
+        Vector3d plane_dir = (x_angle > y_angle) ? y_axis : x_axis;
+
+        Vector4d params_;
+        params_ << normal_dir(0), normal_dir(1), normal_dir(2), params(3)/mag;
+
+        Vector3d camera_normal = quat * z_axis + trans;
+        camera_normal[2] = 0.0;
+        camera_normal.normalize();
+
+        // Find the mean point-plane distance
+        MatrixXd pp_distances = (pts_mat * params_);
+        double pp_mean = pp_distances.mean();
+
+        // Find the variance of point-plane distance
+        MatrixXd mean_vec = pp_mean * MatrixXd::Ones(pp_distances.rows(), 1);
+        double pp_variance = (pp_distances - mean_vec).squaredNorm() / pts_mat.rows();
+
+        // Find the variance of the breadth
+        MatrixXd variance_mat = (pts_mat.block(0, 0, pts_mat.rows(), 3).rowwise() - mid_point.transpose()) * plane_dir;
+        variance_mat.cwiseAbs();
+        double breadth_variance = min(variance_mat.maxCoeff(), 10.0);
+
+        vector<geometry_msgs::Point> end_pts;
+        
+        double z_max = -1000;
+
+        for (int pti = 0; pti < fpp.second.size(); pti++) {
+            // if (fpp.second[pti].norm() > 200)
+            //     continue;
+            
+            point_sum += fpp.second[pti];
+
+            // if (fpp.second[pti].z() < z_min)
+            //     z_min = fpp.second[pti].z();
+
+            if (fpp.second[pti].z() > z_max)
+                z_max = fpp.second[pti].z();
+        }
+
+        // 0
+        Vector3d bottom_left;
+        bottom_left << mid_point.x(), mid_point.y(), 0.0;
+        bottom_left = bottom_left - (breadth_variance * plane_dir);
+        geometry_msgs::Point bl_pt;
+        bl_pt.x = bottom_left(0);
+        bl_pt.y = bottom_left(1);
+        bl_pt.z = bottom_left(2);
+        b_pts.push_back(bl_pt);
+
+        // 1
+        Vector3d bottom_right;
+        bottom_right << mid_point.x(), mid_point.y(), 0.0;
+        bottom_right = bottom_right + (breadth_variance * plane_dir);
+        geometry_msgs::Point br_pt;
+        br_pt.x = bottom_right(0);
+        br_pt.y = bottom_right(1);
+        br_pt.z = bottom_right(2);
+        b_pts.push_back(br_pt);
+
+        // 2: (y_max, z_max)
+        Vector3d top_right;
+        top_right << mid_point.x(), mid_point.y(), z_max;
+        top_right = top_right + (breadth_variance * plane_dir);
+        geometry_msgs::Point tr_pt;
+        tr_pt.x = top_right(0);
+        tr_pt.y = top_right(1);
+        tr_pt.z = top_right(2);
+        b_pts.push_back(tr_pt);
+
+        // 1: (y_min, z_max)
+        Vector3d top_left;
+        top_left << mid_point.x(), mid_point.y(), z_max;
+        top_left = top_left - (breadth_variance * plane_dir);
+        geometry_msgs::Point tl_pt;
+        tl_pt.x = top_left(0);
+        tl_pt.y = top_left(1);
+        tl_pt.z = top_left(2);
+        b_pts.push_back(tl_pt);
+
+        // 0 -> 1
+        line_list.points.push_back(b_pts[0]);
+        line_list.points.push_back(b_pts[1]);
+
+        // 1 -> 2
+        line_list.points.push_back(b_pts[1]);
+        line_list.points.push_back(b_pts[2]);
+
+        // 2 -> 3
+        line_list.points.push_back(b_pts[2]);
+        line_list.points.push_back(b_pts[3]);
+
+        // 3 -> 0
+        line_list.points.push_back(b_pts[3]);
+        line_list.points.push_back(b_pts[0]);
+    }
+
+    marker_pub.publish(line_list);
 }
 
 int main(int argc, char **argv)
