@@ -57,11 +57,14 @@
 #include <ceres/ceres.h>
 #include <ceres/rotation.h>
 #include "eigenmvn.h"
+#include "objects.h"
 
 using namespace std;
 using namespace Eigen;
 
 ros::Publisher pub_paths;
+ros::Publisher pub_colliding_cloud;
+ros::Publisher pub_free_cloud;
 
 map<double, vector<Vector4d>> plane_measurements;
 
@@ -73,4 +76,10 @@ MatrixXd diff(MatrixXd input)
   output = input.block(1, 0, input.rows()-1, input.cols()) - input.block(0, 0, input.rows()-1, input.cols());
 
   return output;
+}
+
+// Implement MMD cost
+double getMMDcost(double sdf_value)
+{
+  
 }

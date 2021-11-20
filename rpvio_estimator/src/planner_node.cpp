@@ -8,10 +8,38 @@ vector<nav_msgs::OdometryConstPtr> odometry_msgs;
 map<int, Vector4d> gt_params;
 
 void current_state_callback(
-    // const sensor_msgs::PointCloudConstPtr &frames_msg,
+    const sensor_msgs::PointCloudConstPtr &frames_msg,
     const nav_msgs::OdometryConstPtr &odometry_msg
 )
 {
+    ROS_INFO("Received frames message with %d planes", (int)frames_msg->points.size()/4);
+
+    vector<CuboidObject> cuboids;
+    // Create cuboids
+    for (unsigned int i = 0; i < frames_msg->points.size(); i += 4)
+    {
+        int p_id = frames_msg->channels[0].values[i];
+
+        // Compute plane segment parameters center, normal, breadth and width
+        geometry_msgs::Point32 bl_pt = frames_msg->points[i];
+        geometry_msgs::Point32 tl_pt = frames_msg->points[i + 1];
+        geometry_msgs::Point32 tr_pt = frames_msg->points[i + 2];
+        geometry_msgs::Point32 br_pt = frames_msg->points[i + 3];
+
+        Point bl(bl_pt.x, bl_pt.y, bl_pt.z);
+        Point tl(tl_pt.x, tl_pt.y, tl_pt.z);
+        Point tr(tr_pt.x, tr_pt.y, tr_pt.z);
+        Point br(br_pt.x, br_pt.y, br_pt.z);
+
+        FloatingPoint breadth = (br - bl).norm();
+        FloatingPoint height = (tr - br).norm();
+        Point center = (bl + tl + tr + br) / 4.0;
+        Point normal = ((tl - bl).normalized().cross((br - bl).normalized())).normalized();
+
+        CuboidObject cuboid = CuboidObject(center, normal, breadth /*breadth*/, 1 /*width*/, height /*height*/, Color::Gray(), p_id);
+        cuboids.push_back(cuboid);
+    }
+
     Vector3d trans;
     trans <<
         odometry_msg->pose.pose.position.x,
@@ -98,7 +126,7 @@ void current_state_callback(
     MatrixXd eps_kz = normZ_solver->samples(num_goal).transpose();
 
     double x_fin = 20.0;
-    double y_fin = 0.0;
+    double y_fin = -10.0;
     double z_fin = 0.0;
 
     VectorXd t_interp = VectorXd::LinSpaced(num, 0, t_fin);
@@ -137,10 +165,9 @@ void current_state_callback(
         // LINE_STRIP markers use only the x component of scale, for the line width
         line_strip.scale.x = 0.03;
 
-        // Line list is green
-        line_strip.color.b = 1.0;
         line_strip.color.a = 1.0;
 
+        bool is_colliding = false;
         // Iterate over each point in the sampled path
         for (int j = 0; j < x_samples.cols(); j++)
         {   
@@ -151,15 +178,65 @@ void current_state_callback(
 
             line_pt_w = (rot * line_pt_w) + trans;
 
+            for (int oi = 0; oi < cuboids.size(); oi++) {
+                if (fabs(cuboids[oi].getDistanceToPoint(line_pt_w)) < 2)
+                    is_colliding = true;
+            }
+
             line_pt.x = line_pt_w.x();
             line_pt.y = line_pt_w.y();
             line_pt.z = line_pt_w.z();
             line_strip.points.push_back(line_pt);
-            // file_samples << x_samples(i, j) << " " << y_samples(i, j) << " " << z_samples(i, j) << std::endl;
         }
+
+        if (is_colliding) {
+            line_strip.color.r = 1.0;
+            line_strip.color.g = 0.0;
+            line_strip.color.b = 0.0;
+        } else {
+            line_strip.color.r = 0.0;
+            line_strip.color.g = 0.0;
+            line_strip.color.b = 1.0;
+        }
+
         ma.markers.push_back(line_strip);
     }
     pub_paths.publish(ma);
+
+    sensor_msgs::PointCloud free_cloud, colliding_cloud;
+    free_cloud.header = odometry_msg->header;
+    colliding_cloud.header = odometry_msg->header;
+
+    for (int x = -10; x < 10; x++) {
+        for (int y = -10; y < 10; y++) {
+            Vector3d sample;
+            sample << x, y, 0.0;
+            sample = (rot * sample) + trans;
+            
+            geometry_msgs::Point32 pt;
+            pt.x = sample.x();
+            pt.y = sample.y();
+            pt.z = sample.z();
+
+            bool is_inside_cuboid = false;
+            for (int oi = 0; oi < cuboids.size(); oi++) {
+                if (fabs(cuboids[oi].getDistanceToPoint(sample)) < 2) {
+                    is_inside_cuboid = true;
+                    break;
+                }
+            }
+
+            if (is_inside_cuboid) {
+                colliding_cloud.points.push_back(pt);
+            }
+            else {
+                free_cloud.points.push_back(pt);
+            }
+        }
+    }
+
+    pub_colliding_cloud.publish(colliding_cloud);
+    pub_free_cloud.publish(free_cloud);
 }
 
 int main(int argc, char **argv)
@@ -169,18 +246,20 @@ int main(int argc, char **argv)
     ros::console::set_logger_level(ROSCONSOLE_DEFAULT_NAME, ros::console::levels::Info);
     readParameters(n);
 
-    // message_filters::Subscriber<sensor_msgs::PointCloud> sub_frame_cloud(n, "/rpvio_mapper/frame_cloud", 20);
-    // message_filters::Subscriber<nav_msgs::Odometry> sub_odometry(n, "/rpvio_estimator/odometry", 20);
+    message_filters::Subscriber<sensor_msgs::PointCloud> sub_frame_cloud(n, "/rpvio_mapper/frame_cloud", 20);
+    message_filters::Subscriber<nav_msgs::Odometry> sub_odometry(n, "/rpvio_estimator/odometry", 20);
 
-    // message_filters::TimeSynchronizer<nav_msgs::Odometry> sync(
-    //     // sub_frame_cloud,
-    //     sub_odometry,
-    //     10
-    // );
-    // sync.registerCallback(boost::bind(&current_state_callback, _1));
-    ros::Subscriber sub_odometry = n.subscribe("/rpvio_estimator/odometry", 1, current_state_callback);
+    message_filters::TimeSynchronizer<sensor_msgs::PointCloud, nav_msgs::Odometry> sync(
+        sub_frame_cloud,
+        sub_odometry,
+        100
+    );
+    sync.registerCallback(boost::bind(&current_state_callback, _1, _2));
+    // ros::Subscriber sub_odometry = n.subscribe("/rpvio_estimator/odometry", 1, current_state_callback);
 
     pub_paths = n.advertise<visualization_msgs::MarkerArray>("gaussian_paths", 1);
+    pub_colliding_cloud = n.advertise<sensor_msgs::PointCloud>("colliding_cloud", 50);
+    pub_free_cloud = n.advertise<sensor_msgs::PointCloud>("free_cloud", 50);
     ros::spin();
 
     return 0;

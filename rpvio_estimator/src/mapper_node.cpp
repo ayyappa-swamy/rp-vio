@@ -213,13 +213,14 @@ void history_callback(
     line_list.color.a = 1.0;
 
     sensor_msgs::PointCloud frame_cloud;
+    frame_cloud.header = features_msg->header;
     sensor_msgs::ChannelFloat32 p_ids;
 
     std::cout << "----------Number of planes are : " << std::to_string(reg_points.size()) << endl;
 
     // Fit planes ==> create map planeid vs. params
     for (auto const& fpp: reg_points) {
-        MatrixXd pts_mat(fpp.second.size(), 3);
+        MatrixXd pts_mat(fpp.second.size(), 4);
         // MatrixXd plane_residuals(fpp.second.size(), 1);
     
         for (int pti = 0; pti < fpp.second.size(); pti++) {
@@ -258,13 +259,13 @@ void history_callback(
         double z_max = -1000;
 
         for (int pti = 0; pti < fpp.second.size(); pti++) {
-            // if (fpp.second[pti].norm() > 200)
-            //     continue;
+            if (fpp.second[pti].norm() > 30)
+                continue;
             
             point_sum += fpp.second[pti];
 
-            // if (fpp.second[pti].z() < z_min)
-            //     z_min = fpp.second[pti].z();
+            if ((fpp.second[pti].z() < z_min) && (fpp.second[pti].z() > -10))
+                z_min = fpp.second[pti].z();
 
             if (fpp.second[pti].z() > z_max)
                 z_max = fpp.second[pti].z();
@@ -281,7 +282,7 @@ void history_callback(
             Vector3d cur_point = fpp.second[pti];
             double cur_distance = (cur_point.head<2>() - mid_point.head<2>()).norm();
 
-            if ((cur_distance > max_distance) && (cur_distance < 100)) {
+            if ((cur_distance > max_distance) && (cur_distance < 30)) {
                 far_point = cur_point;
                 max_distance = cur_distance;
             }
@@ -342,8 +343,8 @@ void history_callback(
         double area = 0.0;
         area = (bottom_left - top_left).norm() * (bottom_left - bottom_right).norm();
 
-        // if (max_distance*2 < 10)
-        // {
+        if (((bottom_left - bottom_right).norm() < 10) && ((bottom_left - bottom_right).norm() > 1) && (z_max > -10))
+        {
             // 0 -> 1
             line_list.points.push_back(b_pts[0]);
             line_list.points.push_back(b_pts[1]);
@@ -391,7 +392,7 @@ void history_callback(
             br_pt32.z = br_pt.z;
             frame_cloud.points.push_back(br_pt32);
             p_ids.values.push_back(fpp.first);
-        // }
+        }
     }
     
     marker_pub.publish(line_list);
@@ -801,8 +802,8 @@ void mapping_callback(
         Vector3d y_axis(0, 1, 0);
         Vector3d z_axis(0, 0, 1);
 
-        double x_angle = pn.dot(x_axis);
-        double y_angle = pn.dot(y_axis);
+        double x_angle = fabs(pn.dot(x_axis));
+        double y_angle = fabs(pn.dot(y_axis));
 
         Vector3d dir = (x_angle > y_angle) ? x_axis : y_axis;
 
@@ -928,25 +929,25 @@ int main(int argc, char **argv)
     // );
     // sync.registerCallback(boost::bind(&sync_callback, _1, _2, _3));
 
-    // ros::Subscriber sub_history_cloud = n.subscribe("/rpvio_estimator/point_cloud", 10, history_callback);
+    ros::Subscriber sub_history_cloud = n.subscribe("/rpvio_estimator/point_cloud", 100, history_callback);
 
-    message_filters::Subscriber<sensor_msgs::PointCloud> sub_point_cloud(n, "/rpvio_estimator/point_cloud", 1000);
-    message_filters::Subscriber<nav_msgs::Odometry> sub_odometry(n, "/rpvio_estimator/odometry", 1000);
-    message_filters::Subscriber<sensor_msgs::Image> sub_image(n, "/image_throttled", 100);
-    message_filters::Subscriber<sensor_msgs::Image> sub_mask(n, "/mask_throttled", 100);
+    // message_filters::Subscriber<sensor_msgs::PointCloud> sub_point_cloud(n, "/rpvio_estimator/point_cloud", 1000);
+    // message_filters::Subscriber<nav_msgs::Odometry> sub_odometry(n, "/rpvio_estimator/odometry", 1000);
+    // message_filters::Subscriber<sensor_msgs::Image> sub_image(n, "/image_throttled", 100);
+    // message_filters::Subscriber<sensor_msgs::Image> sub_mask(n, "/mask_throttled", 100);
 
-    message_filters::TimeSynchronizer<sensor_msgs::PointCloud, nav_msgs::Odometry, sensor_msgs::Image, sensor_msgs::Image> sync(
-        sub_point_cloud,
-        sub_odometry,
-        sub_image,
-        sub_mask,
-        2000
-    );
-    sync.registerCallback(boost::bind(&mapping_callback, _1, _2, _3, _4));
+    // message_filters::TimeSynchronizer<sensor_msgs::PointCloud, nav_msgs::Odometry, sensor_msgs::Image, sensor_msgs::Image> sync(
+    //     sub_point_cloud,
+    //     sub_odometry,
+    //     sub_image,
+    //     sub_mask,
+    //     2000
+    // );
+    // sync.registerCallback(boost::bind(&mapping_callback, _1, _2, _3, _4));
 
     pub_plane_cloud = n.advertise<sensor_msgs::PointCloud>("plane_cloud", 1);
-    marker_pub = n.advertise<visualization_msgs::Marker>("visualization_marker", 5);
-    frame_pub = n.advertise<sensor_msgs::PointCloud>("frame_cloud", 5);
+    marker_pub = n.advertise<visualization_msgs::Marker>("visualization_marker", 100);
+    frame_pub = n.advertise<sensor_msgs::PointCloud>("frame_cloud", 100);
     ellipse_pub = n.advertise<visualization_msgs::MarkerArray>("covar_markers", 10);
     masked_im_pub = n.advertise<sensor_msgs::Image>("masked_image", 10);
 
