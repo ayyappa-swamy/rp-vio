@@ -7,10 +7,10 @@ means = [2,1,0.5,0]
 covariances = [1, 0.6, 0.2]
 errors = np.array([])
 
+NUM_OF_GAUSSIANS = 4
 
 # Fit GMM
-gmm = GaussianMixture(n_components = 3)
-
+gmm = GaussianMixture(n_components = NUM_OF_GAUSSIANS, covariance_type='spherical')
 
 # Plot histograms and gaussian curves
 # fig, ax = plt.subplots()
@@ -40,5 +40,13 @@ for var_id, variance in enumerate(covariances[:2]):
     ax.plot(gmm_x, gmm_y, lw=4, label="GMM_var_"+str(covariances[var_id]))
 # ax[var_id].legend(loc='upper right')
 
-plt.title('Probability distribution of sdf error w.r.t ground truth sdf')
+print("GMM means are : ", gmm.means_)
+print("GMM covariances are : ", gmm.covariances_)
+print("GMM weights are : ", gmm.weights_)
+
+np.savetxt('GMM_'+str(NUM_OF_GAUSSIANS)+'_means.txt', gmm.means_.reshape((1, NUM_OF_GAUSSIANS)), fmt='%g')
+np.savetxt('GMM_'+str(NUM_OF_GAUSSIANS)+'_covariances.txt', gmm.covariances_.reshape((1, NUM_OF_GAUSSIANS)), fmt='%g')
+np.savetxt('GMM_'+str(NUM_OF_GAUSSIANS)+'_weights.txt', gmm.weights_.reshape((1, NUM_OF_GAUSSIANS)), fmt='%g')
+
+plt.title('Probability distribution of plane sdf error w.r.t ground truth sdf')
 plt.show()
