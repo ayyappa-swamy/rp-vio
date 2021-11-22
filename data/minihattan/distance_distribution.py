@@ -211,13 +211,13 @@ class BoxWorld:
         for box in self.boxes:
             # center_noise = variance * np.random.randn(3, 1) + mean
             # dims_noise = variance * np.random.randn(3, 1) + mean
-            # center_noise = variance * np.random.random((3, 1)) + mean
-            # dims_noise = variance * np.random.random((3, 1)) + mean
+            center_noise = variance * np.random.random((3, 1)) + mean
+            dims_noise = variance * np.random.random((3, 1)) + mean
             ## Uniform distro
-            b = mean + variance
-            a = mean - variance
-            center_noise = (b - a) * np.random.random_sample((3, 1)) + a
-            dims_noise = (b - a) * np.random.random_sample((3, 1)) + a
+            # b = mean + variance
+            # a = mean - variance
+            # center_noise = (b - a) * np.random.random_sample((3, 1)) + a
+            # dims_noise = (b - a) * np.random.random_sample((3, 1)) + a
 
             sdfs = [box.get_sdf(pt, center_noise, dims_noise) for pt in self.vox_centers]
             
@@ -248,6 +248,7 @@ class BoxWorld:
                 ax[var_id].bar(center + (mean_id/len(means)) * 0.5, hist, align='center', width=width, alpha=0.4, label="variance = " + str(variance) + ", mean (m) ="+str(mean))
 
                 ax[var_id].legend(loc='upper right')
+                np.savetxt("histogram_data_non_gauss_"+str(var_id)+"_"+str(mean_id)+".txt", errors, delimiter=',')
 
         plt.title('Probability distribution of sdf error w.r.t ground truth sdf')
         plt.show()
