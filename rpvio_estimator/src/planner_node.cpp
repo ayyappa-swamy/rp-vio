@@ -12,7 +12,10 @@ void current_state_callback(
     const nav_msgs::OdometryConstPtr &odometry_msg
 )
 {
-    ROS_INFO("Received frames message with %d planes", (int)frames_msg->points.size()/4);
+    int num_of_planes = (int)frames_msg->points.size()/4;
+    ROS_INFO("Received frames message with %d planes", num_of_planes);
+    if (num_of_planes < 1)
+        return;
 
     vector<CuboidObject> cuboids;
     // Create cuboids
@@ -207,6 +210,7 @@ void current_state_callback(
     free_cloud.header = odometry_msg->header;
     colliding_cloud.header = odometry_msg->header;
 
+    vector<double> mmd_costs;
     for (int x = -10; x < 10; x++) {
         for (int y = -10; y < 10; y++) {
             Vector3d sample;
@@ -220,7 +224,10 @@ void current_state_callback(
 
             bool is_inside_cuboid = false;
             for (int oi = 0; oi < cuboids.size(); oi++) {
-                if (fabs(cuboids[oi].getDistanceToPoint(sample)) < 2) {
+                double sdf_value = fabs(cuboids[oi].getDistanceToPoint(sample));
+                double mmd_cost = getMMDcost(sdf_value) - 20.0;
+                mmd_costs.push_back(mmd_cost);
+                if (mmd_cost < 2) {
                     is_inside_cuboid = true;
                     break;
                 }
@@ -234,6 +241,11 @@ void current_state_callback(
             }
         }
     }
+
+    double max_mmd = *std::max_element(mmd_costs.begin(), mmd_costs.end());
+    double min_mmd = *std::min_element(mmd_costs.begin(), mmd_costs.end());
+
+    std::cout << "Max MMD value: " << std::to_string(max_mmd) << ", Min MMD value: " << std::to_string(min_mmd) << std::endl; 
 
     pub_colliding_cloud.publish(colliding_cloud);
     pub_free_cloud.publish(free_cloud);
@@ -256,6 +268,11 @@ int main(int argc, char **argv)
     );
     sync.registerCallback(boost::bind(&current_state_callback, _1, _2));
     // ros::Subscriber sub_odometry = n.subscribe("/rpvio_estimator/odometry", 1, current_state_callback);
+
+    std::string SRC_PATH = "/home/tvvsstas/rpvio_ws/src/rp-vio/rpvio_estimator/src";
+    MMDF.assign_weights(SRC_PATH+"/weight.csv");
+    std::cout << "Assigned weights !" << std::endl;
+    init_gmm_values(SRC_PATH);
 
     pub_paths = n.advertise<visualization_msgs::MarkerArray>("gaussian_paths", 1);
     pub_colliding_cloud = n.advertise<sensor_msgs::PointCloud>("colliding_cloud", 50);
