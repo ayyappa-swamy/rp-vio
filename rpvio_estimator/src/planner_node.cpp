@@ -154,6 +154,11 @@ void current_state_callback(
     // std::ofstream file_samples("path_samples.txt");
 
     // Iterate over each sampled path
+    visualization_msgs::Marker optimal_mmd_line_strip;
+    visualization_msgs::Marker optimal_sdf_line_strip;
+    double min_mmd_cost = 100000;
+    double max_sdf_cost = -100000;
+    
     for (int i = 0; i < x_samples.rows(); i++)
     {   
         visualization_msgs::Marker line_strip;
@@ -168,10 +173,13 @@ void current_state_callback(
         // LINE_STRIP markers use only the x component of scale, for the line width
         line_strip.scale.x = 0.03;
 
-        line_strip.color.a = 1.0;
+        line_strip.color.a = 0.7;
 
         bool is_colliding = false;
         // Iterate over each point in the sampled path
+
+        double trajectory_mmd_cost = 0.0;
+        double trajectory_sdf_cost = 0.0;
         for (int j = 0; j < x_samples.cols(); j++)
         {   
             // Add point to the line strip
@@ -182,8 +190,11 @@ void current_state_callback(
             line_pt_w = (rot * line_pt_w) + trans;
 
             for (int oi = 0; oi < cuboids.size(); oi++) {
-                if (fabs(cuboids[oi].getDistanceToPoint(line_pt_w)) < 2)
-                    is_colliding = true;
+                double sdf_value = max(fabs(cuboids[oi].getDistanceToPoint(line_pt_w)) - 1.0, 0.0);
+                double mmd_cost = getMMDcost(sdf_value) - 20.0;
+
+                trajectory_mmd_cost += mmd_cost;
+                trajectory_sdf_cost += sdf_value;
             }
 
             line_pt.x = line_pt_w.x();
@@ -192,63 +203,42 @@ void current_state_callback(
             line_strip.points.push_back(line_pt);
         }
 
-        if (is_colliding) {
-            line_strip.color.r = 1.0;
-            line_strip.color.g = 0.0;
-            line_strip.color.b = 0.0;
-        } else {
-            line_strip.color.r = 0.0;
-            line_strip.color.g = 0.0;
-            line_strip.color.b = 1.0;
+        line_strip.color.r = 1.0;
+        line_strip.color.g = 0.0;
+        line_strip.color.b = 0.0;
+            
+        if (trajectory_mmd_cost < min_mmd_cost)
+        {
+            optimal_mmd_line_strip = line_strip;
+            min_mmd_cost = trajectory_mmd_cost;
+        }
+
+        if (trajectory_sdf_cost > max_sdf_cost)
+        {
+            optimal_sdf_line_strip = line_strip;
+            max_sdf_cost = trajectory_sdf_cost;
         }
 
         ma.markers.push_back(line_strip);
     }
+
+    // Visualize optimal mmd trajectory in black color
+    optimal_mmd_line_strip.color.r = 0.0;
+    optimal_mmd_line_strip.color.g = 0.0;
+    optimal_mmd_line_strip.color.b = 0.0;
+    optimal_mmd_line_strip.scale.x = 0.06;
+    optimal_mmd_line_strip.color.a = 1.0;
+    ma.markers.push_back(optimal_mmd_line_strip);
+
+    // Visualize optimal sdf trajectory in blue color
+    optimal_sdf_line_strip.color.r = 0.0;
+    optimal_sdf_line_strip.color.g = 0.0;
+    optimal_sdf_line_strip.color.b = 1.0;
+    optimal_sdf_line_strip.scale.x = 0.06;
+    optimal_sdf_line_strip.color.a = 1.0;
+    ma.markers.push_back(optimal_sdf_line_strip);
+
     pub_paths.publish(ma);
-
-    sensor_msgs::PointCloud free_cloud, colliding_cloud;
-    free_cloud.header = odometry_msg->header;
-    colliding_cloud.header = odometry_msg->header;
-
-    vector<double> mmd_costs;
-    for (int x = -10; x < 10; x++) {
-        for (int y = -10; y < 10; y++) {
-            Vector3d sample;
-            sample << x, y, 0.0;
-            sample = (rot * sample) + trans;
-            
-            geometry_msgs::Point32 pt;
-            pt.x = sample.x();
-            pt.y = sample.y();
-            pt.z = sample.z();
-
-            bool is_inside_cuboid = false;
-            for (int oi = 0; oi < cuboids.size(); oi++) {
-                double sdf_value = fabs(cuboids[oi].getDistanceToPoint(sample));
-                double mmd_cost = getMMDcost(sdf_value) - 20.0;
-                mmd_costs.push_back(mmd_cost);
-                if (mmd_cost < 2) {
-                    is_inside_cuboid = true;
-                    break;
-                }
-            }
-
-            if (is_inside_cuboid) {
-                colliding_cloud.points.push_back(pt);
-            }
-            else {
-                free_cloud.points.push_back(pt);
-            }
-        }
-    }
-
-    double max_mmd = *std::max_element(mmd_costs.begin(), mmd_costs.end());
-    double min_mmd = *std::min_element(mmd_costs.begin(), mmd_costs.end());
-
-    std::cout << "Max MMD value: " << std::to_string(max_mmd) << ", Min MMD value: " << std::to_string(min_mmd) << std::endl; 
-
-    pub_colliding_cloud.publish(colliding_cloud);
-    pub_free_cloud.publish(free_cloud);
 }
 
 int main(int argc, char **argv)
