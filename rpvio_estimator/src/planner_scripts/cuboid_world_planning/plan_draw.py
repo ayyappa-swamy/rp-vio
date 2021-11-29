@@ -27,6 +27,82 @@ class Box:
         sdf = np.linalg.norm(np.clip(q, 0, None)) + min(q.max(), 0)
 
         return sdf
+    
+    def get_facewise_vertices(self):
+        facewise_vertices = {}
+
+        center = self.get_center().reshape((3, 1))
+        width = self.dims[0] # x dir
+        height = self.dims[1] # y dir
+        depth = self.dims[2] # z dir
+
+        # Front face (normal => -ve y-axis)
+        front_face_normal = np.array([0, -height/2, 0]).reshape((3, 1))
+        front_face_center = center + front_face_normal
+        vertex1 = front_face_center + np.array([[width/2, 0, depth/2]]).T
+        vertex2 = front_face_center + np.array([[width/2, 0, -depth/2]]).T
+        vertex3 = front_face_center + np.array([[-width/2, 0, -depth/2]]).T
+        vertex4 = front_face_center + np.array([[-width/2, 0, depth/2]]).T
+        front_face_vertices = np.vstack((vertex1.T, vertex2.T, vertex3.T, vertex4.T))
+        facewise_vertices['front'] = front_face_vertices
+
+        # Back face (normal => +ve y-axis)
+        back_face_normal = np.array([0, height/2, 0]).reshape((3, 1))
+        back_face_center = center + back_face_normal
+        vertex1 = back_face_center + np.array([[-width/2, 0, depth/2]]).T
+        vertex2 = back_face_center + np.array([[-width/2, 0, -depth/2]]).T
+        vertex3 = back_face_center + np.array([[width/2, 0, -depth/2]]).T
+        vertex4 = back_face_center + np.array([[width/2, 0, depth/2]]).T
+        back_face_vertices = np.vstack((vertex1.T, vertex2.T, vertex3.T, vertex4.T))
+        facewise_vertices['back'] = back_face_vertices
+
+
+        # Right face (normal  => +ve x-axis)
+        right_face_normal = np.array([width/2, 0, 0]).reshape((3, 1))
+        right_face_center = center + right_face_normal
+        vertex1 = right_face_center + np.array([[0, height/2, depth/2]]).T
+        vertex2 = right_face_center + np.array([[0, height/2, -depth/2]]).T
+        vertex3 = right_face_center + np.array([[0, -height/2, -depth/2]]).T
+        vertex4 = right_face_center + np.array([[0, -height/2, depth/2]]).T
+        right_face_vertices = np.vstack((vertex1.T, vertex2.T, vertex3.T, vertex4.T))
+        facewise_vertices['right'] = right_face_vertices
+
+        # Left face (normal => -ve x-axis)
+        left_face_normal = np.array([-width/2, 0, 0]).reshape((3, 1))
+        left_face_center = center + left_face_normal
+        vertex1 = left_face_center + np.array([[0, height/2, depth/2]]).T
+        vertex2 = left_face_center + np.array([[0, height/2, -depth/2]]).T
+        vertex3 = left_face_center + np.array([[0, -height/2, -depth/2]]).T
+        vertex4 = left_face_center + np.array([[0, -height/2, depth/2]]).T
+        left_face_vertices = np.vstack((vertex1.T, vertex2.T, vertex3.T, vertex4.T))
+        facewise_vertices['left'] = left_face_vertices
+
+        # Top face (normal => +ve z-axis)
+        top_face_normal = np.array([0, 0, depth/2]).reshape((3, 1))
+        top_face_center = center + top_face_normal
+        vertex1 = top_face_center + np.array([[width/2, height/2,  0]]).T
+        vertex2 = top_face_center + np.array([[width/2, -height/2,  0]]).T
+        vertex3 = top_face_center + np.array([[-width/2, -height/2, 0]]).T
+        vertex4 = top_face_center + np.array([[-width/2, height/2, 0]]).T
+        top_face_vertices = np.vstack((vertex1.T, vertex2.T, vertex3.T, vertex4.T))
+        facewise_vertices['top'] = top_face_vertices
+
+        # Bottom face (normal => -ve z-axis)
+        bottom_face_normal = np.array([0, 0, -depth/2]).reshape((3, 1))
+        bottom_face_center = center + bottom_face_normal
+        vertex1 = bottom_face_center + np.array([[width/2, -height/2,  0]]).T
+        vertex2 = bottom_face_center + np.array([[width/2, height/2,  0]]).T
+        vertex3 = bottom_face_center + np.array([[-width/2, height/2, 0]]).T
+        vertex4 = bottom_face_center + np.array([[-width/2, -height/2, 0]]).T
+        bottom_face_vertices = np.vstack((vertex1.T, vertex2.T, vertex3.T, vertex4.T))
+        facewise_vertices['bottom'] = bottom_face_vertices
+
+        return facewise_vertices
+
+    def get_face_planes(self):
+        face_planes = []
+
+        return face_planes
 
 class BoxWorld:
     boxes = []
@@ -243,7 +319,7 @@ traj_points = []
 traj_colors = []
 traj_frames = []
 
-both = False
+both = True
 
 for x_s, y_s, z_s, yaw_s in zip(x_samples, y_samples, z_samples, yaw_samples):
     # ax.plot3D(x_s.T, y_s.T, z_s.T, 'blue', linewidth=0.1)
@@ -258,12 +334,12 @@ for x_s, y_s, z_s, yaw_s in zip(x_samples, y_samples, z_samples, yaw_samples):
 
         pts = []
         for x, y, z, yaw in zip(x_s, y_s, z_s, yaw_s):
-            t_frame = o3d.geometry.TriangleMesh.create_coordinate_frame()
-            R = np.eye(3)
-            R[:2, :2] = np.array([[np.cos(yaw), -np.sin(yaw)], [np.sin(yaw), np.cos(yaw)]])
-            t_frame.rotate(R)
-            t_frame.translate([x, y, z])
-            traj_frames += [t_frame]
+            # t_frame = o3d.geometry.TriangleMesh.create_coordinate_frame()
+            # R = np.eye(3)
+            # R[:2, :2] = np.array([[np.cos(yaw), -np.sin(yaw)], [np.sin(yaw), np.cos(yaw)]])
+            # t_frame.rotate(R)
+            # t_frame.translate([x, y, z])
+            # traj_frames += [t_frame]
 
             pts += [[x, y, z]]
         
