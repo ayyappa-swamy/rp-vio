@@ -2,6 +2,7 @@ from mpl_toolkits import mplot3d
 
 import numpy as np
 import matplotlib.pyplot as plt
+from numpy.linalg import norm
 import open3d as o3d
 
 """Utilies to create a box world"""
@@ -56,7 +57,6 @@ class Box:
         back_face_vertices = np.vstack((vertex1.T, vertex2.T, vertex3.T, vertex4.T))
         facewise_vertices['back'] = back_face_vertices
 
-
         # Right face (normal  => +ve x-axis)
         right_face_normal = np.array([width/2, 0, 0]).reshape((3, 1))
         right_face_center = center + right_face_normal
@@ -98,6 +98,33 @@ class Box:
         facewise_vertices['bottom'] = bottom_face_vertices
 
         return facewise_vertices
+
+    def get_plane_params(self, vertices):
+        params = []
+
+        vertex1 = vertices[0:1, :].T
+        vertex2 = vertices[1:2, :].T
+        vertex3 = vertices[2:3, :].T
+        vertex4 = vertices[3:4, :].T
+
+        # Compute normal
+        vertical_dir = vertex1 - vertex2
+        vertical_dir /= np.linalg.norm(vertical_dir)
+
+        horizontal_dir = vertex3 - vertex2
+        horizontal_dir /= np.linalg.norm(horizontal_dir)
+        
+        normal = np.cross(vertical_dir.flatten(), horizontal_dir.flatten()).reshape((3, 1))
+        normal /= np.linalg.norm(normal)
+
+        d = -np.dot(normal, vertex4)
+
+        params.append(normal[0, 0])
+        params.append(normal[1, 0])
+        params.append(normal[2, 0])
+        params.append(d)
+
+        return np.array(params).reshape((3, 1))
 
     def get_face_planes(self):
         face_planes = []
