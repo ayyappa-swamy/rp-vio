@@ -399,10 +399,22 @@ x.value = trajectory1
 constraint = [x[0, 0] == trajectory1[0, 0], x[0, 1] == trajectory1[0, 1], x[0, 2] == trajectory1[0, 2]]
 constraint += [x[79, 0] == trajectory1[79, 0], x[79, 1] == trajectory1[79, 1], x[79, 2] == trajectory1[79, 2]]
 vertices = bworld2.boxes[0].get_facewise_vertices()
-right_plane = bworld2.boxes[0].get_plane_params(vertices['right'])
-r_plane = right_plane[:3, :]/-right_plane[3, 0]
+right_plane = bworld2.boxes[0].get_plane_params(vertices['front'])
+r_plane = right_plane[:3, :]/right_plane[3, 0]
 
 print("plane params : ", r_plane.shape)
+
+good_points = []
+good_colors = []
+for point in trajectory1:
+    point_ = np.array([point[0], point[1], point[2], 1.0]).reshape((4, 1))
+    if point_.T @ right_plane > 0:
+        good_points.append([point[0], point[1], point[2]])
+        good_colors.append([0, 0, 0])
+
+pcd3 = o3d.geometry.PointCloud()
+pcd3.points = o3d.utility.Vector3dVector(np.array(good_points))
+pcd3.colors = o3d.utility.Vector3dVector(np.array(good_colors))
 
 # plane = cp.Parameter((3, 1))
 # plane.value = r_plane.reshape((3, 1))
@@ -423,4 +435,4 @@ pcd_opt = o3d.geometry.PointCloud()
 pcd_opt.points = o3d.utility.Vector3dVector(traj_opt)
 # pcd2.colors = o3d.utility.Vector3dVector(np.array(traj_colors))
 
-o3d.visualization.draw_geometries([pcd2, pcd_opt, coord_frame, line_set] + bworld2.geometries)
+o3d.visualization.draw_geometries([pcd2, pcd3, coord_frame, line_set] + bworld2.geometries)
