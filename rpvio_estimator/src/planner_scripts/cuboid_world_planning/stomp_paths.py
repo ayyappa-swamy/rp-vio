@@ -119,14 +119,14 @@ class Box:
         normal = np.cross(vertical_dir.flatten(), horizontal_dir.flatten()).reshape((3, 1))
         normal /= np.linalg.norm(normal)
 
-        d = -np.dot(normal.T, vertex4)
+        d = -np.dot(normal, vertex4)
 
         params.append(normal[0, 0])
         params.append(normal[1, 0])
         params.append(normal[2, 0])
         params.append(d)
 
-        return np.array(params).reshape((4, 1))
+        return np.array(params).reshape((3, 1))
 
     def get_face_planes(self):
         face_planes = []
@@ -228,6 +228,9 @@ translations = [
 # Show the world
 # bworld.show()
 
+def get_stomp_trajectories(num_of_trajs, num_of_waypts, start=[0, 0, 0], end=[10, 10, 10]):
+    pass
+
 """
 Sample many trajectories in 3D between start and end points
 Visualize those trajectories in open3d
@@ -303,124 +306,3 @@ eps_kyaw = np.random.multivariate_normal(mu, 0.01*cov, (num_goal, ))
 x_samples = x_interp+eps_kx
 y_samples = y_interp+eps_ky
 z_samples = z_interp+eps_kz
-yaw_samples = yaw_interp+0.0*eps_kyaw
-
-print(eps_kx.shape)
-print(x_samples.shape)
-print(y_samples.shape)
-print(z_samples.shape)
-print(yaw_samples.shape)
-
-""" Create a box world"""
-line_set = o3d.geometry.LineSet(
-    points=o3d.utility.Vector3dVector([
-        [x_init, y_init, z_init],
-        [x_fin, y_fin, z_fin]
-    ]),
-    lines=o3d.utility.Vector2iVector([
-        [0, 1]
-    ]),
-)
-
-bworld2 = BoxWorld()
-dims2 = [
-    [30, 25, 50],
-    [40, 20, 50]
-]
-translations2 = [
-    [50, -20, -40],
-    [50, -50, -40],
-
-]
-bworld2.create_boxes(np.array(dims2), np.array(translations2))
-bworld2.show()
-
-# box = o3d.geometry.TriangleMesh.create_box(width=10.0, height=40.0, depth=50.0)
-# box.translate(np.array([40, -15, -40]).reshape((3, 1)))
-
-"""
-Visualize the sample trajectories in matplotlib 3d
-"""
-fig = plt.figure()
-ax = plt.axes(projection='3d')
-
-traj_points = []
-traj_colors = []
-traj_frames = []
-
-both = True
-
-for x_s, y_s, z_s, yaw_s in zip(x_samples, y_samples, z_samples, yaw_samples):
-    # ax.plot3D(x_s.T, y_s.T, z_s.T, 'blue', linewidth=0.1)
-    
-    is_colliding = bworld2.is_colliding_trajectory(x_s, y_s, z_s)
-
-    if (not is_colliding) or both:
-        if not is_colliding:
-            colors = [[0, 0, 1] for i in range(len(x_s))]
-        else:
-            colors = [[1, 0, 0] for i in range(len(x_s))]
-
-        pts = []
-        for x, y, z, yaw in zip(x_s, y_s, z_s, yaw_s):
-            # t_frame = o3d.geometry.TriangleMesh.create_coordinate_frame()
-            # R = np.eye(3)
-            # R[:2, :2] = np.array([[np.cos(yaw), -np.sin(yaw)], [np.sin(yaw), np.cos(yaw)]])
-            # t_frame.rotate(R)
-            # t_frame.translate([x, y, z])
-            # traj_frames += [t_frame]
-
-            pts += [[x, y, z]]
-        
-        traj_points += pts
-        traj_colors += colors
-
-# plt.show()
-
-coord_frame = o3d.geometry.TriangleMesh.create_coordinate_frame()
-coord_frame.translate(np.array([40, 0, 0]).reshape((3, 1)))
-
-pcd = o3d.geometry.PointCloud()
-pcd.points = o3d.utility.Vector3dVector(np.array(traj_points))
-pcd.colors = o3d.utility.Vector3dVector(np.array(traj_colors))
-
-o3d.visualization.draw_geometries([pcd, coord_frame, line_set] + bworld2.geometries + traj_frames)
-
-trajectory1 = np.array(traj_points)[:80, :3]
-
-pcd2 = o3d.geometry.PointCloud()
-pcd2.points = o3d.utility.Vector3dVector(trajectory1)
-# pcd2.colors = o3d.utility.Vector3dVector(np.array(traj_colors))
-
-o3d.visualization.draw_geometries([pcd2, coord_frame, line_set] + bworld2.geometries)
-
-x = cp.Variable((80, 3))
-x.value = trajectory1
-constraint = [x[0, 0] == trajectory1[0, 0], x[0, 1] == trajectory1[0, 1], x[0, 2] == trajectory1[0, 2]]
-constraint += [x[79, 0] == trajectory1[79, 0], x[79, 1] == trajectory1[79, 1], x[79, 2] == trajectory1[79, 2]]
-vertices = bworld2.boxes[0].get_facewise_vertices()
-right_plane = bworld2.boxes[0].get_plane_params(vertices['right'])
-r_plane = right_plane[:3, :]/-right_plane[3, 0]
-
-print("plane params : ", r_plane.shape)
-
-# plane = cp.Parameter((3, 1))
-# plane.value = r_plane.reshape((3, 1))
-
-onz = cp.Parameter((80, 1))
-onz.value = np.ones((80, 1))
-# constraint += [x @ r_plane - 20*onz >= 0]
-
-obj = cp.Minimize(cp.sum_squares((x[1:,:]-x[:79,:])))
-problem = cp.Problem(obj, constraint)
-problem.solve()
-print('Solving ...: ', problem.solve())
-print('Status of the problem: ', problem.status)
-# print('x value is ', x.value)
-
-traj_opt = x.value
-pcd_opt = o3d.geometry.PointCloud()
-pcd_opt.points = o3d.utility.Vector3dVector(traj_opt)
-# pcd2.colors = o3d.utility.Vector3dVector(np.array(traj_colors))
-
-o3d.visualization.draw_geometries([pcd2, pcd_opt, coord_frame, line_set] + bworld2.geometries)
