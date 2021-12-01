@@ -72,10 +72,10 @@ class Box:
         # Left face (normal => -ve x-axis)
         left_face_normal = np.array([-width/2, 0, 0]).reshape((3, 1))
         left_face_center = center + left_face_normal
-        vertex1 = left_face_center + np.array([[0, height/2, depth/2]]).T
-        vertex2 = left_face_center + np.array([[0, height/2, -depth/2]]).T
-        vertex3 = left_face_center + np.array([[0, -height/2, -depth/2]]).T
-        vertex4 = left_face_center + np.array([[0, -height/2, depth/2]]).T
+        vertex1 = left_face_center + np.array([[0, -height/2, depth/2]]).T
+        vertex2 = left_face_center + np.array([[0, -height/2, -depth/2]]).T
+        vertex3 = left_face_center + np.array([[0, height/2, -depth/2]]).T
+        vertex4 = left_face_center + np.array([[0, height/2, depth/2]]).T
         left_face_vertices = np.vstack((vertex1.T, vertex2.T, vertex3.T, vertex4.T))
         facewise_vertices['left'] = left_face_vertices
 
@@ -335,8 +335,8 @@ translations2 = [
 bworld2.create_boxes(np.array(dims2), np.array(translations2))
 bworld2.show()
 
-# box = o3d.geometry.TriangleMesh.create_box(width=10.0, height=40.0, depth=50.0)
-# box.translate(np.array([40, -15, -40]).reshape((3, 1)))
+box = o3d.geometry.TriangleMesh.create_box(width=10.0, height=40.0, depth=50.0)
+box.translate(np.array([40, -15, -40]).reshape((3, 1)))
 
 """
 Visualize the sample trajectories in matplotlib 3d
@@ -436,3 +436,93 @@ pcd_opt.points = o3d.utility.Vector3dVector(traj_opt)
 # pcd2.colors = o3d.utility.Vector3dVector(np.array(traj_colors))
 
 o3d.visualization.draw_geometries([pcd2, pcd3, coord_frame, line_set] + bworld2.geometries)
+
+# # Sample many points around the boxes
+
+# # Determine if the points are inside or outside the plane
+
+# test_points = []
+# test_colors = []
+# for x in range(30, 120, 5):
+#     for y in range(-60, 10, 5):
+#         point_ = np.array([[x, y, -5, 1]])
+
+#         vertices = bworld2.boxes[0].get_facewise_vertices()
+#         right_plane = bworld2.boxes[0].get_plane_params(vertices['front'])
+
+#         test_points.append([x, y, -5])
+
+#         if point_ @ right_plane >= 0:
+#             test_colors.append([1, 0, 0])
+#         else:
+#             test_colors.append([0, 0, 0])
+
+# test_pcd = o3d.geometry.PointCloud()
+# test_pcd.points = o3d.utility.Vector3dVector(np.array(test_points))
+# test_pcd.colors = o3d.utility.Vector3dVector(np.array(test_colors))
+
+# o3d.visualization.draw_geometries([test_pcd] + bworld2.geometries)
+
+# test_points = []
+# test_colors = []
+# for x in range(30, 120, 5):
+#     for y in range(-60, 10, 5):
+#         point_ = np.array([[x, y, -5, 1]])
+
+#         vertices = bworld2.boxes[0].get_facewise_vertices()
+#         right_plane = bworld2.boxes[0].get_plane_params(vertices['right'])
+
+#         test_points.append([x, y, -5])
+
+#         if point_ @ right_plane >= 0:
+#             test_colors.append([1, 0, 0])
+#         else:
+#             test_colors.append([0, 0, 0])
+
+# test_pcd = o3d.geometry.PointCloud()
+# test_pcd.points = o3d.utility.Vector3dVector(np.array(test_points))
+# test_pcd.colors = o3d.utility.Vector3dVector(np.array(test_colors))
+
+# o3d.visualization.draw_geometries([test_pcd] + bworld2.geometries)
+# test_points = []
+# test_colors = []
+# for x in range(30, 120, 5):
+#     for y in range(-60, 10, 5):
+#         point_ = np.array([[x, y, -5, 1]])
+
+#         vertices = bworld2.boxes[0].get_facewise_vertices()
+#         right_plane = bworld2.boxes[0].get_plane_params(vertices['back'])
+
+#         test_points.append([x, y, -5])
+
+#         if point_ @ right_plane >= 0:
+#             test_colors.append([1, 0, 0])
+#         else:
+#             test_colors.append([0, 0, 0])
+
+# test_pcd = o3d.geometry.PointCloud()
+# test_pcd.points = o3d.utility.Vector3dVector(np.array(test_points))
+# test_pcd.colors = o3d.utility.Vector3dVector(np.array(test_colors))
+
+# o3d.visualization.draw_geometries([test_pcd] + bworld2.geometries)
+# test_points = []
+# test_colors = []
+# for x in range(30, 120, 5):
+#     for y in range(-60, 10, 5):
+#         point_ = np.array([[x, y, -5, 1]])
+
+#         vertices = bworld2.boxes[0].get_facewise_vertices()
+#         right_plane = bworld2.boxes[0].get_plane_params(vertices['left'])
+
+#         test_points.append([x, y, -5])
+
+#         if point_ @ right_plane >= 0:
+#             test_colors.append([1, 0, 0])
+#         else:
+#             test_colors.append([0, 0, 0])
+
+# test_pcd = o3d.geometry.PointCloud()
+# test_pcd.points = o3d.utility.Vector3dVector(np.array(test_points))
+# test_pcd.colors = o3d.utility.Vector3dVector(np.array(test_colors))
+
+# o3d.visualization.draw_geometries([test_pcd] + bworld2.geometries)
