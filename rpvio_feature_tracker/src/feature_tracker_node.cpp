@@ -6,7 +6,9 @@
 #include <std_msgs/Bool.h>
 #include <cv_bridge/cv_bridge.h>
 #include <message_filters/subscriber.h>
+#include <message_filters/synchronizer.h>
 #include <message_filters/time_synchronizer.h>
+#include <message_filters/sync_policies/approximate_time.h>
 
 #include "feature_tracker.h"
 #include "vp_utils.h"
@@ -57,8 +59,19 @@ void processMaskMessage(const sensor_msgs::ImageConstPtr &input_mask_msg, cv::Ma
     // cv::destroyAllWindows();
 }
 
+void img_callback(const sensor_msgs::ImageConstPtr &img_msg)
+{
+    std::cout << "I received an image at " << std::to_string(img_msg->header.stamp.toSec()) << std::endl;
+}
+
+void msk_callback(const sensor_msgs::ImageConstPtr &msk_msg)
+{
+    std::cout << "I received a mask at " << std::to_string(msk_msg->header.stamp.toSec()) << std::endl;
+}
+
 void callback(const sensor_msgs::ImageConstPtr &img_msg, const sensor_msgs::ImageConstPtr &mask_msg)
 {
+    // std::cout << "I received an image and a mask ! " << std::endl;
     if(first_image_flag)
     {
         first_image_flag = false;
@@ -480,12 +493,23 @@ int main(int argc, char **argv)
         }
     }
 
-    //ros::Subscriber sub_img = n.subscribe(IMAGE_TOPIC, 100, img_callback);
-    message_filters::Subscriber<sensor_msgs::Image> image_sub(n, IMAGE_TOPIC, 100);
-    message_filters::Subscriber<sensor_msgs::Image> mask_image_sub(n, MASK_TOPIC, 100);
+    // ros::Subscriber sub_img = n.subscribe(IMAGE_TOPIC, 100, img_callback);
+    // ros::Subscriber sub_msk = n.subscribe(MASK_TOPIC, 100, msk_callback);
+    // message_filters::Subscriber<sensor_msgs::Image> image_sub(n, IMAGE_TOPIC, 1000);
+    // message_filters::Subscriber<sensor_msgs::Image> mask_image_sub(n, MASK_TOPIC, 1000);
 
-    message_filters::TimeSynchronizer<sensor_msgs::Image, sensor_msgs::Image> sync(image_sub, mask_image_sub, 10);
+    // // std::cout << "Subscribed to image and mask topics : " << IMAGE_TOPIC << " and " << MASK_TOPIC << std::endl;
+
+    // message_filters::TimeSynchronizer<sensor_msgs::Image, sensor_msgs::Image> sync(image_sub, mask_image_sub, 1000);
+    // sync.registerCallback(boost::bind(&callback, _1, _2));
+    message_filters::Subscriber<sensor_msgs::Image> image1_sub(n, IMAGE_TOPIC, 10);
+    message_filters::Subscriber<sensor_msgs::Image> image2_sub(n, MASK_TOPIC, 10);
+
+    typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image, sensor_msgs::Image> MySyncPolicy;
+    // ApproximateTime takes a queue size as its constructor argument, hence MySyncPolicy(10)
+    message_filters::Synchronizer<MySyncPolicy> sync(MySyncPolicy(100), image1_sub, image2_sub);
     sync.registerCallback(boost::bind(&callback, _1, _2));
+    
 
     pub_img = n.advertise<sensor_msgs::PointCloud>("feature", 1000);
     pub_match = n.advertise<sensor_msgs::Image>("feature_img",1000);
