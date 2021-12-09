@@ -33,6 +33,7 @@ extern std::string EX_CALIB_RESULT_PATH;
 extern std::string RPVIO_RESULT_PATH;
 extern std::string RPVIO_GT_PATH;
 extern std::string IMU_TOPIC;
+extern std::string MASK_TOPIC;
 extern double TD;
 extern double TR;
 extern int ESTIMATE_TD;

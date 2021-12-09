@@ -177,14 +177,29 @@ void optimize_plane_params(
     std::cout << summary.BriefReport() << std::endl;
 }
 
+int get_plane_id(int u, int v, cv::Mat mask)
+{
+    int plane_id = 0;
+
+    cv::Vec3b colors = mask.at<cv::Vec3b>(u, v);
+    
+    plane_id = color2id(colors[0], colors[1], colors[2]);
+
+    return plane_id;
+}
+
 double z_min = 0;
 
 void history_callback(
-    const sensor_msgs::PointCloudConstPtr &features_msg
+    const sensor_msgs::PointCloudConstPtr &features_msg,
+    const sensor_msgs::ImageConstPtr &mask_msg
 )
 {
     map<int, vector<Vector3d>> reg_points;
     visualization_msgs::Marker line_list;
+
+    cv_bridge::CvImagePtr mask_ptr = cv_bridge::toCvCopy(mask_msg, sensor_msgs::image_encodings::BGR8);
+    cv::Mat mask_img = mask_ptr->image;
 
     // Loop through all feature points
     for(int fi = 0; fi < features_msg->points.size(); fi++) {
@@ -192,11 +207,13 @@ void history_callback(
         geometry_msgs::Point32 p = features_msg->points[fi];
         fpoint << p.x, p.y, p.z;
 
-        int plane_id = (int)features_msg->channels[0].values[fi];
+        int u = (int)features_msg->channels[0].values[fi];
+        int v = (int)features_msg->channels[1].values[fi];
+        
+        int plane_id = get_plane_id(u, v, mask_img);
 
         reg_points[plane_id].push_back(fpoint);
     }
-
 
     line_list.header = features_msg->header;
     // line_list.action = visualization_msgs::Marker::ADD;
@@ -929,7 +946,15 @@ int main(int argc, char **argv)
     // );
     // sync.registerCallback(boost::bind(&sync_callback, _1, _2, _3));
 
-    ros::Subscriber sub_history_cloud = n.subscribe("/rpvio_estimator/point_cloud", 100, history_callback);
+    // ros::Subscriber sub_history_cloud = n.subscribe("/rpvio_estimator/point_cloud", 100, history_callback);
+
+    message_filters::Subscriber<sensor_msgs::PointCloud> pcd_sub(n, "/vins_estimator/point_cloud" , 10);
+    message_filters::Subscriber<sensor_msgs::Image> mask_sub(n, MASK_TOPIC, 10);
+
+    typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::PointCloud, sensor_msgs::Image> MySyncPolicy;
+    // ApproximateTime takes a queue size as its constructor argument, hence MySyncPolicy(10)
+    message_filters::Synchronizer<MySyncPolicy> sync(MySyncPolicy(100), pcd_sub, mask_sub);
+    sync.registerCallback(boost::bind(&history_callback, _1, _2));
 
     // message_filters::Subscriber<sensor_msgs::PointCloud> sub_point_cloud(n, "/rpvio_estimator/point_cloud", 1000);
     // message_filters::Subscriber<nav_msgs::Odometry> sub_odometry(n, "/rpvio_estimator/odometry", 1000);

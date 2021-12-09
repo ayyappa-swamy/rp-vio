@@ -21,6 +21,7 @@ std::string EX_CALIB_RESULT_PATH;
 std::string RPVIO_RESULT_PATH;
 std::string RPVIO_GT_PATH;
 std::string IMU_TOPIC;
+std::string MASK_TOPIC;
 double ROW, COL;
 double TD, TR;
 
@@ -53,6 +54,7 @@ void readParameters(ros::NodeHandle &n)
     }
 
     fsSettings["imu_topic"] >> IMU_TOPIC;
+    fsSettings["mask_topic"] >> MASK_TOPIC;
 
     SOLVER_TIME = fsSettings["max_solver_time"];
     NUM_ITERATIONS = fsSettings["max_num_iterations"];
