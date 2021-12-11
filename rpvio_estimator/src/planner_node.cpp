@@ -17,6 +17,14 @@ void current_state_callback(
     if (num_of_planes < 1)
         return;
 
+    // From the points, compute the camera facing normal
+    // First find the normal
+    // Then find the 'd' parameter
+    // Then find the nearest point on the plane to current camera position
+    // camera facing normal direction is given by (cam_position - nearest_point)
+    // use the camera facing normal direction as the normal value for the plane
+    
+
     vector<CuboidObject> cuboids;
     // Create cuboids
     for (unsigned int i = 0; i < frames_msg->points.size(); i += 4)

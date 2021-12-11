@@ -1,9 +1,9 @@
 %YAML:1.0
 
 #common parameters
-imu_topic: "/imu_throttled"
-image_topic: "/image_throttled"
-mask_topic: "/mask_throttled"
+imu_topic: "/airsim_node/drone/imu/Imu"
+image_topic: "/airsim_node/drone/0/Scene"
+mask_topic: "/airsim_node/drone/0/Segmentation"
 output_path: "/home/tvvsstas/rpvio_ws/src/rp-vio/output/"
 gt_path: "/home/tvvsstas/rpvio_ws/src/rp-vio/data/minihattan/"
 color_palette_path: "/home/tvvsstas/rpvio_ws/src/rp-vio/config/seg_rgbs.txt"
@@ -61,8 +61,8 @@ gyr_w: 1.62356e-08    # gyroscope bias random work noise standard deviation. ori
 g_norm: 9.80665        # gravity magnitude
 
 #unsynchronization parameters
-estimate_td: 1                  
-td: -0.021        # initial value of time offset. unit: s. readed image clock + td = real image clock (IMU clock)
+estimate_td: 1                 
+td: -0.03079132514112524        # initial value of time offset. unit: s. readed image clock + td = real image clock (IMU clock)
 
 #rolling shutter parameters
 rolling_shutter: 0                  # 0: global shutter camera, 1: rolling shutter camera

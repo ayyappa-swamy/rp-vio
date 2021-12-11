@@ -237,6 +237,9 @@ void history_callback(
 
     // Fit planes ==> create map planeid vs. params
     for (auto const& fpp: reg_points) {
+        if (fpp.second.size() < 20)
+            continue;
+
         MatrixXd pts_mat(fpp.second.size(), 4);
         // MatrixXd plane_residuals(fpp.second.size(), 1);
     
@@ -276,8 +279,8 @@ void history_callback(
         double z_max = -1000;
 
         for (int pti = 0; pti < fpp.second.size(); pti++) {
-            if (fpp.second[pti].norm() > 30)
-                continue;
+            // if (fpp.second[pti].norm() > 30)
+            //     continue;
             
             point_sum += fpp.second[pti];
 
