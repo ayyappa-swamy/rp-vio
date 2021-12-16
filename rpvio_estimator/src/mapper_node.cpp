@@ -84,46 +84,55 @@ void mapping_callback(
             true
         )
         {
-            MatrixXd pts_mat(fpp.second.size(), 3);
+            MatrixXd pts_mat(fpp.second.size(), 4);
+            vector<Vector3d> plane_points;
             
             for (int i = 0; i < (int)fpp.second.size(); i++)
             {
-                Vector3d c_pt = (Ti.inverse() * fpp.second[i]);
+                Vector3d c_pt = Tic.inverse() * (Ti.inverse() * fpp.second[i]);
 
-                geometry_msgs::Point32 p;
-                p.x = (double)c_pt[0];
-                p.y = (double)c_pt[1];
-                p.z = (double)c_pt[2];
+                if (c_pt.norm() > 10)
+                    continue;
 
-                frame_cloud.points.push_back(p);
+                // geometry_msgs::Point32 p;
+                // p.x = (double)c_pt[0];
+                // p.y = (double)c_pt[1];
+                // p.z = (double)c_pt[2];
 
-                // Vector3d pt_ = c_pt;
+                // frame_cloud.points.push_back(p);
+
+                Vector3d pt_ = c_pt;
                 // pt_[2] = 1.0;
 
-                // pts_mat.row(i) = pt_.transpose();
+                pts_mat.row(i) = pt_.homogeneous().transpose();
+                plane_points.push_back(c_pt);
+            }
 
-                // // find svd
-                // Vector3d params;
-                // Eigen::JacobiSVD<MatrixXd> pt_svd(pts_mat, Eigen::ComputeFullU | Eigen::ComputeFullV);
-                // params = pt_svd.matrixV().col(pt_svd.matrixV().cols() - 1);
-                
-                // ROS_INFO("Plane params are : %g, %g, %g, %g", params[0], params[1], 0.0, params[2]);
-                // Vector3d normal = params;
-                // normal[2] = 0.0;
+            // find svd
+            Vector4d params;
+            Eigen::JacobiSVD<MatrixXd> pt_svd(pts_mat, Eigen::ComputeFullU | Eigen::ComputeFullV);
+            params = pt_svd.matrixV().col(pt_svd.matrixV().cols() - 1);
+            
+            ROS_INFO("Plane params are : %g, %g, %g, %g", params[0], params[1], params[2], params[3]);
+            Vector3d normal = params.head<3>();
+            // normal[2] = 0.0;
 
-                // if ((normal.norm() > 0.001) && (params[2] > 0.001))
-                // {
-                //     double d = params[2] / normal.norm();
-                //     normal.normalize();
+            if ((normal.norm() > 0.001) && (params[3] > 0.001))
+            {
+                double d = params[2] / normal.norm();
+                normal.normalize();
 
-                //     // Find nearest point to origin
-                //     double lambda = -d / powf(normal.norm(), 2.0);
+                // Find nearest point to origin
+                double lambda = -d / powf(normal.norm(), 2.0);
 
-                //     Vector3d point = lambda * normal;
+                Vector3d point = lambda * normal;
 
-                //     ROS_INFO("Normalized plane params are : %g, %g, %g, %g", normal[0], normal[1], 0.0, d);
-                //     ROS_INFO("Nearest point is : %g, %g, %g", point[0], point[1], point[2]);
-                // }
+                Vector4d normed_params(normal[0], normal[1], normal[2], d);
+
+                ROS_INFO("Normalized plane params are : %g, %g, %g, %g", normal[0], normal[1], normal[2], d);
+                ROS_INFO("Nearest point is : %g, %g, %g", point[0], point[1], point[2]);
+
+                compute_cuboid_vertices(normed_params, plane_points, frame_cloud);
             }
 
             plane_ids.push_back(fpp.first);
@@ -143,7 +152,9 @@ void mapping_callback(
 
     // Process a particular plane id
     frame_pub.publish(frame_cloud);
-    
+    sensor_msgs::PointCloud2 frame_cloud2;
+    sensor_msgs::convertPointCloudToPointCloud2(frame_cloud, frame_cloud2);
+    frame_pub2.publish(frame_cloud2);
     // Find its plane parameters
     
 }
@@ -180,6 +191,7 @@ int main(int argc, char **argv)
     // Publish 3D plane segments (line list or marker array)
 
     frame_pub = n.advertise<sensor_msgs::PointCloud>("frame_cloud", 100);
+    frame_pub2 = n.advertise<sensor_msgs::PointCloud2>("frame_cloud2", 100);
     masked_im_pub = n.advertise<sensor_msgs::Image>("masked_image", 10);
     
     ros::spin();

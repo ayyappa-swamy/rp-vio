@@ -63,6 +63,11 @@
 #include <message_filters/sync_policies/approximate_time.h>
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/PointCloud.h>
+#include <sensor_msgs/PointCloud2.h>
+
+#include <sensor_msgs/PointCloud.h>
+#include <sensor_msgs/point_cloud_conversion.h>
+
 #include <nav_msgs/Odometry.h>
 #include <visualization_msgs/Marker.h>
 #include <visualization_msgs/MarkerArray.h>
@@ -83,6 +88,7 @@ ros::Publisher pub_plane_cloud;
 ros::Publisher marker_pub;
 ros::Publisher ellipse_pub;
 ros::Publisher frame_pub;
+ros::Publisher frame_pub2;
 ros::Publisher masked_im_pub;
 
 map<double, vector<Vector4d>> plane_measurements;
@@ -597,4 +603,97 @@ void draw_quads(cv::Mat &image, cv::Mat mask_image, vector<int> plane_ids)
     {
         draw_quad(image, mask_image, plane_ids[i]);
     }
+}
+
+void compute_cuboid_vertices(Vector4d plane_params, vector<Vector3d> points, sensor_msgs::PointCloud &vertex_cloud)
+{
+    Vector3d normal = plane_params.head<3>().normalized();
+    Vector3d vertical(0, 1, 0);
+    Vector3d horizontal = normal.cross(vertical);
+
+    Vector3d min_n_pt;
+    Vector3d min_h_pt;
+    Vector3d min_v_pt;
+    double min_n_d = 10000;
+    double min_h_d = 10000;
+    double min_v_d = 10000;
+
+    Vector3d max_n_pt;
+    Vector3d max_h_pt;
+    Vector3d max_v_pt;
+    double max_n_d = -10000;
+    double max_h_d = -10000;
+    double max_v_d = -10000;
+
+    for (int i = 0; i < points.size(); i++)
+    {
+        Vector3d point = points[i];
+
+        if (plane_params.dot(point.homogeneous()) > 1)
+            continue;
+
+        double nd = normal.dot(point);
+        double hd = horizontal.dot(point);
+        double vd = vertical.dot(point);
+
+        if (nd < min_n_d)
+            min_n_pt = point;
+        else if (nd > max_n_d)
+            max_n_pt = point;
+
+        if (hd < min_h_d)
+            min_h_pt = point;
+        else if (hd > max_h_d)
+            max_h_pt = point;
+
+        if (vd < min_v_d)
+            min_v_pt = point;
+        else if (vd > max_v_d)
+            max_v_pt = point;
+    }
+
+    // Compute the 8 vertices bounding points
+    // pt 1: (max x, min y, max z)
+    geometry_msgs::Point32 pt1;
+    pt1.x = max_h_pt.x();
+    pt1.y = min_v_pt.y();
+    pt1.z = max_n_pt.z();
+    vertex_cloud.points.push_back(pt1);
+    
+    // pt 2: (max x, min y, min z)
+    geometry_msgs::Point32 pt2;
+    pt2.x = max_h_pt.x();
+    pt2.y = min_v_pt.y();
+    pt2.z = min_n_pt.z();
+    vertex_cloud.points.push_back(pt2);
+       
+    // pt 3: (min x, min y, min z)
+    geometry_msgs::Point32 pt3;
+    pt3.x = min_h_pt.x();
+    pt3.y = min_v_pt.y();
+    pt3.z = min_n_pt.z();
+    vertex_cloud.points.push_back(pt3);
+    
+    // pt 4: (min x, min y, max z)
+    geometry_msgs::Point32 pt4;
+    pt4.x = min_h_pt.x();
+    pt4.y = min_v_pt.y();
+    pt4.z = max_n_pt.z();
+    vertex_cloud.points.push_back(pt4);
+    
+    // // pt 5: (max x, max y, max z)
+    // geometry_msgs::Point32 pt5(max_h_pt.x(), max_v_pt.y(), max_n_pt.z());
+    // vertex_cloud.points.push_back(pt5);
+    
+    // // pt 6: (max x, max y, min z)
+    // geometry_msgs::Point32 pt6(max_h_pt.x(), max_v_pt.y(), min_n_pt.z());
+    // vertex_cloud.points.push_back(pt6);
+    
+    // // pt 7: (min x, max y, min z)
+    // geometry_msgs::Point32 pt7(min_h_pt.x(), max_v_pt.y(), min_n_pt.z());
+    // vertex_cloud.points.push_back(pt7);
+    
+    // // pt 8: (min x, max y, max z)
+    // geometry_msgs::Point32 pt8(min_h_pt.x(), max_v_pt.y(), max_n_pt.z());
+    // vertex_cloud.points.push_back(pt8);
 }
