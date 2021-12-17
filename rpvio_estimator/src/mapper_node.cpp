@@ -19,7 +19,7 @@ void mapping_callback(
 )
 {
     // Step 1: Cluster all the feature points based on their plane ids
-    map<int, vector<Vector3d>> plane_points;
+    map<int, vector<Vector3d>> points_map;
     
     cv_bridge::CvImagePtr mask_ptr = cv_bridge::toCvCopy(mask_msg, sensor_msgs::image_encodings::BGR8);
     cv::Mat mask_img = mask_ptr->image;
@@ -44,9 +44,9 @@ void mapping_callback(
         // ROS_INFO("Found color id is %d", (int)plane_id);
 
         if ((plane_id != 0) && (plane_id != 39)) // Ignore sky and ground points
-            plane_points[plane_id].push_back(fpoint);
+            points_map[plane_id].push_back(fpoint);
     }
-    ROS_INFO("Clustered the feature points based on %d planes", (int)plane_points.size());
+    ROS_INFO("Clustered the feature points based on %d planes", (int)points_map.size());
 
     sensor_msgs::PointCloud frame_cloud;
     frame_cloud.header = features_msg->header;
@@ -83,78 +83,83 @@ void mapping_callback(
     line_list.type = visualization_msgs::Marker::LINE_LIST;
 
     // LINE_LIST markers use only the x component of scale, for the line width
-    line_list.scale.x = 0.2;
+    line_list.scale.x = 0.1;
 
     // Line list is green
     line_list.color.r = 1.0;
     line_list.color.a = 1.0;
 
+    Vector3d vertical(0, 1, 0);
+
     // Print number of features per plane
-    for (auto const& fpp: plane_points)
+    for (auto const& fpp: points_map)
     {
         ROS_INFO("Number of features in plane id %d are %d", fpp.first, (int)fpp.second.size());
 
-        if (
-            // (fpp.first == 103) &&
-            // (fpp.second.size() >= 10)
-            true
-        )
+        vector<Vector3d> plane_points;
+        for (int i = 0; i < (int)fpp.second.size(); i++)
         {
-            MatrixXd pts_mat(fpp.second.size(), 4);
-            vector<Vector3d> plane_points;
-            vector<geometry_msgs::Point> vertices;
+            Vector3d c_pt = Tic.inverse() * (Ti.inverse() * fpp.second[i]);
 
-            for (int i = 0; i < (int)fpp.second.size(); i++)
-            {
-                Vector3d c_pt = Tic.inverse() * (Ti.inverse() * fpp.second[i]);
-
-                if (c_pt.norm() > 10)
-                    continue;
-
-                geometry_msgs::Point32 p;
-                p.x = (double)c_pt[0];
-                p.y = (double)c_pt[1];
-                p.z = (double)c_pt[2];
-
-                frame_cloud.points.push_back(p);
-
-                Vector3d pt_ = c_pt;
-                // pt_[2] = 1.0;
-
-                pts_mat.row(i) = pt_.homogeneous().transpose();
+            if (c_pt.norm() <= 10)
                 plane_points.push_back(c_pt);
-            }
+        }
 
-            // find svd
-            Vector4d params;
-            Eigen::JacobiSVD<MatrixXd> pt_svd(pts_mat, Eigen::ComputeFullU | Eigen::ComputeFullV);
-            params = pt_svd.matrixV().col(pt_svd.matrixV().cols() - 1);
-            
-            ROS_INFO("Plane params are : %g, %g, %g, %g", params[0], params[1], params[2], params[3]);
-            Vector3d normal = params.head<3>();
-            // normal[2] = 0.0;
+        if (plane_points.size() < 8)
+            continue;
 
-            if ((normal.norm() > 0.001) && (params[3] > 0.001))
+        MatrixXd pts_mat(plane_points.size(), 4);
+        vector<geometry_msgs::Point> vertices;
+
+        for (int i = 0; i < (int)plane_points.size(); i++)
+        {
+            Vector3d c_pt = plane_points[i];
+
+            geometry_msgs::Point32 p;
+            p.x = (double)c_pt[0];
+            p.y = (double)c_pt[1];
+            p.z = (double)c_pt[2];
+
+            frame_cloud.points.push_back(p);
+
+            Vector3d pt_ = c_pt;
+            // pt_[2] = 1.0;
+
+            pts_mat.row(i) = pt_.homogeneous().transpose();
+        }
+
+        // find svd
+        Vector4d params;
+        Eigen::JacobiSVD<MatrixXd> pt_svd(pts_mat, Eigen::ComputeFullU | Eigen::ComputeFullV);
+        params = pt_svd.matrixV().col(pt_svd.matrixV().cols() - 1);
+        
+        ROS_INFO("Plane params are : %g, %g, %g, %g", params[0], params[1], params[2], params[3]);
+        Vector3d normal = params.head<3>();
+        // normal[2] = 0.0;
+
+        if ((normal.norm() > 0.001) && (params[3] > 0.001))
+        {
+            double d = params[3] / normal.norm();
+            normal.normalize();
+
+            // Find nearest point to origin
+            double lambda = -d / powf(normal.norm(), 2.0);
+
+            Vector3d point = lambda * normal;
+
+            Vector4d normed_params(normal[0], normal[1], normal[2], d);
+
+            if (fabs(normal.dot(vertical)) < 0.1)
             {
-                double d = params[2] / normal.norm();
-                normal.normalize();
-
-                // Find nearest point to origin
-                double lambda = -d / powf(normal.norm(), 2.0);
-
-                Vector3d point = lambda * normal;
-
-                Vector4d normed_params(normal[0], normal[1], normal[2], d);
-
                 ROS_INFO("Normalized plane params are : %g, %g, %g, %g", normal[0], normal[1], normal[2], d);
                 ROS_INFO("Nearest point is : %g, %g, %g", point[0], point[1], point[2]);
-
-                compute_cuboid_vertices(normed_params, plane_points, vertices);
-                create_cuboid_frame(vertices, line_list);
+                
+                if (fit_cuboid_to_point_cloud(normed_params, plane_points, vertices))
+                    create_cuboid_frame(vertices, line_list);
             }
-
-            plane_ids.push_back(fpp.first);
         }
+
+        plane_ids.push_back(fpp.first);
     }
 
     ROS_INFO("Drawing quads for %d planes", plane_ids.size());

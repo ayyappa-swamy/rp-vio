@@ -61,10 +61,10 @@ client.moveToZAsync(-5, 1, np.inf, airsim.DrivetrainType.MaxDegreeOfFreedom, air
 
 print("flying on smooth path..")
 path.append(airsim.Vector3r(25.0, 0, -5))
-client.moveOnPathAsync(path, 2.0, np.inf, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(is_rate=True, yaw_or_rate=-0.5))
+client.moveOnPathAsync(path, 0.25, np.inf, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(is_rate=True, yaw_or_rate=-0.5))
 path = []
 path.append(airsim.Vector3r(50.0, -20, -7))
-client.moveOnPathAsync(path, 5.0, np.inf, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(is_rate=True, yaw_or_rate=-0.5))
+client.moveOnPathAsync(path, 0.25, np.inf, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(is_rate=True, yaw_or_rate=-0.5))
 # path = []
 # path.append(airsim.Vector3r(77.0, -90, -5))
 # client.moveOnPathAsync(path, 0.5, np.inf, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(is_rate=True, yaw_or_rate=0.0)).join()
@@ -73,7 +73,7 @@ client.moveOnPathAsync(path, 5.0, np.inf, airsim.DrivetrainType.MaxDegreeOfFreed
 
 current_state = client.getMultirotorState()
 current_position = current_state.kinematics_estimated.position
-end_position = airsim.Vector3r(75.0, 0, -5)
+end_position = airsim.Vector3r(55.0, 0, -5)
 print('end_position: ', end_position.x_val, end_position.y_val, end_position.z_val)
 
 client.simPause(True)
@@ -93,9 +93,9 @@ while (end_position - current_position).get_length() > 1:
     # client.simPause(True)
     path = []
     path.append(airsim.Vector3r(x_next+5.0, y_next-5.0, z_next))
-    client.moveOnPathAsync(path, 2.0, np.inf, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(is_rate=True, yaw_or_rate=-0.5))
-    client.simContinueForTime(10)
-    # time.sleep(5)
+    client.moveOnPathAsync(path, 0.25, np.inf, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(is_rate=True, yaw_or_rate=-0.5))
+    client.simContinueForTime(5)
+    # time.sleep(2)
     # client.simPause(True)
 
     current_state = client.getMultirotorState()

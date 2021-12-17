@@ -567,31 +567,31 @@ void draw_quad(cv::Mat &image, cv::Mat mask_image, int plane_id)
     cv::Mat dilated;
     cv::dilate(plane_mask, dilated, cv::Mat(), cv::Point(-1, -1), 5);
     cv::erode(dilated, dilated, cv::Mat(), cv::Point(-1, -1), 7);
-    ROS_INFO("Dilated the plane mask with id %d", plane_id);
+    // ROS_INFO("Dilated the plane mask with id %d", plane_id);
 
     // find contours
     vector<vector<cv::Point> > contours;
     vector<cv::Vec4i> hierarchy;
     cv::findContours( dilated, contours, hierarchy, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE );
     // std::cout << "largest contour has " << contours[0].size() << "points" << std::endl;
-    ROS_INFO("Found %d contours", (int)contours.size());
+    // ROS_INFO("Found %d contours", (int)contours.size());
 
     if (contours.size() > 0)
     {
-        ROS_INFO("Largest contour has %d points", (int)contours[0].size());
+        // ROS_INFO("Largest contour has %d points", (int)contours[0].size());
 
         // simplify contours
         double epsilon = 0.01*cv::arcLength(contours[0], true);
         vector<cv::Point> approx_contour;
         cv::approxPolyDP(contours[0], approx_contour, epsilon, true);
         // std::cout << "simplified contour has" << approx_contour.size() << "points" << std::endl;
-        ROS_INFO("Simplified contour has %d points", (int)approx_contour.size());
+        // ROS_INFO("Simplified contour has %d points", (int)approx_contour.size());
         
         if (approx_contour.size() >= 4) {
             // Draw the simplified contour
             vector<vector<cv::Point> > approx_contours;
             approx_contours.push_back(approx_contour);
-            ROS_INFO("Drawing the contour");
+            // ROS_INFO("Drawing the contour");
             cv::drawContours(image, approx_contours, 0, id_color, cv::FILLED);
         }
     }
@@ -605,7 +605,43 @@ void draw_quads(cv::Mat &image, cv::Mat mask_image, vector<int> plane_ids)
     }
 }
 
-void compute_cuboid_vertices(Vector4d plane_params, vector<Vector3d> points, vector<geometry_msgs::Point> &vertices)
+Vector3d project_point_to_plane(Vector3d point, Vector4d plane)
+{
+    Vector3d normal = plane.head<3>();
+    double d = plane[3];
+
+    double lambda = (-d - point.dot(normal)) / normal.norm();
+
+    return point + (lambda * normal);
+}   
+
+void compute_vertices_from_planes(Vector3d bound_point, vector<Vector4d> bound_planes, vector<Vector3d> &vertices)
+{
+    // Assuming planes are in this order: left, right, front back
+
+    // There are four bound planes assuming they are vertical
+    Vector4d plane1 = bound_planes[0];
+    Vector4d plane2 = bound_planes[1];
+    Vector4d plane3 = bound_planes[2];
+    Vector4d plane4 = bound_planes[3];
+
+    // Project to left most plane
+    Vector3d left_point = project_point_to_plane(bound_point, plane1);
+    Vector3d left_front = project_point_to_plane(left_point, plane3);
+    Vector3d left_back = project_point_to_plane(left_point, plane4);
+
+    // Project to right most plane
+    Vector3d right_point = project_point_to_plane(bound_point, plane2);
+    Vector3d right_front = project_point_to_plane(right_point, plane3);
+    Vector3d right_back = project_point_to_plane(right_point, plane4);
+
+    vertices.push_back(left_front);
+    vertices.push_back(left_back);
+    vertices.push_back(right_front);
+    vertices.push_back(right_back);
+}
+
+bool fit_cuboid_to_point_cloud(Vector4d plane_params, vector<Vector3d> points, vector<geometry_msgs::Point> &vertices)
 {
     Vector3d normal = plane_params.head<3>().normalized();
     Vector3d vertical(0, 1, 0);
@@ -632,82 +668,74 @@ void compute_cuboid_vertices(Vector4d plane_params, vector<Vector3d> points, vec
         if (plane_params.dot(point.homogeneous()) > 1)
             continue;
 
-        double nd = normal.dot(point);
-        double hd = horizontal.dot(point);
-        double vd = vertical.dot(point);
+        double nd = -normal.dot(point);
+        double hd = -horizontal.dot(point);
+        double vd = -vertical.dot(point);
 
-        if (nd < min_n_d)
+        if (nd < min_n_d){
             min_n_pt = point;
-        else if (nd > max_n_d)
+            min_n_d = nd;
+        }
+        else if (nd > max_n_d){
             max_n_pt = point;
+            max_n_d = nd;
+        }
 
-        if (hd < min_h_d)
+        if (hd < min_h_d){
             min_h_pt = point;
-        else if (hd > max_h_d)
+	        min_h_d = hd;
+        }
+        else if (hd > max_h_d){
             max_h_pt = point;
+    	    max_h_d = hd;
+	    }
 
-        if (vd < min_v_d)
+        if (vd < min_v_d){
             min_v_pt = point;
-        else if (vd > max_v_d)
+	        min_v_d = vd;
+	    }
+        else if (vd > max_v_d){
             max_v_pt = point;
+	        max_v_d = vd;
+	    }	
     }
 
-    // Compute the 8 vertices bounding points
-    // pt 1: (max x, min y, max z)
-    geometry_msgs::Point pt1;
-    pt1.x = max_h_pt.x();
-    pt1.y = min_v_pt.y();
-    pt1.z = max_n_pt.z();
-    vertices.push_back(pt1);
-    
-    // pt 2: (max x, min y, min z)
-    geometry_msgs::Point pt2;
-    pt2.x = max_h_pt.x();
-    pt2.y = min_v_pt.y();
-    pt2.z = min_n_pt.z();
-    vertices.push_back(pt2);
-       
-    // pt 3: (min x, min y, min z)
-    geometry_msgs::Point pt3;
-    pt3.x = min_h_pt.x();
-    pt3.y = min_v_pt.y();
-    pt3.z = min_n_pt.z();
-    vertices.push_back(pt3);
-    
-    // pt 4: (min x, min y, max z)
-    geometry_msgs::Point pt4;
-    pt4.x = min_h_pt.x();
-    pt4.y = min_v_pt.y();
-    pt4.z = max_n_pt.z();
-    vertices.push_back(pt4);
-    
-    // pt 5: (max x, max y, max z)
-    geometry_msgs::Point pt5;
-    pt5.x = max_h_pt.x();
-    pt5.y = max_v_pt.y();
-    pt5.z = max_n_pt.z();
-    vertices.push_back(pt5);
-    // 
-    // pt 6: (max x, max y, min z)
-    geometry_msgs::Point pt6;
-    pt6.x = max_h_pt.x();
-    pt6.y = max_v_pt.y();
-    pt6.z = min_n_pt.z();
-    vertices.push_back(pt6);
-    // 
-    // pt 7: (min x, max y, min z)
-    geometry_msgs::Point pt7;
-    pt7.x = min_h_pt.x();
-    pt7.y = max_v_pt.y();
-    pt7.z = min_n_pt.z();
-    vertices.push_back(pt7);
-    // 
-    // pt 8: (min x, max y, max z)
-    geometry_msgs::Point pt8;
-    pt8.x = min_h_pt.x();
-    pt8.y = max_v_pt.y();
-    pt8.z = max_n_pt.z();
-    vertices.push_back(pt8);
+    vector<Vector4d> bound_planes;
+    vector<Vector3d> bound_vertices;
+
+    Vector4d left_plane;
+    left_plane << horizontal, min_h_d;
+    bound_planes.push_back(left_plane);
+
+    Vector4d right_plane;
+    right_plane << horizontal, max_h_d;
+    bound_planes.push_back(right_plane);
+
+    Vector4d front_plane;
+    front_plane << normal, min_n_d;
+    bound_planes.push_back(front_plane);
+
+    Vector4d back_plane;
+    back_plane << normal, max_n_d;
+    bound_planes.push_back(back_plane);
+
+    compute_vertices_from_planes(min_v_pt, bound_planes, bound_vertices);
+    compute_vertices_from_planes(max_v_pt, bound_planes, bound_vertices);
+
+    for (int i = 0; i < bound_vertices.size(); i++)
+    {
+        geometry_msgs::Point pt;
+        pt.x = bound_vertices[i].x();
+        pt.y = bound_vertices[i].y();
+        pt.z = bound_vertices[i].z();
+
+        vertices.push_back(pt);
+
+        if (bound_vertices[i].norm() > 20)
+            return false;
+    }
+
+    return true;
 }
 
 /**
@@ -725,12 +753,12 @@ void create_cuboid_frame(vector<geometry_msgs::Point> vertices, visualization_ms
     line_list.points.push_back(vertices[1]);
 
     line_list.points.push_back(vertices[1]);
-    line_list.points.push_back(vertices[2]);
-
-    line_list.points.push_back(vertices[2]);
     line_list.points.push_back(vertices[3]);
 
     line_list.points.push_back(vertices[3]);
+    line_list.points.push_back(vertices[2]);
+
+    line_list.points.push_back(vertices[2]);
     line_list.points.push_back(vertices[0]);
 
     // Define the edges for bottom face
@@ -738,12 +766,12 @@ void create_cuboid_frame(vector<geometry_msgs::Point> vertices, visualization_ms
     line_list.points.push_back(vertices[5]);
 
     line_list.points.push_back(vertices[5]);
-    line_list.points.push_back(vertices[6]);
-
-    line_list.points.push_back(vertices[6]);
     line_list.points.push_back(vertices[7]);
 
     line_list.points.push_back(vertices[7]);
+    line_list.points.push_back(vertices[6]);
+
+    line_list.points.push_back(vertices[6]);
     line_list.points.push_back(vertices[4]);
 
     // Define the 4 edges connecting top face and bottom 
