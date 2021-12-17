@@ -605,7 +605,7 @@ void draw_quads(cv::Mat &image, cv::Mat mask_image, vector<int> plane_ids)
     }
 }
 
-void compute_cuboid_vertices(Vector4d plane_params, vector<Vector3d> points, sensor_msgs::PointCloud &vertex_cloud)
+void compute_cuboid_vertices(Vector4d plane_params, vector<Vector3d> points, vector<geometry_msgs::Point> &vertices)
 {
     Vector3d normal = plane_params.head<3>().normalized();
     Vector3d vertical(0, 1, 0);
@@ -654,46 +654,108 @@ void compute_cuboid_vertices(Vector4d plane_params, vector<Vector3d> points, sen
 
     // Compute the 8 vertices bounding points
     // pt 1: (max x, min y, max z)
-    geometry_msgs::Point32 pt1;
+    geometry_msgs::Point pt1;
     pt1.x = max_h_pt.x();
     pt1.y = min_v_pt.y();
     pt1.z = max_n_pt.z();
-    vertex_cloud.points.push_back(pt1);
+    vertices.push_back(pt1);
     
     // pt 2: (max x, min y, min z)
-    geometry_msgs::Point32 pt2;
+    geometry_msgs::Point pt2;
     pt2.x = max_h_pt.x();
     pt2.y = min_v_pt.y();
     pt2.z = min_n_pt.z();
-    vertex_cloud.points.push_back(pt2);
+    vertices.push_back(pt2);
        
     // pt 3: (min x, min y, min z)
-    geometry_msgs::Point32 pt3;
+    geometry_msgs::Point pt3;
     pt3.x = min_h_pt.x();
     pt3.y = min_v_pt.y();
     pt3.z = min_n_pt.z();
-    vertex_cloud.points.push_back(pt3);
+    vertices.push_back(pt3);
     
     // pt 4: (min x, min y, max z)
-    geometry_msgs::Point32 pt4;
+    geometry_msgs::Point pt4;
     pt4.x = min_h_pt.x();
     pt4.y = min_v_pt.y();
     pt4.z = max_n_pt.z();
-    vertex_cloud.points.push_back(pt4);
+    vertices.push_back(pt4);
     
-    // // pt 5: (max x, max y, max z)
-    // geometry_msgs::Point32 pt5(max_h_pt.x(), max_v_pt.y(), max_n_pt.z());
-    // vertex_cloud.points.push_back(pt5);
-    
-    // // pt 6: (max x, max y, min z)
-    // geometry_msgs::Point32 pt6(max_h_pt.x(), max_v_pt.y(), min_n_pt.z());
-    // vertex_cloud.points.push_back(pt6);
-    
-    // // pt 7: (min x, max y, min z)
-    // geometry_msgs::Point32 pt7(min_h_pt.x(), max_v_pt.y(), min_n_pt.z());
-    // vertex_cloud.points.push_back(pt7);
-    
-    // // pt 8: (min x, max y, max z)
-    // geometry_msgs::Point32 pt8(min_h_pt.x(), max_v_pt.y(), max_n_pt.z());
-    // vertex_cloud.points.push_back(pt8);
+    // pt 5: (max x, max y, max z)
+    geometry_msgs::Point pt5;
+    pt5.x = max_h_pt.x();
+    pt5.y = max_v_pt.y();
+    pt5.z = max_n_pt.z();
+    vertices.push_back(pt5);
+    // 
+    // pt 6: (max x, max y, min z)
+    geometry_msgs::Point pt6;
+    pt6.x = max_h_pt.x();
+    pt6.y = max_v_pt.y();
+    pt6.z = min_n_pt.z();
+    vertices.push_back(pt6);
+    // 
+    // pt 7: (min x, max y, min z)
+    geometry_msgs::Point pt7;
+    pt7.x = min_h_pt.x();
+    pt7.y = max_v_pt.y();
+    pt7.z = min_n_pt.z();
+    vertices.push_back(pt7);
+    // 
+    // pt 8: (min x, max y, max z)
+    geometry_msgs::Point pt8;
+    pt8.x = min_h_pt.x();
+    pt8.y = max_v_pt.y();
+    pt8.z = max_n_pt.z();
+    vertices.push_back(pt8);
+}
+
+/**
+ * Vertices are in the following order
+ * vertices 0-3 define the top face
+ * vertices 4-7 define the bottom face
+ * 
+ * In each face, following order is used:
+ * back right, front right, front left, back left
+ **/
+void create_cuboid_frame(vector<geometry_msgs::Point> vertices, visualization_msgs::Marker &line_list)
+{   
+    // Define the edges for top face
+    line_list.points.push_back(vertices[0]);
+    line_list.points.push_back(vertices[1]);
+
+    line_list.points.push_back(vertices[1]);
+    line_list.points.push_back(vertices[2]);
+
+    line_list.points.push_back(vertices[2]);
+    line_list.points.push_back(vertices[3]);
+
+    line_list.points.push_back(vertices[3]);
+    line_list.points.push_back(vertices[0]);
+
+    // Define the edges for bottom face
+    line_list.points.push_back(vertices[4]);
+    line_list.points.push_back(vertices[5]);
+
+    line_list.points.push_back(vertices[5]);
+    line_list.points.push_back(vertices[6]);
+
+    line_list.points.push_back(vertices[6]);
+    line_list.points.push_back(vertices[7]);
+
+    line_list.points.push_back(vertices[7]);
+    line_list.points.push_back(vertices[4]);
+
+    // Define the 4 edges connecting top face and bottom 
+    line_list.points.push_back(vertices[0]);
+    line_list.points.push_back(vertices[4]);
+
+    line_list.points.push_back(vertices[1]);
+    line_list.points.push_back(vertices[5]);
+
+    line_list.points.push_back(vertices[2]);
+    line_list.points.push_back(vertices[6]);
+
+    line_list.points.push_back(vertices[3]);
+    line_list.points.push_back(vertices[7]);
 }
