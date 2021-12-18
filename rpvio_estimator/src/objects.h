@@ -1,6 +1,10 @@
 #ifndef VOXBLOX_SIMULATION_OBJECTS_H_
 #define VOXBLOX_SIMULATION_OBJECTS_H_
 
+/**
+ * This file is a modified from 'voxblox' repo
+ **/
+
 #include <algorithm>
 #include <iostream>
 
@@ -258,6 +262,27 @@ public:
         : Object(center, Type::kCuboid, color, id), normal_(normal), breadth_(breadth), width_(width), height_(height)
     {
         setIsometryFromNormal();
+    }
+    CuboidObject(const vector<Point>& vertices)
+    {
+        Point center(0, 0, 0);
+
+        for (int i = 0; i < vertices.size(); i++){
+            center += vertices[i];
+        }
+        center = center / vertices.size();
+
+
+    }
+
+    void computeNormalFromVertices()
+    {
+
+    }
+
+    void computeHalfPlanes()
+    {
+        
     }
 
     void setIsometryFromNormal()

@@ -257,6 +257,7 @@ int main(int argc, char **argv)
     readParameters(n);
 
     message_filters::Subscriber<sensor_msgs::PointCloud> sub_frame_cloud(n, "/rpvio_mapper/frame_cloud", 20);
+    message_filters::Subscriber<visualization_msgs::Marker> sub_cuboids(n, "/rpvio_mapper/cuboids", 20);
     message_filters::Subscriber<nav_msgs::Odometry> sub_odometry(n, "/rpvio_estimator/odometry", 20);
 
     message_filters::TimeSynchronizer<sensor_msgs::PointCloud, nav_msgs::Odometry> sync(
@@ -265,6 +266,13 @@ int main(int argc, char **argv)
         100
     );
     sync.registerCallback(boost::bind(&current_state_callback, _1, _2));
+
+    message_filters::TimeSynchronizer<sensor_msgs::PointCloud, nav_msgs::Odometry> sync2(
+        sub_cuboids,
+        sub_odometry,
+        100
+    );
+    sync2.registerCallback(boost::bind(&current_state_callback2, _1, _2));
     // ros::Subscriber sub_odometry = n.subscribe("/rpvio_estimator/odometry", 1, current_state_callback);
 
     std::string SRC_PATH = "/home/tvvsstas/rpvio_ws/src/rp-vio/rpvio_estimator/src";

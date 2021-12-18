@@ -48,7 +48,7 @@ path = []
 # path.append(airsim.Vector3r())
 # path.append(airsim.Vector3r())
 
-client.moveToZAsync(-5, 1, np.inf, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(is_rate=False, yaw_or_rate=-45)).join()
+# client.moveToZAsync(-5, 1, np.inf, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(is_rate=False, yaw_or_rate=-45)).join()
 # client.moveToZAsync(-7, 0.5).join()
 # client.moveToZAsync(-2, 0.5).join()
 # client.moveToZAsync(0, 1).join()
@@ -59,12 +59,21 @@ client.moveToZAsync(-5, 1, np.inf, airsim.DrivetrainType.MaxDegreeOfFreedom, air
 # client.moveToZAsync(0, 0.5).join()
 # client.moveToPositionAsync(0.0, -20.0, -2, 1).join()
 
-print("flying on smooth path..")
-path.append(airsim.Vector3r(25.0, 0, -5))
-client.moveOnPathAsync(path, 0.25, np.inf, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(is_rate=True, yaw_or_rate=-0.5))
-path = []
-path.append(airsim.Vector3r(50.0, -20, -7))
-client.moveOnPathAsync(path, 0.25, np.inf, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(is_rate=True, yaw_or_rate=-0.5))
+print("Performing up-down motion")
+# client.moveToZAsync(-4, 0.5).join()
+# client.moveToZAsync(-7, 0.5).join()
+client.moveToZAsync(-2, 0.5).join()
+client.moveToZAsync(-2.5, 0.5).join()
+
+print("Starting to execute the trajectory")
+mid_position = airsim.Vector3r(0.0, -22.0, -2.5)
+end_position = airsim.Vector3r(22.0, -22.0, -2.5)
+
+# path.append(airsim.Vector3r(25.0, 0, -5))
+# client.moveOnPathAsync(path, 0.25, np.inf, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(is_rate=True, yaw_or_rate=-0.5))
+# path = []
+# path.append(airsim.Vector3r(50.0, -20, -7))
+# client.moveOnPathAsync(path, 0.25, np.inf, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(is_rate=True, yaw_or_rate=-0.5))
 # path = []
 # path.append(airsim.Vector3r(77.0, -90, -5))
 # client.moveOnPathAsync(path, 0.5, np.inf, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(is_rate=True, yaw_or_rate=0.0)).join()
@@ -73,13 +82,17 @@ client.moveOnPathAsync(path, 0.25, np.inf, airsim.DrivetrainType.MaxDegreeOfFree
 
 current_state = client.getMultirotorState()
 current_position = current_state.kinematics_estimated.position
-end_position = airsim.Vector3r(55.0, 0, -5)
-print('end_position: ', end_position.x_val, end_position.y_val, end_position.z_val)
-
-client.simPause(True)
+# end_position = airsim.Vector3r(55.0, 0, -5)
+# print('end_position: ', end_position.x_val, end_position.y_val, end_position.z_val)
 
 while (end_position - current_position).get_length() > 1:
-    next_direction = (end_position - current_position).to_numpy_array()
+    input("Press Enter to move again")
+    client.simPause(False)
+    if ((end_position - current_position).get_length() > (end_position - mid_position).get_length()):
+        next_direction = (mid_position - current_position).to_numpy_array()
+    else:
+        next_direction = (end_position - current_position).to_numpy_array()
+    
     next_position = next_direction
     next_magnitude = np.linalg.norm(next_direction)
 
@@ -92,16 +105,18 @@ while (end_position - current_position).get_length() > 1:
 
     # client.simPause(True)
     path = []
-    path.append(airsim.Vector3r(x_next+5.0, y_next-5.0, z_next))
-    client.moveOnPathAsync(path, 0.25, np.inf, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(is_rate=True, yaw_or_rate=-0.5))
+    path.append(airsim.Vector3r(x_next, y_next, z_next))
+    client.moveOnPathAsync(path, 1, np.inf, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(is_rate=True, yaw_or_rate=0.5))
     client.simContinueForTime(5)
     # time.sleep(2)
     # client.simPause(True)
 
     current_state = client.getMultirotorState()
     current_position = current_state.kinematics_estimated.position
+    
+    print("Pausing ..\n")
+    client.simPause(True)
 
-client.simPause(False)
 # Loop:
 #   * Consider start point, way point, end point
 #   * Get current drone position (take ground truth for now, replace with odometry later)
@@ -109,9 +124,9 @@ client.simPause(False)
 #   * Command to move it to next way point
 #   * Pause the simulation for few seconds
 
-
 # End motion and recording
 print("Done ...")
+client.simPause(False)
 # client.moveToZAsync(5, 2).join()
 # client.moveToPositionAsync(0, 0, 0, 1).join()
 client.landAsync(timeout_sec=10).join()
