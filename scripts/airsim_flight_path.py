@@ -25,10 +25,10 @@ client.hoverAsync().join()
 
 path = []
 
-path.append(airsim.Vector3r(0.0, -22.0, -5))
-path.append(airsim.Vector3r(22.0, -22.0, -5))
-path.append(airsim.Vector3r(22.0, 0.0, -5))
-path.append(airsim.Vector3r(0.0, 0.0, -5))
+path.append(airsim.Vector3r(0.0, -22.0, -2.5))
+path.append(airsim.Vector3r(22.0, -22.0, -2.5))
+path.append(airsim.Vector3r(22.0, 0.0, -2.5))
+path.append(airsim.Vector3r(0.0, 0.0, -2.5))
 
 # path.append(airsim.Vector3r(225.0, -225.0, 3))
 # path.append(airsim.Vector3r(-90.0, 95.0, 3))
@@ -43,15 +43,15 @@ path.append(airsim.Vector3r(0.0, 0.0, -5))
 # path.append(airsim.Vector3r())
 
 client.moveToZAsync(-4, 0.5).join()
-client.moveToZAsync(-7, 0.5).join()
-client.moveToZAsync(-2, 0.5).join()
+# client.moveToZAsync(-7, 0.5).join()
+# client.moveToZAsync(-2, 0.5).join()
 client.moveToZAsync(0, 0.5).join()
-client.moveToZAsync(-1, 0.5).join()
-client.moveToZAsync(-5, 0.5).join()
+# client.moveToZAsync(-1, 0.5).join()
+client.moveToZAsync(-2.5, 0.5).join()
 # client.moveToPositionAsync(0.0, -20.0, -2, 1).join()
 
 print("flying on smooth path..")
-client.moveOnPathAsync(path, 0.5, np.inf, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(True, np.pi/2)).join()
+client.moveOnPathAsync(path, 0.25, np.inf, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(True, np.pi/4)).join()
 
 # End motion and recording
 print("Done ...")

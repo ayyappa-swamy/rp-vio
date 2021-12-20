@@ -269,12 +269,11 @@ public:
      * 0-1-3-2-0 define the top face (where 0 is the top left front vertex)
      * 4-5-7-6-4 define the bottom face (where 4 is the bottom left front vertex)
      **/
-    CuboidObject(const std::vector<Point>& vertices, const int id) : vertices_(vertices)
-    {
-        Point center = computeCenterFromVertices();
-        Object(center, Type::kCuboid, Color::Red, id);
-        
+    CuboidObject(const Point& center, const std::vector<Point>& vertices, const Color &color, const int id)
+        : Object(center, Type::kCuboid, color, id), vertices_(vertices)
+    {   
         initCuboidFromVertices();
+        setIsometryFromNormal();
     }
 
     Point computeCenterFromVertices()

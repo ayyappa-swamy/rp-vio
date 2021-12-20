@@ -746,7 +746,7 @@ bool fit_cuboid_to_point_cloud(Vector4d plane_params, vector<Vector3d> points, v
  * In each face, following order is used:
  * back right, front right, front left, back left
  **/
-void create_cuboid_frame(vector<geometry_msgs::Point> vertices, visualization_msgs::Marker &line_list)
+void create_cuboid_frame(vector<geometry_msgs::Point> &vertices, visualization_msgs::Marker &line_list)
 {   
     // Define the edges for top face
     line_list.points.push_back(vertices[0]);

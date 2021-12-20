@@ -85,9 +85,9 @@ current_position = current_state.kinematics_estimated.position
 # end_position = airsim.Vector3r(55.0, 0, -5)
 # print('end_position: ', end_position.x_val, end_position.y_val, end_position.z_val)
 
+# client.simPause(True)
 while (end_position - current_position).get_length() > 1:
-    input("Press Enter to move again")
-    client.simPause(False)
+    # input("Press Enter to move again")
     if ((end_position - current_position).get_length() > (end_position - mid_position).get_length()):
         next_direction = (mid_position - current_position).to_numpy_array()
     else:
@@ -96,8 +96,8 @@ while (end_position - current_position).get_length() > 1:
     next_position = next_direction
     next_magnitude = np.linalg.norm(next_direction)
 
-    print('current_position: ', current_position.x_val, current_position.y_val, current_position.z_val)
-    print('next_position: ', next_position[0], next_position[1], next_position[2])
+    # print('current_position: ', current_position.x_val, current_position.y_val, current_position.z_val)
+    # print('next_position: ', next_position[0], next_position[1], next_position[2])
 
     x_next = float(current_position.x_val) +  10 * (float(next_position[0])/next_magnitude)
     y_next = float(current_position.y_val) +  10 * (float(next_position[1])/next_magnitude)
@@ -106,16 +106,16 @@ while (end_position - current_position).get_length() > 1:
     # client.simPause(True)
     path = []
     path.append(airsim.Vector3r(x_next, y_next, z_next))
-    client.moveOnPathAsync(path, 1, np.inf, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(is_rate=True, yaw_or_rate=0.5))
-    client.simContinueForTime(5)
+    client.moveOnPathAsync(path, 0.5, np.inf, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(is_rate=True, yaw_or_rate=1))
+    # client.simContinueForTime(5)
     # time.sleep(2)
     # client.simPause(True)
 
     current_state = client.getMultirotorState()
     current_position = current_state.kinematics_estimated.position
     
-    print("Pausing ..\n")
-    client.simPause(True)
+    # print("Pausing ..\n")
+    # client.simPause(True)
 
 # Loop:
 #   * Consider start point, way point, end point

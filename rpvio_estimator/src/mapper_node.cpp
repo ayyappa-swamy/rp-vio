@@ -101,11 +101,11 @@ void mapping_callback(
         {
             Vector3d c_pt = Tic.inverse() * (Ti.inverse() * fpp.second[i]);
 
-            if (c_pt.norm() <= 10)
+            if (c_pt.norm() <= 20)
                 plane_points.push_back(c_pt);
         }
 
-        if (plane_points.size() < 8)
+        if (plane_points.size() < 5)
             continue;
 
         MatrixXd pts_mat(plane_points.size(), 4);
@@ -149,7 +149,7 @@ void mapping_callback(
 
             Vector4d normed_params(normal[0], normal[1], normal[2], d);
 
-            if (fabs(normal.dot(vertical)) < 0.1)
+            if (fabs(normal.dot(vertical)) < 0.5)
             {
                 ROS_INFO("Normalized plane params are : %g, %g, %g, %g", normal[0], normal[1], normal[2], d);
                 ROS_INFO("Nearest point is : %g, %g, %g", point[0], point[1], point[2]);
