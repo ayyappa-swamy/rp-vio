@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <iostream>
+#include <vector>
 
 #include <eigen3/Eigen/Dense>
 #include <ceres/ceres.h>
@@ -71,7 +72,6 @@ struct Color
     static const Color Pink() { return Color(255, 0, 127); }
 };
 
-// Should this be full virtual?
 /**
  * Base class for simulator objects. Each object allows an exact ground-truth
  * sdf to be created for it.
@@ -263,26 +263,66 @@ public:
     {
         setIsometryFromNormal();
     }
-    CuboidObject(const vector<Point>& vertices)
+
+    /**
+     * Assuming that the vertices are defined in the following order
+     * 0-1-3-2-0 define the top face (where 0 is the top left front vertex)
+     * 4-5-7-6-4 define the bottom face (where 4 is the bottom left front vertex)
+     **/
+    CuboidObject(const std::vector<Point>& vertices, const int id) : vertices_(vertices)
+    {
+        Point center = computeCenterFromVertices();
+        Object(center, Type::kCuboid, Color::Red, id);
+        
+        initCuboidFromVertices();
+    }
+
+    Point computeCenterFromVertices()
     {
         Point center(0, 0, 0);
 
-        for (int i = 0; i < vertices.size(); i++){
-            center += vertices[i];
+        for (int i = 0; i < vertices_.size(); i++){
+            center += vertices_[i];
         }
-        center = center / vertices.size();
 
+        center = center / vertices_.size();
 
+        return center;
     }
 
-    void computeNormalFromVertices()
+    /**
+     * Computes the main normal (normal of the front plane)
+     * Front plane is defined by the vertices
+     * 0-4-6-2-0 (i.e., anti-clockwise order; front normal points outwards)
+     **/
+    void initCuboidFromVertices()
     {
+        Eigen::Vector3d edge20 = vertices_[0] - vertices_[2];
+        Eigen::Vector3d edge26 = vertices_[6] - vertices_[2];
+        Eigen::Vector3d edge23 = vertices_[3] - vertices_[2];
 
-    }
+        // Compute dimensions
+        breadth_ = edge20.norm();
+        height_ = edge26.norm();
+        width_ = edge23.norm();
 
-    void computeHalfPlanes()
-    {
+        // Compute plane normals of each face
+        Eigen::Vector3d front_normal = edge20.cross(edge26).normalized();
+        Eigen::Vector3d top_normal = edge23.cross(edge20).normalized();
+        Eigen::Vector3d right_normal = edge26.cross(edge23).normalized();
+        normal_ = front_normal; // front_normal is the main normal of the cuboid
+
+        Eigen::Vector3d back_normal = -front_normal;
+        Eigen::Vector3d bottom_normal = -top_normal;
+        Eigen::Vector3d left_normal = -right_normal;
+
+        front_plane_ << front_normal, -(front_normal.dot(vertices_[2]));
+        top_plane_ << top_normal, -(top_normal.dot(vertices_[2]));
+        right_plane_ << right_normal, -(right_normal.dot(vertices_[2]));
         
+        back_plane_ << back_normal, -(back_normal.dot(vertices_[3]));
+        bottom_plane_ << bottom_normal, -(bottom_normal.dot(vertices_[6]));
+        left_plane_ << left_normal, -(left_normal.dot(vertices_[0]));
     }
 
     void setIsometryFromNormal()
@@ -350,6 +390,14 @@ protected:
     FloatingPoint width_;
     FloatingPoint height_;
     Point normal_;
+    std::vector<Point> vertices_;
+
+    Eigen::Vector4d front_plane_;
+    Eigen::Vector4d back_plane_;
+    Eigen::Vector4d top_plane_;
+    Eigen::Vector4d bottom_plane_;
+    Eigen::Vector4d left_plane_;
+    Eigen::Vector4d right_plane_;
 
     Eigen::Transform<FloatingPoint, 3, Eigen::Isometry> iso_box2world_;
 };
