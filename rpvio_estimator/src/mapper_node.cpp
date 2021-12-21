@@ -1,16 +1,5 @@
 #include "mapper.h"
 
-int get_plane_id(int u, int v, cv::Mat mask)
-{
-    int plane_id = 0;
-
-    cv::Vec3b colors = mask.at<cv::Vec3b>(u, v);
-    
-    plane_id = color2id(colors[0], colors[1], colors[2]);
-
-    return plane_id;
-}
-
 void mapping_callback(
     const sensor_msgs::PointCloudConstPtr &features_msg,
     const nav_msgs::OdometryConstPtr &odometry_msg,
@@ -19,33 +8,15 @@ void mapping_callback(
 )
 {
     // Step 1: Cluster all the feature points based on their plane ids
-    map<int, vector<Vector3d>> points_map;
-    
     cv_bridge::CvImagePtr mask_ptr = cv_bridge::toCvCopy(mask_msg, sensor_msgs::image_encodings::BGR8);
     cv::Mat mask_img = mask_ptr->image;
     
     cv_bridge::CvImagePtr img_ptr = cv_bridge::toCvCopy(img_msg, sensor_msgs::image_encodings::BGR8);
     cv::Mat img = img_ptr->image;
-
     ROS_INFO("Received point cloud with %d points", (int)features_msg->points.size());
     ROS_INFO("Received image with dimensions (%d, %d)", img.rows, img.cols);
 
-    // Loop through all feature points
-    for(int fi = 0; fi < features_msg->points.size(); fi++) {
-        Vector3d fpoint;
-        geometry_msgs::Point32 p = features_msg->points[fi];
-        fpoint << p.x, p.y, p.z;
-
-        int u = (int)features_msg->channels[0].values[fi];
-        int v = (int)features_msg->channels[1].values[fi];
-        
-        // ROS_INFO("Querying at point (%d, %d)", u, v);
-        int plane_id = get_plane_id(u, v, mask_img);
-        // ROS_INFO("Found color id is %d", (int)plane_id);
-
-        if ((plane_id != 0) && (plane_id != 39)) // Ignore sky and ground points
-            points_map[plane_id].push_back(fpoint);
-    }
+    map<int, vector<Vector3d>> points_map = cluster_plane_features(features_msg, mask_img);
     ROS_INFO("Clustered the feature points based on %d planes", (int)points_map.size());
 
     sensor_msgs::PointCloud frame_cloud;
@@ -101,12 +72,12 @@ void mapping_callback(
         {
             Vector3d c_pt = Tic.inverse() * (Ti.inverse() * fpp.second[i]);
 
-            if (c_pt.norm() <= 20)
+            // if (c_pt.norm() <= 20)
                 plane_points.push_back(c_pt);
         }
 
-        if (plane_points.size() < 5)
-            continue;
+        // if (plane_points.size() < 5)
+        //     continue;
 
         MatrixXd pts_mat(plane_points.size(), 4);
         vector<geometry_msgs::Point> vertices;

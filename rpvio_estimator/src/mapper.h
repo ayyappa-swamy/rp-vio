@@ -787,3 +787,39 @@ void create_cuboid_frame(vector<geometry_msgs::Point> &vertices, visualization_m
     line_list.points.push_back(vertices[3]);
     line_list.points.push_back(vertices[7]);
 }
+
+int get_plane_id(int u, int v, cv::Mat mask)
+{
+    int plane_id = 0;
+
+    cv::Vec3b colors = mask.at<cv::Vec3b>(u, v);
+    
+    plane_id = color2id(colors[0], colors[1], colors[2]);
+
+    return plane_id;
+}
+
+map<int, vector<Vector3d>> cluster_plane_features(
+    const sensor_msgs::PointCloudConstPtr &features_msg,
+    cv::Mat mask_img
+)
+{
+    map<int, vector<Vector3d>> mPlaneFeatures;
+
+    // Loop through all feature points
+    for(int fi = 0; fi < features_msg->points.size(); fi++) {
+        Vector3d fpoint;
+        geometry_msgs::Point32 p = features_msg->points[fi];
+        fpoint << p.x, p.y, p.z;
+
+        int u = (int)features_msg->channels[0].values[fi];
+        int v = (int)features_msg->channels[1].values[fi];
+        
+        // ROS_INFO("Querying at point (%d, %d)", u, v);
+        int plane_id = get_plane_id(u, v, mask_img);
+        // ROS_INFO("Found color id is %d", (int)plane_id);
+
+        if ((plane_id != 0) && (plane_id != 39))// Ignore sky and ground points
+            mPlaneFeatures[plane_id].push_back(fpoint);
+    }
+}
