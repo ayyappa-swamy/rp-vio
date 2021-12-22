@@ -80,6 +80,7 @@
 #include <ceres/rotation.h>
 
 #include "utility/color_ids.h"
+#include "vp_utils.h"
 
 using namespace std;
 using namespace Eigen;
@@ -88,6 +89,8 @@ ros::Publisher pub_plane_cloud;
 ros::Publisher marker_pub;
 ros::Publisher ellipse_pub;
 ros::Publisher frame_pub;
+ros::Publisher cent_pub;
+ros::Publisher ma_pub;
 ros::Publisher frame_pub2;
 ros::Publisher masked_im_pub;
 
@@ -552,6 +555,88 @@ void publish_plane_cloud(
     frame_pub.publish(frame_cloud);
 }
 
+void processMask(cv::Mat &input_mask, cv::Mat &output_mask)
+{
+    // Convert RGB mask to CV_32U (32-bit single channel image)
+    for (int i = 0; i < input_mask.rows; i++) {
+        for (int j = 0; j < input_mask.cols; j++) {
+            cv::Vec3b colors = input_mask.at<cv::Vec3b>(i, j);
+            
+            output_mask.at<uchar>(i, j) = (uchar)color2id(colors[0], colors[1], colors[2]);
+        }
+    }
+}
+
+int get_plane_id(int u, int v, cv::Mat mask)
+{
+    int plane_id = 0;
+
+    cv::Vec3b colors = mask.at<cv::Vec3b>(u, v);
+    
+    plane_id = color2id(colors[0], colors[1], colors[2]);
+
+    return plane_id;
+}
+
+/**
+ * Draws the plane segments on an image, 
+ * coloured based on normal directions (that are calculated using vanishing points)
+ **/
+map<int, int> drawVPQuads( cv::Mat &img, std::vector<KeyLine> &lines, std::vector<std::vector<int> > &clusters, cv::Mat &seg_mask)
+{
+	map<int, Vector3i> plane_vplines;
+    map<int, int> plane_normals;
+
+    cv::Mat mask(ROW, COL, CV_8UC1, cv::Scalar(0));
+    img.setTo(cv::Scalar(0, 0, 0));
+    processMask(seg_mask, mask);
+
+	std::vector<cv::Scalar> plane_colors( 2 );
+	plane_colors[0] = cv::Scalar( 0, 0, 255 );
+	plane_colors[1] = cv::Scalar( 255, 0, 0 );
+	// plane_colors[2] = cv::Scalar( 0, 255, 0 );
+	
+	for ( size_t i = 0; i < clusters.size(); ++i )
+	{
+		for ( size_t j = 0; j < clusters[i].size(); ++j )
+		{
+			size_t idx = clusters[i][j];
+
+			cv::Point pt_s = cv::Point( lines[idx].startPointX, lines[idx].startPointY );
+			cv::Point pt_e = cv::Point( lines[idx].endPointX, lines[idx].endPointY );
+			cv::Point pt_m = ( pt_s + pt_e ) * 0.5;
+			
+			int plane_id = get_plane_id((int)pt_m.y, (int)pt_m.x, seg_mask);
+			if (plane_vplines.find(plane_id) == plane_vplines.end()){
+				plane_vplines[plane_id] = Vector3i::Zero();
+			}
+			plane_vplines[plane_id](i)++;
+		}
+	}
+
+	for (auto pvlines: plane_vplines)
+	{
+		if (
+            (pvlines.first == 0)
+            || (pvlines.first == 39)
+        )
+			continue;
+		
+		cv::Mat mask_img = mask.clone();
+		cv::Mat mask = mask_img == pvlines.first;
+		cv::Mat mask_filled(ROW, COL, CV_8UC3, cv::Scalar(0,0,0));
+                
+		int colour_id = pvlines.second[0] > pvlines.second[2] ?  0 : 1;
+		mask_filled.setTo(plane_colors[colour_id], mask);
+		
+		cv::addWeighted( img, 1.0, mask_filled, 1.0, 0.0, img);
+		// cv::imwrite("masked_image"+to_string(im_id)+".png", img);
+        plane_normals[pvlines.first] = colour_id;
+	}
+
+    return plane_normals;	
+}
+
 void draw_quad(cv::Mat &image, cv::Mat mask_image, int plane_id)
 {
     cv::Mat plane_mask;
@@ -788,17 +873,6 @@ void create_cuboid_frame(vector<geometry_msgs::Point> &vertices, visualization_m
     line_list.points.push_back(vertices[7]);
 }
 
-int get_plane_id(int u, int v, cv::Mat mask)
-{
-    int plane_id = 0;
-
-    cv::Vec3b colors = mask.at<cv::Vec3b>(u, v);
-    
-    plane_id = color2id(colors[0], colors[1], colors[2]);
-
-    return plane_id;
-}
-
 map<int, vector<Vector3d>> cluster_plane_features(
     const sensor_msgs::PointCloudConstPtr &features_msg,
     cv::Mat mask_img
@@ -822,4 +896,98 @@ map<int, vector<Vector3d>> cluster_plane_features(
         if ((plane_id != 0) && (plane_id != 39))// Ignore sky and ground points
             mPlaneFeatures[plane_id].push_back(fpoint);
     }
+
+    return mPlaneFeatures;
+}
+
+map<int, Vector3d> draw_vp_lines(cv::Mat &gray_img, cv::Mat &mask, vector<Vector3d> &evps)
+{   
+    Eigen::Matrix3d K;
+    K << FOCAL_LENGTH, 0, COL/2,
+        0, FOCAL_LENGTH, ROW/2,
+        0, 0, 1;
+
+    map<int, int> plane_normal_ids;
+    map<int, Vector3d> plane_normals;
+
+    // show_img2.copyTo(tmp_img);
+    // cv::cvtColor(mask_ptr_bgr8->image, tmp_img, CV_GRAY2RGB);
+    std::vector<KeyLine> lines_klsd;
+    cv::Mat lines_lsd_descr; 
+    std::vector<cv::Point3d> vps(3);
+    std::vector<std::vector<int> > clusters(3);
+    std::vector<int> lines_vps;
+    double f = K(0, 0);
+    cv::Point2d pp(K(0, 2), K(1, 2));
+    int LENGTH_THRESH = 5;
+    
+    ROS_INFO("Extracting line segments and vanishing points");
+    extract_lines_and_vps(
+        gray_img, 
+        lines_klsd, lines_lsd_descr, 
+        vps, clusters,
+        lines_vps,
+        f, pp, LENGTH_THRESH
+    );
+
+    ROS_INFO("Drawing vp quads");
+    plane_normal_ids = drawVPQuads(gray_img, lines_klsd, clusters, mask);
+
+    std::vector<Vector3d> normal_vectors;
+    cv::Point3d normal0 = vps[0].cross(vps[1]);
+    cv::Point3d normal1 = vps[2].cross(vps[1]);
+    Vector3d normal_vector0(normal0.x, normal0.y, normal0.z);
+    Vector3d normal_vector1(normal1.x, normal1.y, normal1.z);
+    normal_vectors.push_back(normal_vector0);
+    normal_vectors.push_back(normal_vector1);
+
+    evps.push_back(Vector3d(vps[0].x, vps[0].y, vps[0].z));
+    evps.push_back(Vector3d(vps[1].x, vps[1].y, vps[1].z));
+    evps.push_back(Vector3d(vps[2].x, vps[2].y, vps[2].z));
+
+    ROS_INFO("assigning plane normals");
+    for (auto normal_id: plane_normal_ids)
+	{
+		if (
+            (normal_id.first == 0)
+            || (normal_id.first == 39)
+        )
+			continue;
+		
+        plane_normals[normal_id.first] = normal_vectors[normal_id.second].normalized();
+	}
+
+    return plane_normals;
+}
+
+geometry_msgs::Point toGeomPoint(Vector3d pt)
+{
+    geometry_msgs::Point point;
+    point.x = pt.x();
+    point.y = pt.y();
+    point.z = pt.z();
+
+    return point;
+}
+
+void create_centroid_frame(Vector3d centroid, Vector3d plane_dir, Vector3d vertical_dir, visualization_msgs::Marker &line_list)
+{   
+    double scale = 2.0;
+
+    Vector3d top_right = centroid + scale * plane_dir + scale * vertical_dir;
+    Vector3d bottom_right = centroid + scale * plane_dir - scale * vertical_dir;
+    Vector3d bottom_left = centroid - scale * plane_dir - scale * vertical_dir;
+    Vector3d top_left = centroid - scale * plane_dir + scale * vertical_dir;
+
+    line_list.points.push_back(toGeomPoint(top_right));
+    line_list.points.push_back(toGeomPoint(bottom_right));
+
+    line_list.points.push_back(toGeomPoint(bottom_right));
+    line_list.points.push_back(toGeomPoint(bottom_left));
+
+    line_list.points.push_back(toGeomPoint(bottom_left));
+    line_list.points.push_back(toGeomPoint(top_left));
+
+    line_list.points.push_back(toGeomPoint(top_left));
+    line_list.points.push_back(toGeomPoint(top_right));
 }

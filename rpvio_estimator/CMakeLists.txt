@@ -35,8 +35,9 @@ include_directories(
 catkin_package()
 
 add_executable(rpvio_mapper
-    src/mapper_node.cpp
     src/parameters.cpp
+    src/VPDetection.cpp
+    src/mapper_node.cpp
 )
 
 add_executable(rpvio_planner

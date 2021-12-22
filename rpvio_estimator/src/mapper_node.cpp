@@ -21,6 +21,8 @@ void mapping_callback(
 
     sensor_msgs::PointCloud frame_cloud;
     frame_cloud.header = features_msg->header;
+    sensor_msgs::PointCloud cent_cloud;
+    cent_cloud.header = features_msg->header;
 
     vector<int> plane_ids;
 
@@ -44,23 +46,19 @@ void mapping_callback(
     Ti.linear() = quat.normalized().toRotationMatrix();
     Ti.translation() = trans;
 
-    visualization_msgs::Marker line_list;
-    line_list.header = features_msg->header;
-
-    // line_list.action = visualization_msgs::Marker::ADD;
-    line_list.pose.orientation.w = 1.0;
-
-    line_list.id = 2;
-    line_list.type = visualization_msgs::Marker::LINE_LIST;
-
-    // LINE_LIST markers use only the x component of scale, for the line width
-    line_list.scale.x = 0.1;
-
-    // Line list is green
-    line_list.color.r = 1.0;
-    line_list.color.a = 1.0;
+    visualization_msgs::MarkerArray ma;
 
     Vector3d vertical(0, 1, 0);
+
+    if (points_map.size() == 0)
+        return;
+        
+    // ROS_INFO("Drawing quads for %d planes", plane_ids.size());
+    // draw_quads(img, mask_img, plane_ids);
+    // cv::Mat gray_img;
+    // cv::cvtColor(img, gray_img, CV_BGR2GRAY);
+    vector<Vector3d> vps;
+    map<int, Vector3d> normals_map = draw_vp_lines(img, mask_img, vps);    
 
     // Print number of features per plane
     for (auto const& fpp: points_map)
@@ -82,6 +80,11 @@ void mapping_callback(
         MatrixXd pts_mat(plane_points.size(), 4);
         vector<geometry_msgs::Point> vertices;
 
+        Vector3d centroid(0.0, 0.0, 0.0);
+        Vector3d normal = normals_map[fpp.first];
+
+        double d = 0.0;
+
         for (int i = 0; i < (int)plane_points.size(); i++)
         {
             Vector3d c_pt = plane_points[i];
@@ -91,50 +94,84 @@ void mapping_callback(
             p.y = (double)c_pt[1];
             p.z = (double)c_pt[2];
 
+            centroid += c_pt;
             frame_cloud.points.push_back(p);
 
             Vector3d pt_ = c_pt;
             // pt_[2] = 1.0;
 
+            d += normal.dot(c_pt);
+
             pts_mat.row(i) = pt_.homogeneous().transpose();
         }
 
+        centroid /= plane_points.size();
+        geometry_msgs::Point32 c;
+        c.x = (double)centroid[0];
+        c.y = (double)centroid[1];
+        c.z = (double)centroid[2];
+        cent_cloud.points.push_back(c);
+        
+        d /= plane_points.size();
+
         // find svd
         Vector4d params;
-        Eigen::JacobiSVD<MatrixXd> pt_svd(pts_mat, Eigen::ComputeFullU | Eigen::ComputeFullV);
-        params = pt_svd.matrixV().col(pt_svd.matrixV().cols() - 1);
+        params << normal[0], normal[1], normal[2], d;
+        // Eigen::JacobiSVD<MatrixXd> pt_svd(pts_mat, Eigen::ComputeFullU | Eigen::ComputeFullV);
+        // params = pt_svd.matrixV().col(pt_svd.matrixV().cols() - 1);
         
-        ROS_INFO("Plane params are : %g, %g, %g, %g", params[0], params[1], params[2], params[3]);
-        Vector3d normal = params.head<3>();
-        // normal[2] = 0.0;
+        // ROS_INFO("Plane params are : %g, %g, %g, %g", params[0], params[1], params[2], params[3]);
+        // Vector3d normal = params.head<3>();
+        // // normal[2] = 0.0;
+
+        Vector3d plane_dir = (normal.cross(vps[1])).normalized();
 
         if ((normal.norm() > 0.001) && (params[3] > 0.001))
         {
-            double d = params[3] / normal.norm();
-            normal.normalize();
+            // double d = params[3] / normal.norm();
+            // normal.normalize();
 
-            // Find nearest point to origin
-            double lambda = -d / powf(normal.norm(), 2.0);
+            // // Find nearest point to origin
+            // double lambda = -d / powf(normal.norm(), 2.0);
 
-            Vector3d point = lambda * normal;
+            // Vector3d point = lambda * normal;
 
-            Vector4d normed_params(normal[0], normal[1], normal[2], d);
+            // Vector4d normed_params(normal[0], normal[1], normal[2], d);
 
-            if (fabs(normal.dot(vertical)) < 0.5)
-            {
-                ROS_INFO("Normalized plane params are : %g, %g, %g, %g", normal[0], normal[1], normal[2], d);
-                ROS_INFO("Nearest point is : %g, %g, %g", point[0], point[1], point[2]);
+            // if (fabs(normal.dot(vertical)) < 0.5)
+            // {
+            //     // ROS_INFO("Normalized plane params are : %g, %g, %g, %g", normal[0], normal[1], normal[2], d);
+            //     // ROS_INFO("Nearest point is : %g, %g, %g", point[0], point[1], point[2]);
                 
-                if (fit_cuboid_to_point_cloud(normed_params, plane_points, vertices))
-                    create_cuboid_frame(vertices, line_list);
-            }
-        }
+            //     if (fit_cuboid_to_point_cloud(normed_params, plane_points, vertices))
+            //         create_cuboid_frame(vertices, line_list);
+            // }
 
+            visualization_msgs::Marker line_list;
+            line_list.header = features_msg->header;
+
+            // line_list.action = visualization_msgs::Marker::ADD;
+            line_list.pose.orientation.w = 1.0;
+
+            line_list.id = fpp.first;
+            line_list.type = visualization_msgs::Marker::LINE_LIST;
+
+            // LINE_LIST markers use only the x component of scale, for the line width
+            line_list.scale.x = 0.1;
+
+            // Line list is green
+            if (normal[0] > normal[2])
+                line_list.color.r = 1.0;
+            else
+                line_list.color.b = 1.0;
+            line_list.color.a = 1.0;
+
+            create_centroid_frame(centroid, plane_dir, vps[1], line_list);
+            ma.markers.push_back(line_list);
+        }
+        
         plane_ids.push_back(fpp.first);
     }
-
-    ROS_INFO("Drawing quads for %d planes", plane_ids.size());
-    draw_quads(img, mask_img, plane_ids);
 
     ROS_INFO("Publising marked image");
     std_msgs::Header img_header;
@@ -146,10 +183,11 @@ void mapping_callback(
 
     // Process a particular plane id
     frame_pub.publish(frame_cloud);
+    cent_pub.publish(cent_cloud);
     sensor_msgs::PointCloud2 frame_cloud2;
     sensor_msgs::convertPointCloudToPointCloud2(frame_cloud, frame_cloud2);
     frame_pub2.publish(frame_cloud2);
-    marker_pub.publish(line_list);
+    ma_pub.publish(ma);
 }
 
 int main(int argc, char **argv)
@@ -184,9 +222,11 @@ int main(int argc, char **argv)
     // Publish 3D plane segments (line list or marker array)
 
     frame_pub = n.advertise<sensor_msgs::PointCloud>("frame_cloud", 100);
+    cent_pub = n.advertise<sensor_msgs::PointCloud>("centroid_cloud", 100);
     frame_pub2 = n.advertise<sensor_msgs::PointCloud2>("frame_cloud2", 100);
     masked_im_pub = n.advertise<sensor_msgs::Image>("masked_image", 10);
     marker_pub = n.advertise<visualization_msgs::Marker>("cuboids", 100);
+    ma_pub = n.advertise<visualization_msgs::MarkerArray>("centroid_segs", 100);
     
     ros::spin();
     

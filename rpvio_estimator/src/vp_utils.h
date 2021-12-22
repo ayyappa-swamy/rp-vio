@@ -147,21 +147,21 @@ void extract_lines_and_vps(
     
     // Detect lines using LSD
     vector<KeyLine> klsd;
-	lsd->detect(image, klsd, 2, 2, mask > 0);
+	lsd->detect(image, klsd, 2, 2);
     
     for (size_t i = 0; i < klsd.size(); i++) {
 		cv::Point pt_s = cv::Point( klsd[i].startPointX, klsd[i].startPointY);
 		cv::Point pt_e = cv::Point( klsd[i].endPointX, klsd[i].endPointY);
 		cv::Point pt_m = ( pt_s + pt_e ) * 0.5;
 		if (
-			(klsd[i].lineLength >= LENGTH_THRESH) && 
-			(mask.at<uchar>((int)pt_m.y, (int)pt_m.x) > 0)
+			(klsd[i].lineLength >= LENGTH_THRESH)
+			// && (mask.at<uchar>((int)pt_m.y, (int)pt_m.x) > 0)
 		){
 			lines_klsd.push_back(klsd[i]);
 		}
 	}
 
-	// ROS_INFO("Detected %d line segments", (int)lines_klsd.size());
+	ROS_INFO("Detected %d line segments", (int)lines_klsd.size());
 
 	if (lines_klsd.size() > 0){
 		// Compute binary descriptors
@@ -173,11 +173,11 @@ void extract_lines_and_vps(
 		VPDetection detector;
 		detector.run( lines_klsd, pp, f, vps_, clusters_ );
 
-		// ROS_INFO("Detected vanishing points are : ");
-		// for (size_t i = 0; i < vps_.size(); i++)
-		// {
-		// 	ROS_INFO("%f, %f, %f", vps_[i].x, vps_[i].y, vps_[i].z);
-		// }
+		ROS_INFO("Detected vanishing points are : ");
+		for (size_t i = 0; i < vps_.size(); i++)
+		{
+			ROS_INFO("%f, %f, %f", vps_[i].x, vps_[i].y, vps_[i].z);
+		}
 		
 		std::vector<int> vp_ids = align_vps(vps_);
 		vps[vp_ids[0]] = vps_[0];
