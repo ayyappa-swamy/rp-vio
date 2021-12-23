@@ -1,5 +1,13 @@
 #include "mapper.h"
 
+sensor_msgs::PointField getFieldWithName(string name)
+{
+    sensor_msgs::PointField pf;
+    pf.name = name;
+
+    return pf;
+}
+
 void mapping_callback(
     const sensor_msgs::PointCloudConstPtr &features_msg,
     const nav_msgs::OdometryConstPtr &odometry_msg,
@@ -7,6 +15,10 @@ void mapping_callback(
     const sensor_msgs::ImageConstPtr &mask_msg
 )
 {
+    ROS_INFO("Image message timestamp %f", img_msg->header.stamp.toSec());
+    ROS_INFO("Features message timestamp %f", features_msg->header.stamp.toSec());
+    ROS_INFO("Mask message timestamp %f\n", mask_msg->header.stamp.toSec());
+
     // Step 1: Cluster all the feature points based on their plane ids
     cv_bridge::CvImagePtr mask_ptr = cv_bridge::toCvCopy(mask_msg, sensor_msgs::image_encodings::BGR8);
     cv::Mat mask_img = mask_ptr->image;
@@ -21,8 +33,11 @@ void mapping_callback(
 
     sensor_msgs::PointCloud frame_cloud;
     frame_cloud.header = features_msg->header;
+    sensor_msgs::PointCloud2 test_cloud;
     sensor_msgs::PointCloud cent_cloud;
     cent_cloud.header = features_msg->header;
+
+    pcl::PointCloud<pcl::PointXYZRGB> test_pcd;
 
     vector<int> plane_ids;
 
@@ -60,6 +75,26 @@ void mapping_callback(
     vector<Vector3d> vps;
     map<int, Vector3d> normals_map = draw_vp_lines(img, mask_img, vps);    
 
+
+    visualization_msgs::Marker line_list;
+    line_list.header = features_msg->header;
+
+    // line_list.action = visualization_msgs::Marker::ADD;
+    line_list.pose.orientation.w = 1.0;
+
+    line_list.id = 2;
+    line_list.type = visualization_msgs::Marker::LINE_LIST;
+
+    // LINE_LIST markers use only the x component of scale, for the line width
+    line_list.scale.x = 0.1;
+
+    // Line list is green
+    // if (fabs(normal[0]) > fabs(normal[2]))
+    line_list.color.r = 1.0;
+    // else
+        // line_list.color.b = 1.0;
+    line_list.color.a = 1.0;
+
     // Print number of features per plane
     for (auto const& fpp: points_map)
     {
@@ -72,6 +107,20 @@ void mapping_callback(
 
             // if (c_pt.norm() <= 20)
                 plane_points.push_back(c_pt);
+
+            unsigned long hex = id2color(fpp.first);
+            int r = ((hex >> 16) & 0xFF);
+            int g = ((hex >> 8) & 0xFF);
+            int b = ((hex) & 0xFF);
+
+            pcl::PointXYZRGB pt;
+            pt.x = c_pt.x();
+            pt.y = c_pt.y();
+            pt.z = c_pt.z();
+            pt.r = b;
+            pt.g = g;
+            pt.b = r;
+            test_pcd.points.push_back(pt);
         }
 
         // if (plane_points.size() < 5)
@@ -136,42 +185,40 @@ void mapping_callback(
 
             // Vector3d point = lambda * normal;
 
-            // Vector4d normed_params(normal[0], normal[1], normal[2], d);
+            Vector4d normed_params(normal[0], normal[1], normal[2], d);
 
-            // if (fabs(normal.dot(vertical)) < 0.5)
-            // {
-            //     // ROS_INFO("Normalized plane params are : %g, %g, %g, %g", normal[0], normal[1], normal[2], d);
-            //     // ROS_INFO("Nearest point is : %g, %g, %g", point[0], point[1], point[2]);
+            if (fabs(normal.dot(vertical)) < 0.5)
+            {
+                // ROS_INFO("Normalized plane params are : %g, %g, %g, %g", normal[0], normal[1], normal[2], d);
+                // ROS_INFO("Nearest point is : %g, %g, %g", point[0], point[1], point[2]);
                 
-            //     if (fit_cuboid_to_point_cloud(normed_params, plane_points, vertices))
-            //         create_cuboid_frame(vertices, line_list);
-            // }
+                if (fit_cuboid_to_point_cloud(normed_params, plane_points, vertices))
+                {
+                    create_cuboid_frame(vertices, line_list);
+                }
+                
+            }
 
-            visualization_msgs::Marker line_list;
-            line_list.header = features_msg->header;
-
-            // line_list.action = visualization_msgs::Marker::ADD;
-            line_list.pose.orientation.w = 1.0;
-
-            line_list.id = fpp.first;
-            line_list.type = visualization_msgs::Marker::LINE_LIST;
-
-            // LINE_LIST markers use only the x component of scale, for the line width
-            line_list.scale.x = 0.1;
-
-            // Line list is green
-            if (normal[0] > normal[2])
-                line_list.color.r = 1.0;
-            else
-                line_list.color.b = 1.0;
-            line_list.color.a = 1.0;
-
-            create_centroid_frame(centroid, plane_dir, vps[1], line_list);
-            ma.markers.push_back(line_list);
+            // create_centroid_frame(centroid, plane_dir, vps[1], line_list);
         }
         
         plane_ids.push_back(fpp.first);
     }
+
+    ma.markers.push_back(line_list);
+    // Loop through all feature points
+    for(int fi = 0; fi < features_msg->points.size(); fi++) {
+        int u = (int)features_msg->channels[0].values[fi];
+        int v = (int)features_msg->channels[1].values[fi];
+        
+        cv::Vec3b pc = mask_img.at<cv::Vec3b>(v, u);
+
+        cv::circle(img, cv::Point(u, v), 10, cv::Scalar(pc[0], pc[1], pc[2]), -1);
+    }
+
+    pcl::toROSMsg(test_pcd, test_cloud);
+    test_cloud.header = features_msg->header;
+    frame_pub2.publish(test_cloud);
 
     ROS_INFO("Publising marked image");
     std_msgs::Header img_header;
@@ -184,9 +231,9 @@ void mapping_callback(
     // Process a particular plane id
     frame_pub.publish(frame_cloud);
     cent_pub.publish(cent_cloud);
-    sensor_msgs::PointCloud2 frame_cloud2;
-    sensor_msgs::convertPointCloudToPointCloud2(frame_cloud, frame_cloud2);
-    frame_pub2.publish(frame_cloud2);
+    // sensor_msgs::PointCloud2 frame_cloud2;
+    // sensor_msgs::convertPointCloudToPointCloud2(frame_cloud, frame_cloud2);
+    // frame_pub2.publish(frame_cloud2);
     ma_pub.publish(ma);
 }
 
@@ -206,7 +253,7 @@ int main(int argc, char **argv)
 
     typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::PointCloud, nav_msgs::Odometry, sensor_msgs::Image, sensor_msgs::Image> MySyncPolicy;
     // ApproximateTime takes a queue size as its constructor argument, hence MySyncPolicy(10)
-    message_filters::Synchronizer<MySyncPolicy> sync(MySyncPolicy(100), sub_point_cloud, sub_odometry, sub_image, sub_mask);
+    message_filters::Synchronizer<MySyncPolicy> sync(MySyncPolicy(10), sub_point_cloud, sub_odometry, sub_image, sub_mask);
 
     // message_filters::TimeSynchronizer<sensor_msgs::PointCloud, nav_msgs::Odometry, sensor_msgs::Image, sensor_msgs::Image> sync(
     //     sub_point_cloud,

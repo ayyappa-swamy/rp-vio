@@ -56,6 +56,10 @@
 #include <mutex>
 #include <condition_variable>
 #include <ros/ros.h>
+#include <pcl_ros/point_cloud.h>
+#include <pcl/point_types.h>
+#include <pcl/visualization/pcl_visualizer.h>
+#include <pcl_conversions/pcl_conversions.h>
 
 #include <message_filters/subscriber.h>
 #include <message_filters/synchronizer.h>
@@ -567,11 +571,11 @@ void processMask(cv::Mat &input_mask, cv::Mat &output_mask)
     }
 }
 
-int get_plane_id(int u, int v, cv::Mat mask)
+int get_plane_id(int u, int v, cv::Mat &mask)
 {
     int plane_id = 0;
 
-    cv::Vec3b colors = mask.at<cv::Vec3b>(u, v);
+    cv::Vec3b colors = mask.at<cv::Vec3b>(v, u);
     
     plane_id = color2id(colors[0], colors[1], colors[2]);
 
@@ -588,7 +592,7 @@ map<int, int> drawVPQuads( cv::Mat &img, std::vector<KeyLine> &lines, std::vecto
     map<int, int> plane_normals;
 
     cv::Mat mask(ROW, COL, CV_8UC1, cv::Scalar(0));
-    img.setTo(cv::Scalar(0, 0, 0));
+    // img.setTo(cv::Scalar(0, 0, 0));
     processMask(seg_mask, mask);
 
 	std::vector<cv::Scalar> plane_colors( 2 );
@@ -606,7 +610,7 @@ map<int, int> drawVPQuads( cv::Mat &img, std::vector<KeyLine> &lines, std::vecto
 			cv::Point pt_e = cv::Point( lines[idx].endPointX, lines[idx].endPointY );
 			cv::Point pt_m = ( pt_s + pt_e ) * 0.5;
 			
-			int plane_id = get_plane_id((int)pt_m.y, (int)pt_m.x, seg_mask);
+			int plane_id = get_plane_id((int)pt_m.x, (int)pt_m.y, seg_mask);
 			if (plane_vplines.find(plane_id) == plane_vplines.end()){
 				plane_vplines[plane_id] = Vector3d::Zero();
 			}
@@ -629,10 +633,15 @@ map<int, int> drawVPQuads( cv::Mat &img, std::vector<KeyLine> &lines, std::vecto
 		int colour_id = pvlines.second[0] > pvlines.second[2] ?  0 : 1;
 		mask_filled.setTo(plane_colors[colour_id], mask);
 		
-		cv::addWeighted( img, 1.0, mask_filled, 1.0, 0.0, img);
+		// cv::addWeighted( img, 1.0, mask_filled, 1.0, 0.0, img);
 		// cv::imwrite("masked_image"+to_string(im_id)+".png", img);
         plane_normals[pvlines.first] = colour_id;
 	}
+
+    cv::addWeighted( img, 0.0, seg_mask, 1.0, 0.0, img);
+    cv::imwrite("masked_image"+to_string(im_id)+".png", img);
+
+    im_id++;
 
     return plane_normals;	
 }
@@ -875,7 +884,7 @@ void create_cuboid_frame(vector<geometry_msgs::Point> &vertices, visualization_m
 
 map<int, vector<Vector3d>> cluster_plane_features(
     const sensor_msgs::PointCloudConstPtr &features_msg,
-    cv::Mat mask_img
+    cv::Mat &mask_img
 )
 {
     map<int, vector<Vector3d>> mPlaneFeatures;
