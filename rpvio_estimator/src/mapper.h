@@ -584,7 +584,7 @@ int get_plane_id(int u, int v, cv::Mat mask)
  **/
 map<int, int> drawVPQuads( cv::Mat &img, std::vector<KeyLine> &lines, std::vector<std::vector<int> > &clusters, cv::Mat &seg_mask)
 {
-	map<int, Vector3i> plane_vplines;
+	map<int, Vector3d> plane_vplines;
     map<int, int> plane_normals;
 
     cv::Mat mask(ROW, COL, CV_8UC1, cv::Scalar(0));
@@ -608,9 +608,9 @@ map<int, int> drawVPQuads( cv::Mat &img, std::vector<KeyLine> &lines, std::vecto
 			
 			int plane_id = get_plane_id((int)pt_m.y, (int)pt_m.x, seg_mask);
 			if (plane_vplines.find(plane_id) == plane_vplines.end()){
-				plane_vplines[plane_id] = Vector3i::Zero();
+				plane_vplines[plane_id] = Vector3d::Zero();
 			}
-			plane_vplines[plane_id](i)++;
+			plane_vplines[plane_id](i) += lines[idx].lineLength;
 		}
 	}
 

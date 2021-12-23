@@ -100,7 +100,7 @@ void mapping_callback(
             Vector3d pt_ = c_pt;
             // pt_[2] = 1.0;
 
-            d += normal.dot(c_pt);
+            d += -normal.dot(c_pt);
 
             pts_mat.row(i) = pt_.homogeneous().transpose();
         }
