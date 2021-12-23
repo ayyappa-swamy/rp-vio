@@ -104,23 +104,26 @@ void mapping_callback(
         for (int i = 0; i < (int)fpp.second.size(); i++)
         {
             Vector3d c_pt = Tic.inverse() * (Ti.inverse() * fpp.second[i]);
-
-            // if (c_pt.norm() <= 20)
+            
+            Vector3d t_pt(c_pt[0], 0.0, c_pt[2]);
+            if ((t_pt.norm() <= 10) && (c_pt.norm() > 2))
+            {
                 plane_points.push_back(c_pt);
 
-            unsigned long hex = id2color(fpp.first);
-            int r = ((hex >> 16) & 0xFF);
-            int g = ((hex >> 8) & 0xFF);
-            int b = ((hex) & 0xFF);
+                unsigned long hex = id2color(fpp.first);
+                int r = ((hex >> 16) & 0xFF);
+                int g = ((hex >> 8) & 0xFF);
+                int b = ((hex) & 0xFF);
 
-            pcl::PointXYZRGB pt;
-            pt.x = c_pt.x();
-            pt.y = c_pt.y();
-            pt.z = c_pt.z();
-            pt.r = b;
-            pt.g = g;
-            pt.b = r;
-            test_pcd.points.push_back(pt);
+                pcl::PointXYZRGB pt;
+                pt.x = c_pt.x();
+                pt.y = c_pt.y();
+                pt.z = c_pt.z();
+                pt.r = b;
+                pt.g = g;
+                pt.b = r;
+                test_pcd.points.push_back(pt);
+            }
         }
 
         // if (plane_points.size() < 5)
@@ -175,7 +178,7 @@ void mapping_callback(
 
         Vector3d plane_dir = (normal.cross(vps[1])).normalized();
 
-        if ((normal.norm() > 0.001) && (params[3] > 0.001))
+        if ((normal.norm() > 0.001) && (fabs(params[3]) > 0.001))
         {
             // double d = params[3] / normal.norm();
             // normal.normalize();
@@ -206,15 +209,15 @@ void mapping_callback(
     }
 
     ma.markers.push_back(line_list);
-    // Loop through all feature points
-    for(int fi = 0; fi < features_msg->points.size(); fi++) {
-        int u = (int)features_msg->channels[0].values[fi];
-        int v = (int)features_msg->channels[1].values[fi];
+    // // Loop through all feature points
+    // for(int fi = 0; fi < features_msg->points.size(); fi++) {
+    //     int u = (int)features_msg->channels[0].values[fi];
+    //     int v = (int)features_msg->channels[1].values[fi];
         
-        cv::Vec3b pc = mask_img.at<cv::Vec3b>(v, u);
+    //     cv::Vec3b pc = mask_img.at<cv::Vec3b>(v, u);
 
-        cv::circle(img, cv::Point(u, v), 10, cv::Scalar(pc[0], pc[1], pc[2]), -1);
-    }
+    //     cv::circle(img, cv::Point(u, v), 10, cv::Scalar(pc[0], pc[1], pc[2]), -1);
+    // }
 
     pcl::toROSMsg(test_pcd, test_cloud);
     test_cloud.header = features_msg->header;

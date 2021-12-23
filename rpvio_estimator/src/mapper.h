@@ -614,7 +614,7 @@ map<int, int> drawVPQuads( cv::Mat &img, std::vector<KeyLine> &lines, std::vecto
 			if (plane_vplines.find(plane_id) == plane_vplines.end()){
 				plane_vplines[plane_id] = Vector3d::Zero();
 			}
-			plane_vplines[plane_id](i) += lines[idx].lineLength;
+			plane_vplines[plane_id](i)++;
 		}
 	}
 
@@ -759,7 +759,7 @@ bool fit_cuboid_to_point_cloud(Vector4d plane_params, vector<Vector3d> points, v
     {
         Vector3d point = points[i];
 
-        if (plane_params.dot(point.homogeneous()) > 1)
+        if (plane_params.dot(point.homogeneous()) > 5)
             continue;
 
         double nd = -normal.dot(point);
@@ -824,8 +824,9 @@ bool fit_cuboid_to_point_cloud(Vector4d plane_params, vector<Vector3d> points, v
         pt.z = bound_vertices[i].z();
 
         vertices.push_back(pt);
-
-        if (bound_vertices[i].norm() > 20)
+        
+        Vector3d t_pt(pt.x, 0.0, pt.z);
+        if (t_pt.norm() > 20)
             return false;
     }
 
