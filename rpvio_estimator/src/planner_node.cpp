@@ -250,12 +250,12 @@ void current_state_callback(
 }
 
 void current_state_callback2(
-    const visualization_msgs::MarkerConstPtr &frames_msg,
+    const sensor_msgs::PointCloudConstPtr &frames_msg,
     const nav_msgs::OdometryConstPtr &odometry_msg
 )
 {
     // Goal point
-    Vector3d goal(22.0, -22.0, -2.5);
+    Vector3d goal(27.0, -11.0, 5.0);
 
     Isometry3d Tic;
     Tic.linear() = RIC[0];
@@ -278,10 +278,34 @@ void current_state_callback2(
     Ti.translation() = trans;
 
     // Transform to local frame
-    // Vector3d local_goal = Tic.inverse() * (Ti.inverse() * goal);
-    Vector3d local_goal(22.0, 0.0, 22.0);
+    Vector3d local_goal = Tic.inverse() * (Ti.inverse() * goal);
+    local_goal[1] = 0.0;
     double local_goal_distance = local_goal.norm();
     Vector3d local_goal_dir = local_goal.normalized();
+
+    vector<CuboidObject> cuboids;
+    // Create cuboids
+    for (unsigned int i = 0; i < frames_msg->points.size(); i += 8)
+    {
+        int p_id = frames_msg->channels[0].values[i];
+
+        Point center(0, 0, 0);
+        vector<Vector3d> vertices;
+
+        for (int vid = 0; vid < 8; vid++)
+        {
+            geometry_msgs::Point32 gpt = frames_msg->points[i + vid];
+            Point pt(gpt.x, gpt.y, gpt.z);
+            vertices.push_back(pt);
+
+            center += pt;
+        }
+
+        center = center/8;
+
+        CuboidObject cuboid = CuboidObject(center, vertices, Color::Gray(), p_id);
+        cuboids.push_back(cuboid);
+    }
 
     // Each sampled trajectory is visualized as a line_strip
     // Create a marker array object that holds all line_strips
@@ -292,7 +316,8 @@ void current_state_callback2(
     direct_line_strip.id = 1;
     direct_line_strip.type = visualization_msgs::Marker::LINE_STRIP;
     direct_line_strip.scale.x = 0.03; // LINE_STRIP markers use only the x component of scale for the line width
-    direct_line_strip.color.a = 0.7;
+    direct_line_strip.color.g = 1.0;
+    direct_line_strip.color.a = 0.5;
 
     // Now draw a line or a straight line path
     for (int t = 0; t < 10; t++)
@@ -311,11 +336,11 @@ void current_state_callback2(
 
     // Now compute a STOMP trajectory from origin to local goal
     int num_goal = 50;
-    int num = 20;
+    int num = std::max((int) (1.5*local_goal_distance), 3);
 
-    double x_init = 2.0;
+    double x_init = 0.0;
     double y_init = 0.0;
-    double z_init = 2.0;
+    double z_init = 0.0;
 
     double x_des_traj_init = x_init;
     double y_des_traj_init = y_init;
@@ -362,11 +387,11 @@ void current_state_callback2(
     std::cout << "R matrix size is " << to_string(R.rows()) << ", " << to_string(R.cols()) << std::endl;
 
     MatrixXd mu = MatrixXd::Zero(num, 1);
-    MatrixXd cov = 0.03 * R.inverse();
+    MatrixXd cov = 0.06 * R.inverse();
 
     Eigen::EigenMultivariateNormal<double> *normX_solver = new Eigen::EigenMultivariateNormal<double>(mu, cov, true, dis(gen));
     Eigen::EigenMultivariateNormal<double> *normY_solver = new Eigen::EigenMultivariateNormal<double>(mu, cov, true, dis(gen));
-    Eigen::EigenMultivariateNormal<double> *normZ_solver = new Eigen::EigenMultivariateNormal<double>(mu, 0.5*cov, true, dis(gen));
+    Eigen::EigenMultivariateNormal<double> *normZ_solver = new Eigen::EigenMultivariateNormal<double>(mu, cov, true, dis(gen));
 
     // ################# Gaussian Trajectory Sampling
     MatrixXd eps_kx = normX_solver->samples(num_goal).transpose();
@@ -388,7 +413,7 @@ void current_state_callback2(
     
     x_samples = eps_kx;
     x_samples.rowwise() += x_interp.transpose();
-    y_samples = eps_ky;
+    y_samples = 0.0*eps_ky;
     y_samples.rowwise() += y_interp.transpose();
     z_samples = eps_kz;
     z_samples.rowwise() += z_interp.transpose();
@@ -399,9 +424,10 @@ void current_state_callback2(
     // Publish the goals, straight line and the selected STOMP trajectory
     // Iterate over each sampled path
     // visualization_msgs::Marker optimal_mmd_line_strip;
-    // visualization_msgs::Marker optimal_sdf_line_strip;
+    visualization_msgs::Marker optimal_sdf_line_strip;
+    bool is_optimal_colliding = true;
     // double min_mmd_cost = 100000;
-    // double max_sdf_cost = -100000;
+    double max_sdf_cost = -100000;
     
     for (int i = 0; i < x_samples.rows(); i++)
     {   
@@ -411,18 +437,19 @@ void current_state_callback2(
         // line_strip.action = visualization_msgs::Marker::ADD;
         line_strip.pose.orientation.w = 1.0;
 
-        line_strip.id = i;
+        line_strip.id = i+2;
         line_strip.type = visualization_msgs::Marker::LINE_STRIP;
 
         // LINE_STRIP markers use only the x component of scale, for the line width
         line_strip.scale.x = 0.03;
 
+        line_strip.color.r = 1.0;
         line_strip.color.a = 0.7;
 
         bool is_colliding = false;
         // Iterate over each point in the sampled path
 
-        double trajectory_mmd_cost = 0.0;
+        // double trajectory_mmd_cost = 0.0;
         double trajectory_sdf_cost = 0.0;
         for (int j = 0; j < x_samples.cols(); j++)
         {   
@@ -433,23 +460,27 @@ void current_state_callback2(
 
             // line_pt_w = (rot * line_pt_w) + trans;
 
-            // for (int oi = 0; oi < cuboids.size(); oi++) {
-            //     double sdf_value = max(fabs(cuboids[oi].getDistanceToPoint(line_pt_w)) - 1.0, 0.0);
-            //     double mmd_cost = getMMDcost(sdf_value) - 20.0;
+            double collision_distance = 100000.0;
+            for (int oi = 0; oi < cuboids.size(); oi++) {
+                double sdf_value = cuboids[oi].getDistanceToPoint(line_pt_w);
+                collision_distance = min(sdf_value, collision_distance);
+                // double mmd_cost = getMMDcost(sdf_value) - 20.0;
 
-            //     trajectory_mmd_cost += mmd_cost;
-            //     trajectory_sdf_cost += sdf_value;
-            // }
+                // trajectory_mmd_cost += mmd_cost;
+
+                if (collision_distance < 1.0)
+                {
+                    is_colliding = true;
+                }
+            }
+
+            trajectory_sdf_cost += collision_distance;
 
             line_pt.x = line_pt_w.x();
             line_pt.y = line_pt_w.y();
             line_pt.z = line_pt_w.z();
             line_strip.points.push_back(line_pt);
         }
-
-        line_strip.color.r = 1.0;
-        line_strip.color.g = 0.0;
-        line_strip.color.b = 0.0;
             
         // if (trajectory_mmd_cost < min_mmd_cost)
         // {
@@ -457,13 +488,52 @@ void current_state_callback2(
         //     min_mmd_cost = trajectory_mmd_cost;
         // }
 
-        // if (trajectory_sdf_cost > max_sdf_cost)
-        // {
-        //     optimal_sdf_line_strip = line_strip;
-        //     max_sdf_cost = trajectory_sdf_cost;
-        // }
+        if ((trajectory_sdf_cost > max_sdf_cost) && !is_colliding)
+        {
+            optimal_sdf_line_strip = line_strip;
+            max_sdf_cost = trajectory_sdf_cost;
+            is_optimal_colliding = is_colliding;
+        }
 
         ma.markers.push_back(line_strip);
+    }
+
+    sensor_msgs::PointCloud colliding_points;
+    colliding_points.header = odometry_msg->header;
+    sensor_msgs::PointCloud free_points;
+    free_points.header = odometry_msg->header;
+
+    for (int i = -10; i < 10; i++)
+    {
+        for (int j = -10; j < 10; j++)
+        {   
+            Vector3d c_pt(i, 0.0, j);
+            bool is_colliding = false;
+
+            double collision_distance = 100000.0;
+            for (int oi = 0; oi < cuboids.size(); oi++) {
+                double sdf_value = cuboids[oi].getDistanceToPoint(c_pt);
+                collision_distance = min(sdf_value, collision_distance);
+
+                if (collision_distance < 1.0)
+                {
+                    is_colliding = true;
+                }
+            }
+            
+            geometry_msgs::Point32 cgpt;
+            cgpt.x = c_pt.x();
+            cgpt.y = c_pt.y();
+            cgpt.z = c_pt.z();
+            
+            if (is_colliding)
+            {
+                colliding_points.points.push_back(cgpt);
+            }
+            else {
+                free_points.points.push_back(cgpt);
+            }
+        }
     }
 
     // // Visualize optimal mmd trajectory in black color
@@ -474,15 +544,21 @@ void current_state_callback2(
     // optimal_mmd_line_strip.color.a = 1.0;
     // ma.markers.push_back(optimal_mmd_line_strip);
 
-    // // Visualize optimal sdf trajectory in blue color
-    // optimal_sdf_line_strip.color.r = 0.0;
-    // optimal_sdf_line_strip.color.g = 0.0;
-    // optimal_sdf_line_strip.color.b = 1.0;
-    // optimal_sdf_line_strip.scale.x = 0.06;
-    // optimal_sdf_line_strip.color.a = 1.0;
-    // ma.markers.push_back(optimal_sdf_line_strip);
+    // Visualize optimal sdf trajectory in blue color
+    if (!is_optimal_colliding)
+    {
+        optimal_sdf_line_strip.color.r = 0.0;
+        optimal_sdf_line_strip.color.g = 1.0;
+        optimal_sdf_line_strip.color.b = 0.0;
+        optimal_sdf_line_strip.scale.x = 0.06;
+        optimal_sdf_line_strip.color.a = 1.0;
+        ma.markers.push_back(optimal_sdf_line_strip);
+    }
 
     pub_paths.publish(ma);
+
+    pub_colliding_cloud.publish(colliding_points);
+    pub_free_cloud.publish(free_points);
 }
 
 int main(int argc, char **argv)
@@ -493,18 +569,19 @@ int main(int argc, char **argv)
     readParameters(n);
 
     message_filters::Subscriber<sensor_msgs::PointCloud> sub_frame_cloud(n, "/rpvio_mapper/frame_cloud", 20);
-    message_filters::Subscriber<visualization_msgs::Marker> sub_cuboids(n, "/rpvio_mapper/cuboids", 20);
+    message_filters::Subscriber<visualization_msgs::Marker> sub_cuboids(n, "/rpvio_mapper/cuboids", 100);
+    // message_filters::Subscriber<visualization_msgs::MarkerArray> sub_cuboids2(n, "/rpvio_mapper/centroid_segs", 20);
     message_filters::Subscriber<nav_msgs::Odometry> sub_odometry(n, "/vins_estimator/odometry", 20);
 
-    message_filters::TimeSynchronizer<sensor_msgs::PointCloud, nav_msgs::Odometry> sync(
-        sub_frame_cloud,
-        sub_odometry,
-        100
-    );
-    sync.registerCallback(boost::bind(&current_state_callback, _1, _2));
+    // message_filters::TimeSynchronizer<sensor_msgs::PointCloud, nav_msgs::Odometry> sync(
+    //     sub_frame_cloud,
+    //     sub_odometry,
+    //     100
+    // );
+    // sync.registerCallback(boost::bind(&current_state_callback, _1, _2));
 
-    message_filters::TimeSynchronizer<visualization_msgs::Marker, nav_msgs::Odometry> sync2(
-        sub_cuboids,
+    message_filters::TimeSynchronizer<sensor_msgs::PointCloud, nav_msgs::Odometry> sync2(
+        sub_frame_cloud,
         sub_odometry,
         100
     );

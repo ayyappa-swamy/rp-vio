@@ -346,20 +346,16 @@ public:
     virtual FloatingPoint getDistanceToPoint(const Point &point) const
     {
         // TODO: Add "SDF of a box" youtube link
+        double distance = -100000;
 
-        Point p;
-        p << point.x(), point.y(), point.z();
+        distance = std::max(front_plane_.dot(point.homogeneous()), distance);
+        distance = std::max(back_plane_.dot(point.homogeneous()), distance);
+        distance = std::max(left_plane_.dot(point.homogeneous()), distance);
+        distance = std::max(right_plane_.dot(point.homogeneous()), distance);
+        distance = std::max(top_plane_.dot(point.homogeneous()), distance);
+        distance = std::max(bottom_plane_.dot(point.homogeneous()), distance);
 
-        p = iso_box2world_.inverse() * point;
-
-        Point R;
-        R.x() = width_ / 2.0;
-        R.y() = breadth_ / 2.0;
-        R.z() = height_ / 2.0;
-
-        Point q = p.cwiseAbs() - R;
-
-        FloatingPoint distance = q.cwiseMax(0.0).norm();// + std::min(q.maxCoeff(), (FloatingPoint)0.0);
+        // FloatingPoint distance = q.cwiseMax(0.0).norm();// + std::min(q.maxCoeff(), (FloatingPoint)0.0);
 
         return distance;
     }

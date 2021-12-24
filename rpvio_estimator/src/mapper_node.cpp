@@ -15,6 +15,8 @@ void mapping_callback(
     const sensor_msgs::ImageConstPtr &mask_msg
 )
 {
+    Vector3d ggoal(27.0, -11.0, 5.0);
+
     ROS_INFO("Image message timestamp %f", img_msg->header.stamp.toSec());
     ROS_INFO("Features message timestamp %f", features_msg->header.stamp.toSec());
     ROS_INFO("Mask message timestamp %f\n", mask_msg->header.stamp.toSec());
@@ -33,6 +35,7 @@ void mapping_callback(
 
     sensor_msgs::PointCloud frame_cloud;
     frame_cloud.header = features_msg->header;
+    sensor_msgs::ChannelFloat32 plane_id_ch;
     sensor_msgs::PointCloud2 test_cloud;
     sensor_msgs::PointCloud cent_cloud;
     cent_cloud.header = features_msg->header;
@@ -61,6 +64,14 @@ void mapping_callback(
     Ti.linear() = quat.normalized().toRotationMatrix();
     Ti.translation() = trans;
 
+    Vector3d lgoal = Tic.inverse() * (Ti.inverse() * ggoal);
+    lgoal[1] = 0.0;
+    sensor_msgs::PointCloud goal_pcd;
+
+    goal_pcd.header = features_msg->header;
+    goal_pcd.points.push_back(toGeomPoint32(lgoal));
+    lgoal_pub.publish(goal_pcd);
+
     visualization_msgs::MarkerArray ma;
 
     Vector3d vertical(0, 1, 0);
@@ -77,7 +88,7 @@ void mapping_callback(
 
 
     visualization_msgs::Marker line_list;
-    line_list.header = features_msg->header;
+    line_list.header = odometry_msg->header;
 
     // line_list.action = visualization_msgs::Marker::ADD;
     line_list.pose.orientation.w = 1.0;
@@ -86,7 +97,7 @@ void mapping_callback(
     line_list.type = visualization_msgs::Marker::LINE_LIST;
 
     // LINE_LIST markers use only the x component of scale, for the line width
-    line_list.scale.x = 0.1;
+    line_list.scale.x = 0.05;
 
     // Line list is green
     // if (fabs(normal[0]) > fabs(normal[2]))
@@ -147,7 +158,7 @@ void mapping_callback(
             p.z = (double)c_pt[2];
 
             centroid += c_pt;
-            frame_cloud.points.push_back(p);
+            // frame_cloud.points.push_back(p);
 
             Vector3d pt_ = c_pt;
             // pt_[2] = 1.0;
@@ -198,6 +209,12 @@ void mapping_callback(
                 if (fit_cuboid_to_point_cloud(normed_params, plane_points, vertices))
                 {
                     create_cuboid_frame(vertices, line_list);
+
+                    for (int vid = 0; vid < vertices.size(); vid++)
+                    {
+                        frame_cloud.points.push_back(pointToPoint32(vertices[vid]));
+                        plane_id_ch.values.push_back(fpp.first);
+                    }
                 }
                 
             }
@@ -232,12 +249,14 @@ void mapping_callback(
     masked_im_pub.publish(marked_image_msg);
 
     // Process a particular plane id
+    frame_cloud.channels.push_back(plane_id_ch);
     frame_pub.publish(frame_cloud);
     cent_pub.publish(cent_cloud);
     // sensor_msgs::PointCloud2 frame_cloud2;
     // sensor_msgs::convertPointCloudToPointCloud2(frame_cloud, frame_cloud2);
     // frame_pub2.publish(frame_cloud2);
     ma_pub.publish(ma);
+    marker_pub.publish(line_list);
 }
 
 int main(int argc, char **argv)
@@ -273,6 +292,7 @@ int main(int argc, char **argv)
 
     frame_pub = n.advertise<sensor_msgs::PointCloud>("frame_cloud", 100);
     cent_pub = n.advertise<sensor_msgs::PointCloud>("centroid_cloud", 100);
+    lgoal_pub = n.advertise<sensor_msgs::PointCloud>("local_goal", 100);
     frame_pub2 = n.advertise<sensor_msgs::PointCloud2>("frame_cloud2", 100);
     masked_im_pub = n.advertise<sensor_msgs::Image>("masked_image", 10);
     marker_pub = n.advertise<visualization_msgs::Marker>("cuboids", 100);

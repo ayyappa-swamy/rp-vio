@@ -97,6 +97,7 @@ ros::Publisher cent_pub;
 ros::Publisher ma_pub;
 ros::Publisher frame_pub2;
 ros::Publisher masked_im_pub;
+ros::Publisher lgoal_pub;
 
 map<double, vector<Vector4d>> plane_measurements;
 
@@ -592,7 +593,7 @@ map<int, int> drawVPQuads( cv::Mat &img, std::vector<KeyLine> &lines, std::vecto
     map<int, int> plane_normals;
 
     cv::Mat mask(ROW, COL, CV_8UC1, cv::Scalar(0));
-    // img.setTo(cv::Scalar(0, 0, 0));
+    img.setTo(cv::Scalar(0, 0, 0));
     processMask(seg_mask, mask);
 
 	std::vector<cv::Scalar> plane_colors( 2 );
@@ -633,13 +634,13 @@ map<int, int> drawVPQuads( cv::Mat &img, std::vector<KeyLine> &lines, std::vecto
 		int colour_id = pvlines.second[0] > pvlines.second[2] ?  0 : 1;
 		mask_filled.setTo(plane_colors[colour_id], mask);
 		
-		// cv::addWeighted( img, 1.0, mask_filled, 1.0, 0.0, img);
+		cv::addWeighted( img, 1.0, mask_filled, 1.0, 0.0, img);
 		// cv::imwrite("masked_image"+to_string(im_id)+".png", img);
         plane_normals[pvlines.first] = colour_id;
 	}
 
-    cv::addWeighted( img, 0.0, seg_mask, 1.0, 0.0, img);
-    cv::imwrite("masked_image"+to_string(im_id)+".png", img);
+    // cv::addWeighted( img, 0.0, seg_mask, 1.0, 0.0, img);
+    // cv::imwrite("masked_image"+to_string(im_id)+".png", img);
 
     im_id++;
 
@@ -978,6 +979,26 @@ geometry_msgs::Point toGeomPoint(Vector3d pt)
     point.z = pt.z();
 
     return point;
+}
+
+geometry_msgs::Point32 toGeomPoint32(Vector3d pt)
+{
+    geometry_msgs::Point32 point;
+    point.x = pt.x();
+    point.y = pt.y();
+    point.z = pt.z();
+
+    return point;
+}
+
+geometry_msgs::Point32 pointToPoint32(geometry_msgs::Point pt)
+{
+    geometry_msgs::Point32 pt32;
+    pt32.x = pt.x;
+    pt32.y = pt.y;
+    pt32.z = pt.z;
+
+    return pt32;
 }
 
 void create_centroid_frame(Vector3d centroid, Vector3d plane_dir, Vector3d vertical_dir, visualization_msgs::Marker &line_list)
