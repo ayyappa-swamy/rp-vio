@@ -64,6 +64,7 @@ using namespace std;
 using namespace Eigen;
 
 ros::Publisher pub_paths;
+ros::Publisher pub_paths2;
 ros::Publisher pub_colliding_cloud;
 ros::Publisher pub_free_cloud;
 

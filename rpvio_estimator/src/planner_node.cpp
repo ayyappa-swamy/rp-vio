@@ -553,10 +553,25 @@ void current_state_callback2(
         optimal_sdf_line_strip.scale.x = 0.06;
         optimal_sdf_line_strip.color.a = 1.0;
         ma.markers.push_back(optimal_sdf_line_strip);
+
+        sensor_msgs::PointCloud feasible_points;
+        feasible_points.header = odometry_msg->header;
+        for (int pi = 0; pi < optimal_sdf_line_strip.points.size(); pi++)
+        {
+            geometry_msgs::Point32 pt = optimal_sdf_line_strip.points[pi];
+            Vector3d w_pt(pt.x, pt.y, pt.z);
+            w_pt = Ti * (Tic * w_pt);
+            
+            pt.x = w_pt.x();
+            pt.y = w_pt.y();
+            pt.z = w_pt.z();
+
+            feasible_points.points.push_back(pt);
+        }
     }
 
     pub_paths.publish(ma);
-
+    pub_paths2.publish(feasible_points);
     pub_colliding_cloud.publish(colliding_points);
     pub_free_cloud.publish(free_points);
 }
@@ -594,6 +609,7 @@ int main(int argc, char **argv)
     init_gmm_values(SRC_PATH);
 
     pub_paths = n.advertise<visualization_msgs::MarkerArray>("gaussian_paths", 1);
+    pub_paths2 = n.advertise<sensor_msgs::PointCloud>("feasible_path", 1);
     pub_colliding_cloud = n.advertise<sensor_msgs::PointCloud>("colliding_cloud", 50);
     pub_free_cloud = n.advertise<sensor_msgs::PointCloud>("free_cloud", 50);
     ros::spin();
