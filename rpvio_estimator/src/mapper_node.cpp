@@ -15,7 +15,7 @@ void mapping_callback(
     const sensor_msgs::ImageConstPtr &mask_msg
 )
 {
-    Vector3d ggoal(27.0, -11.0, 5.0);
+    Vector3d ggoal(25.0, -5.0, 2.5); 
 
     ROS_INFO("Image message timestamp %f", img_msg->header.stamp.toSec());
     ROS_INFO("Features message timestamp %f", features_msg->header.stamp.toSec());

@@ -255,7 +255,7 @@ void current_state_callback2(
 )
 {
     // Goal point
-    Vector3d goal(27.0, -11.0, 5.0);
+    Vector3d goal(25.0, -5.0, 5.0);
 
     Isometry3d Tic;
     Tic.linear() = RIC[0];
@@ -558,7 +558,7 @@ void current_state_callback2(
         feasible_points.header = odometry_msg->header;
         for (int pi = 0; pi < optimal_sdf_line_strip.points.size(); pi++)
         {
-            geometry_msgs::Point32 pt = optimal_sdf_line_strip.points[pi];
+            geometry_msgs::Point32 pt = pointToPoint32(optimal_sdf_line_strip.points[pi]);
             Vector3d w_pt(pt.x, pt.y, pt.z);
             w_pt = Ti * (Tic * w_pt);
             
@@ -568,10 +568,10 @@ void current_state_callback2(
 
             feasible_points.points.push_back(pt);
         }
+        pub_paths2.publish(feasible_points);
     }
 
     pub_paths.publish(ma);
-    pub_paths2.publish(feasible_points);
     pub_colliding_cloud.publish(colliding_points);
     pub_free_cloud.publish(free_points);
 }

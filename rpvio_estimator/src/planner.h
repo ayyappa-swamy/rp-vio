@@ -182,3 +182,13 @@ double getMMDcost(double sdf_value)
 
   return (double) MMDF.MMD_transformed_features(samples);
 }
+
+geometry_msgs::Point32 pointToPoint32(geometry_msgs::Point pt)
+{
+    geometry_msgs::Point32 pt32;
+    pt32.x = pt.x;
+    pt32.y = pt.y;
+    pt32.z = pt.z;
+
+    return pt32;
+}
