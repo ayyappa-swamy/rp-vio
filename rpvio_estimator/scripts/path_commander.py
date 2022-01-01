@@ -25,13 +25,15 @@ client.enableApiControl(True)
 client.takeoffAsync()
 client.hoverAsync()
 
-client.moveToZAsync(-2, 0.5)
-client.moveToZAsync(0, 0.5)
-client.moveToZAsync(-2.5, 0.5)
+#client.moveToZAsync(-2, 0.5)
+#client.moveToZAsync(0, 0.5)
+#client.moveToZAsync(-2.5, 0.5)
 
-init_path = []
-
-client.moveOnPathAsync(init_path, 0.25, np.inf, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(True, 0.5))
+path = []
+path.append(airsim.Vector3r(0.0, 0.0, -2.5))
+path.append(airsim.Vector3r(0.0, 0.0, 0))
+path.append(airsim.Vector3r(0.0, 0.0, -2.5))
+client.moveOnPathAsync(path, 0.25, np.inf, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(True, 0.5))
 
 prev_goal = None
 
@@ -59,22 +61,25 @@ def callback(pcd):
     client.moveByVelocityAsync(direction.x_val*0.25, direction.y_val*0.25, 0.0, 5, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(True, 0.5))
     #rospy.sleep(duration=5)
 
-path = []
+#path = []
 def path_update_callback(way_points):
     global path
     new_path = []
-    current_state = client.getMultirotorState()
-    current_position = current_state.kinematics_estimated.position
+    #current_state = client.getMultirotorState()
+    #current_position = current_state.kinematics_estimated.position
     
     for way_pt in way_points.points:
         way_point = airsim.Vector3r(-way_pt.y, -way_pt.x, -2.5)
-        if (way_point - current_position).get_length() > 3:
-            new_path.append(way_point)
+        # if (way_point - current_position).get_length() > 3:
+        new_path.append(way_point)
     if len(new_path) >= 3:
         path = new_path
 
 def control_update_callback(event):
     goal = path[int(len(path)/2)]
+    
+    current_state = client.getMultirotorState()
+    current_position = current_state.kinematics_estimated.position
     
     displacement = goal - current_position
     direction = displacement / displacement.get_length()
