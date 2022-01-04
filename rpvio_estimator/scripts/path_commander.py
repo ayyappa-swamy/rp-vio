@@ -30,9 +30,9 @@ client.hoverAsync()
 #client.moveToZAsync(-2.5, 0.5)
 
 path = []
-path.append(airsim.Vector3r(0.0, 0.0, -2.5))
-path.append(airsim.Vector3r(0.0, 0.0, 0))
-path.append(airsim.Vector3r(0.0, 0.0, -2.5))
+path.append(airsim.Vector3r(0.0, 0.0, -3))
+path.append(airsim.Vector3r(0.0, 0.0, -1))
+path.append(airsim.Vector3r(0.0, 0.0, -3))
 client.moveOnPathAsync(path, 0.25, np.inf, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(True, 0.5))
 
 prev_goal = None
@@ -51,7 +51,7 @@ def callback(pcd):
     else:
         mid = int(len(pcd.points)/2)
         goal_pt = pcd.points[mid]
-    goal = airsim.Vector3r(-goal_pt.y, -goal_pt.x, -2.5)
+    goal = airsim.Vector3r(-goal_pt.y, -goal_pt.x, -5)
     
     current_state = client.getMultirotorState()
     current_position = current_state.kinematics_estimated.position
@@ -69,21 +69,30 @@ def path_update_callback(way_points):
     #current_position = current_state.kinematics_estimated.position
     
     for way_pt in way_points.points:
-        way_point = airsim.Vector3r(-way_pt.y, -way_pt.x, -2.5)
+        way_point = airsim.Vector3r(-way_pt.y, -way_pt.x, -5)
         # if (way_point - current_position).get_length() > 3:
         new_path.append(way_point)
-    if len(new_path) >= 3:
-        path = new_path
+    #if len(new_path) >= 3:
+    #    path = new_path
+    path = new_path 
+    path.reverse()
 
 def control_update_callback(event):
     goal = path[int(len(path)/2)]
-    
     current_state = client.getMultirotorState()
     current_position = current_state.kinematics_estimated.position
-    
+
+    goal_distance = 3
+    if len(path) < 5:
+        goal_distance = 0.5
+
+    for way_point in path:
+        if (way_point - current_position).get_length() <= goal_distance:
+            goal = way_point
+
     displacement = goal - current_position
     direction = displacement / displacement.get_length()
-    client.moveByVelocityAsync(direction.x_val*0.25, direction.y_val*0.25, 0.0, 10, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(True, 0.5))
+    client.moveByVelocityAsync(direction.x_val*0.3, direction.y_val*0.3, 0.0, 5, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(True, 0.5))
 
 def listener():
 
@@ -96,7 +105,7 @@ def listener():
 
     rospy.Subscriber("/rpvio_planner/feasible_path", PointCloud, path_update_callback)
 
-    rospy.Timer(rospy.Duration(5), control_update_callback)
+    rospy.Timer(rospy.Duration(2), control_update_callback)
 
     # spin() simply keeps python from exiting until this node is stopped
     rospy.spin()
