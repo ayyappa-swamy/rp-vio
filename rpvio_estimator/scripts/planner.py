@@ -11,19 +11,24 @@ import numpy as np
 import signal
 import sys
 
+from box_world import BoxWorld
+
 class Planner:
-    def Planner(self, vertices, odometry):
+    self.num_of_waypoints = 100
+    self.num_of_paths = 500
+    def __init__(self, vertices, odometry):
         self.vertices = vertices
         self.current_pose = self.compute_pose_from_odometry(odometry)
         self.map = self.create_map(vertices)
         self.goal = np.zeros((3, 1))
+        self.init_paths = np.zeros((num_of_paths, num_of_waypoints))
 
     def compute_pose_from_odometry(self, odometry):
         pose = np.eye(4)
         return pose
 
     def create_map(self, vertices):
-        map = None
+        map = BoxWorld(vertices, odometry)
         return map
 
     def plan_paths(self):

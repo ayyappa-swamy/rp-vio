@@ -46,7 +46,7 @@ def vertices_and_odom_callback(vertices_msg, odometry_msg):
     # Optimize the STOMP trajectories
     # Visualize the optimized STOMP trajectories
 
-def run():
+def register_pub_sub():
     rospy.init_node('pyplanner', anonymous=True)
 
     vertices_sub = message_filters.Subscriber("/rpvio_mapper/frame_cloud", PointCloud)
@@ -58,4 +58,4 @@ def run():
     rospy.spin()
 
 if __name__ == '__main__':
-    run()
+    register_pub_sub()
