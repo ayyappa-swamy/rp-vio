@@ -3,6 +3,11 @@
 def cross(np_vec1, np_vec2):
     return np.cross(np_vec1.flatten(), np_vec2.flatten()).reshape((3, 1))
 
+def homogenous(np_arr):
+    a = np_arr.flatten()
+
+    return np.array([a[0], a[1], a[2], 1.0]).reshape((3, 1))
+
 class Box:
     def __init__(self, vertices):
         self.vertices = vertices
@@ -25,17 +30,47 @@ class Box:
         bottom_normal = -top_normal
         left_normal = -right_normal
 
-        front_plane = np.vstack((front_normal, -front_normal.dot(vertices[2])))
-        top_plane = np.vstack((top_normal, -top_normal.dot(vertices[2])))
-        right_plane = np.vstack((right_normal, -right_normal.dot(vertices[2])))
-        back_plane = np.vstack((back_normal, -back_normal.dot(vertices[3])))
-        bottom_plane = np.vstack((bottom_normal, -bottom_normal.dot(vertices[6])))
-        left_plane = np.vstack((left_normal, -left_normal.dot(vertices[0])))
+        self.front_plane = np.vstack((front_normal, -front_normal.dot(vertices[2])))
+        self.top_plane = np.vstack((top_normal, -top_normal.dot(vertices[2])))
+        self.right_plane = np.vstack((right_normal, -right_normal.dot(vertices[2])))
+        self.back_plane = np.vstack((back_normal, -back_normal.dot(vertices[3])))
+        self.bottom_plane = np.vstack((bottom_normal, -bottom_normal.dot(vertices[6])))
+        self.left_plane = np.vstack((left_normal, -left_normal.dot(vertices[0])))
+
+    def get_sdf(self, point):
+        point_ = homogenous(point).flatten()
+
+        distance = max([
+            self.front_plane.flatten().dot(point_),
+            self.top_plane.flatten().dot(point_),
+            self.right_plane.flatten().dot(point_),
+            self.back_plane.flatten().dot(point_),
+            self.bottom_plane.flatten().dot(point_),
+            self.left_plane.flatten().dot(point_)
+        ])
+        return distance
 
 class BoxWorld:
     boxes = []
     gt_sdfs = None
     geometries = None
+
+    def __init__(self, vertices_msg, odometry):
+        self.odometry = odometry
+        self.boxes = []
+        vertices = points_to_numpy(vertices_msg.points)
+        self.init_boxes_from_vertices(vertices)
+
+    def points_to_numpy(self, points):
+        point_list = []
+        for point in points:
+            point_list.append([point.x, point.y, point.z])
+
+        return np.array(point_list)
+
+    def init_boxes_from_vertices(self, vertices):
+        for vertex_idx in range(0, vertices.shape[0], 8):
+            self.boxes.append(Box(vertices[vertex_idx:vertex_idx+8, :]))
 
     def show(self):
         if self.geometries is None:
@@ -85,3 +120,4 @@ class BoxWorld:
             params = np.vstack((params, box.get_face_planes()))
             
         return params
+
