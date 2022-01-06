@@ -24,27 +24,28 @@ inited = False
 client = airsim.MultirotorClient(ip='10.2.36.227')
 client.confirmConnection()
 client.enableApiControl(True)
-# client.takeoffAsync()
-# client.hoverAsync()
+client.armDisarm(True)
+client.takeoffAsync().join()
+client.landAsync().join()
+print("Done 1")
 
-#client.moveToZAsync(-2, 0.5)
-#client.moveToZAsync(0, 0.5)
-#client.moveToZAsync(-2.5, 0.5)
+client.moveToZAsync(-3,.5).join()
+client.moveToZAsync(-1,.5).join()
+client.moveToZAsync(-3,.5).join()
 
 path = []
 path.append(airsim.Vector3r(0.0, 0.0, -3))
 path.append(airsim.Vector3r(0.0, 0.0, -1))
-path.append(airsim.Vector3r(0.0, 0.0, -2.5))
-client.moveByRollPitchYawZAsync(0.0, 0.0, np.pi/2, -0.5, 2).join()
-client.moveOnPathAsync(path, 0.25, 10, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(True, 0.0)).join()
-client.moveByRollPitchYawrateZAsync(0.0, 0.0, -np.pi/64, -2.75, 32).join()
-client.moveByRollPitchYawrateZAsync(0.0, 0.0, np.pi/64, -3, 8).join()
+path.append(airsim.Vector3r(0.0, 0.0, -3))
+#client.moveOnPathAsync(path, 0.5, np.inf, airsim.DrivetrainType.ForwardOnly).join()
+#print("Done")
+print("Done 2")
 
 prev_goal = None
 
 #path = []
 def path_update_callback(way_points):
-    print("Received new path")
+    print("recieved something")
     global path
     new_path = []
     #current_state = client.getMultirotorState()
