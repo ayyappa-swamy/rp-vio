@@ -1,29 +1,30 @@
 #!/usr/bin/env python
-import rospy
 from geometry_msgs.msg import Point
 from sensor_msgs.msg import PointCloud
 from visualization_msgs.msg import Marker, MarkerArray
 from scipy.spatial.transform.rotation import Rotation
 
+import cvxpy as cp
+
 import numpy as np
+from box_world import BoxWorld
 
 import sys
 sys.path.remove('/opt/ros/kinetic/lib/python2.7/dist-packages')
 import cv2
 sys.path.append('/opt/ros/kinetic/lib/python2.7/dist-packages')
 
-from box_world import BoxWorld
 
 class Planner:
-    num_of_paths = 3000 #number of paths
-    num_of_way_points = 75 #number of waypoints in each waypoint
+    num_of_paths = 50 #number of paths
+    num_of_way_points = 30 #number of waypoints in each waypoint
     tic = np.zeros(3)
     ric = np.eye(3)
     ti = np.zeros(3)
     ri = np.eye(3)
-    global_goal = np.array([25.0, -5.0, -5.0])
+    global_goal = np.array([25.0, -5.0, 5.0])
 
-    def __init__(self, vertices_msg, odometry_msg):
+    def __init__(self, vertices_msg, odometry_msg, local_goal_pub, local_stomp_pub, feasible_path_pub):
         self.vertices_msg = vertices_msg
         self.odometry_msg = odometry_msg
         
@@ -33,21 +34,18 @@ class Planner:
         self.map = BoxWorld(vertices_msg)
 
         self.local_goal = self.world2cam(self.global_goal)
+        self.local_goal[1] = 0.0
         print("Local goal is: ")
         print(self.local_goal)
 
-        self.register_publishers()
-
-    def register_publishers(self):
-        self.local_goal_pub = rospy.Publisher("local_goal", PointCloud)
-        self.local_stomp_pub = rospy.Publisher("gaussian_paths", MarkerArray)
-        self.feasible_path_pub = rospy.Publisher("feasible_path", PointCloud)
-        print("Registered publishers")
+        self.local_goal_pub = local_goal_pub
+        self.local_stomp_pub = local_stomp_pub
+        self.feasible_path_pub = feasible_path_pub
     
     def read_cam_imu_transform(self):
-        fs = cv2.FileStorage("../../../rpvio_sim_config.yaml", cv2.FILE_STORAGE_READ)
-        self.ric = np.array(fs.getNode("extrinsicRotation").mat())
-        self.tic =  np.array(fs.getNode("extrinsicTranslation").mat())
+        fs = cv2.FileStorage("../../config/rpvio_sim_config.yaml", cv2.FILE_STORAGE_READ)
+        self.ric = np.array(fs.getNode("extrinsicRotation").mat()).reshape((3, 3))
+        self.tic =  np.array(fs.getNode("extrinsicTranslation").mat()).reshape((3, 1))
         
         print("Read cam imu transform")
         print("tic: ")
@@ -63,16 +61,23 @@ class Planner:
 
     def world2cam(self, world_vector):
         world_vector = world_vector.reshape((3, 1))
-        local_vector = self.ri.T * world_vector - self.ri.T * self.ti
-        cam_vector = self.ric.T * local_vector - self.ric.T * self.tic
+        local_vector = self.ri.T.dot(world_vector) - self.ri.T.dot(self.ti)
+        cam_vector = self.ric.T.dot(local_vector) - self.ric.T.dot(self.tic)
         return cam_vector.flatten()
+
+    def cam2world(self, local_vector):
+        local_vector = local_vector.reshape((3, 1))
+        imu_vector = self.ric.dot(local_vector) + self.tic
+        world_vector = self.ri.dot(imu_vector) + self.ti
+        return world_vector.flatten()
 
     def compute_paths(self):
         self.compute_stomp_paths()
 
     def compute_stomp_paths(self):
         num_goal = self.num_of_paths
-        num = self.num_of_way_points
+        num = max(int(1.5 * np.linalg.norm(self.local_goal)), 3)
+        self.num = num
 
         x_init =  0.0
         y_init =  0.0
@@ -124,12 +129,12 @@ class Planner:
 
         # print(R.shape)
         ################# Gaussian Trajectory Sampling
-        eps_kx = np.random.multivariate_normal(mu, 0.03*cov, (num_goal, ))
-        eps_ky = np.random.multivariate_normal(mu, 0.03*cov, (num_goal, ))
-        eps_kz = np.random.multivariate_normal(mu, 0.03*cov, (num_goal, ))
+        eps_kx = np.random.multivariate_normal(mu, 0.06*cov, (num_goal, ))
+        eps_ky = np.random.multivariate_normal(mu, 0.06*cov, (num_goal, ))
+        eps_kz = np.random.multivariate_normal(mu, 0.06*cov, (num_goal, ))
 
         self.x_samples = x_interp+eps_kx
-        self.y_samples = y_interp+eps_ky
+        self.y_samples = y_interp+0.0*eps_ky
         self.z_samples = z_interp+eps_kz
 
     def publish_paths(self):
@@ -149,6 +154,8 @@ class Planner:
         is_optimal_colliding = True
         max_sdf_cost = -100000000
 
+        good_trajs = []
+
         # Add a line set marker for each path
         for p in range(self.x_samples.shape[0]):
             line_strip = Marker()
@@ -167,11 +174,14 @@ class Planner:
             is_colliding = False
             traj_cost = 0.0
 
+            pts = []
             for w in range(self.x_samples.shape[1]):
                 line_pt = Point()
                 line_pt.x = self.x_samples[p, w]
                 line_pt.y = self.y_samples[p, w]
                 line_pt.z = self.z_samples[p, w]
+
+                pts += [[line_pt.x, line_pt.y, line_pt.z]]
                 
                 line_strip.points.append(line_pt)
                 point_cost = self.map.get_point_cost(self.from_ros_point(line_pt))
@@ -179,6 +189,9 @@ class Planner:
                     is_colliding = True
 
                 traj_cost += point_cost
+
+            if not is_colliding:
+                good_trajs += pts
 
             if (traj_cost > max_sdf_cost) and not is_colliding:
                 max_sdf_cost = traj_cost
@@ -191,7 +204,7 @@ class Planner:
             optimal_line_strip.color.r = 0.0
             optimal_line_strip.color.g = 1.0
             optimal_line_strip.color.b = 0.0
-            optimal_line_strip.color.x = 0.06
+            optimal_line_strip.scale.x = 0.06
             optimal_line_strip.color.a = 1.0
 
             ma.markers.append(optimal_line_strip)
@@ -201,14 +214,68 @@ class Planner:
 
             for point in optimal_line_strip.points:
                 pt = self.from_ros_point(point)
-                w_pt = self.world2cam(pt)
+                w_pt = self.cam2world(pt)
                 w_point = self.to_ros_point(w_pt.flatten())
 
-                feasible_cloud.points.push_back(w_point)
+                feasible_cloud.points.append(w_point)
 
             self.feasible_path_pub.publish(feasible_cloud)
 
         self.local_stomp_pub.publish(ma)
+
+        # consider all collision-free trajectories
+        num = self.num
+        traj_num = int(len(good_trajs)/num)
+
+        print("Number of collision-free trajectories are : ", str(traj_num))
+
+        planes = self.map.get_plane_params()
+        num_of_planes = planes.shape[0]
+        print("Number of planes are : ", str(num_of_planes))
+
+        if traj_num < 1 or num_of_planes < 1:
+            return
+
+        trajectories = np.array(good_trajs)
+
+        normals = planes[:, :3]
+        ds = planes[:, -1:] @ np.ones((1, traj_num*num))
+        dsc= planes[:, -1:] @ np.ones((1, traj_num*num)) - 5 * np.ones((1, traj_num*num))
+
+        # firstly compute the plane collision matrix
+        collision_mat = normals @ trajectories.T + ds
+        print("Collision matrix size is ", collision_mat.shape)
+
+        bin_collision_mat = np.zeros(collision_mat.shape)
+        bin_collision_mat[collision_mat > 0] = 1.0
+
+        x = cp.Variable((traj_num * num, 3))
+        x.value = trajectories
+
+        constraint = [x[0, :] == trajectories[0, :]]
+        constraint += [x[num-1, :] == trajectories[num-1, :]]
+        for i in range(1, traj_num):
+            start = i*num
+            end = start + num-1
+            constraint += [x[start, :] == trajectories[start, :]]
+            constraint += [x[end, :] == trajectories[end, :]]
+
+        constraint += [cp.multiply(bin_collision_mat, normals@x.T + dsc) >= 0]
+        print("Number of constraints are : ", len(constraint))
+        # # # plane = cp.Parameter((3, 1))
+        # # # plane.value = r_plane.reshape((3, 1))
+
+        # # # onz = cp.Parameter((num, 1))
+        # # # onz.value = np.ones((num, 1))
+        # # # # constraint += [x @ r_plane - 20*onz >= 0]
+
+        obj = cp.Minimize(cp.sum_squares((x[1:, :] - x[:collision_mat.shape[1]-1, :])))
+        # # obj = cp.Minimize(cp.sum_squares(cp.multiply(bin_collision_mat, normals@x.T + ds)))
+        problem = cp.Problem(obj, constraint)
+        problem.solve()
+        # print('Solving ...: ', problem.solve())
+        print('Status of the problem: ', problem.status)
+        print('Time taken to solve: ', problem.solver_stats.solve_time)
 
     def from_ros_point(self, ros_point):
         return np.array([ros_point.x, ros_point.y, ros_point.z]) 

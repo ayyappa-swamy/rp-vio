@@ -7,7 +7,7 @@ def cross(np_vec1, np_vec2):
 def homogenous(np_arr):
     a = np_arr.flatten()
 
-    return np.array([a[0], a[1], a[2], 1.0]).reshape((3, 1))
+    return np.array([a[0], a[1], a[2], 1.0]).reshape((4, 1))
 
 class Box:
     def __init__(self, vertices):
@@ -26,32 +26,44 @@ class Box:
         edge26 = self.vertices[6] - self.vertices[2]
         edge23 = self.vertices[3] - self.vertices[2]
 
-        front_normal = cross(edge20, edge26)
-        top_normal = cross(edge23, edge20)
-        right_normal = cross(edge26, edge23)
-        back_normal = -front_normal
-        bottom_normal = -top_normal
-        left_normal = -right_normal
+        self.front_plane[:3] = cross(edge20, edge26)
+        self.top_plane[:3] = cross(edge23, edge20)
+        self.right_plane[:3] = cross(edge26, edge23)
+        self.back_plane[:3] = -self.front_plane[:3]
+        self.bottom_plane[:3] = -self.top_plane[:3]
+        self.left_plane[:3] = -self.right_plane[:3]
 
-        self.front_plane = np.vstack((front_normal, -front_normal.dot(self.vertices[2])))
-        self.top_plane = np.vstack((top_normal, -top_normal.dot(self.vertices[2])))
-        self.right_plane = np.vstack((right_normal, -right_normal.dot(self.vertices[2])))
-        self.back_plane = np.vstack((back_normal, -back_normal.dot(self.vertices[3])))
-        self.bottom_plane = np.vstack((bottom_normal, -bottom_normal.dot(self.vertices[6])))
-        self.left_plane = np.vstack((left_normal, -left_normal.dot(self.vertices[0])))
+        self.front_plane[3, 0] = -self.front_plane[:3].T.dot(self.vertices[2])
+        self.top_plane[3, 0] = -self.top_plane[:3].T.dot(self.vertices[2])
+        self.right_plane[3, 0] = -self.right_plane[:3].T.dot(self.vertices[2])
+        self.back_plane[3, 0] = -self.back_plane[:3].T.dot(self.vertices[3])
+        self.bottom_plane[3, 0] = -self.bottom_plane[:3].T.dot(self.vertices[6])
+        self.left_plane[3, 0] = -self.left_plane[:3].T.dot(self.vertices[0])
 
     def get_sdf(self, point):
         point_ = homogenous(point).flatten()
 
         distance = max([
-            self.front_plane.flatten().dot(point_),
-            self.top_plane.flatten().dot(point_),
-            self.right_plane.flatten().dot(point_),
-            self.back_plane.flatten().dot(point_),
-            self.bottom_plane.flatten().dot(point_),
-            self.left_plane.flatten().dot(point_)
+            self.front_plane.T.dot(point_),
+            self.top_plane.T.dot(point_),
+            self.right_plane.T.dot(point_),
+            self.back_plane.T.dot(point_),
+            self.bottom_plane.T.dot(point_),
+            self.left_plane.T.dot(point_)
         ])
         return distance
+    
+    def get_face_planes(self):
+        face_planes = np.hstack((
+            self.front_plane,
+            self.right_plane,
+            self.back_plane,
+            self.left_plane,
+            self.top_plane,
+            self.bottom_plane
+        ))
+        
+        return face_planes.T 
 
 class BoxWorld:
     boxes = []

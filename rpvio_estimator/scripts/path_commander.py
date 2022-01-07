@@ -63,6 +63,7 @@ def callback(pcd):
 
 #path = []
 def path_update_callback(way_points):
+    print("Received new path")
     global path
     new_path = []
     #current_state = client.getMultirotorState()
@@ -103,7 +104,7 @@ def listener():
     # run simultaneously.
     rospy.init_node('path_commander', anonymous=True)
 
-    rospy.Subscriber("/rpvio_planner/feasible_path", PointCloud, path_update_callback)
+    rospy.Subscriber("/feasible_path", PointCloud, path_update_callback)
 
     rospy.Timer(rospy.Duration(2), control_update_callback)
 
