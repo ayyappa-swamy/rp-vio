@@ -1,4 +1,5 @@
 """Utilies to create a box world"""
+import numpy as np
 
 def cross(np_vec1, np_vec2):
     return np.cross(np_vec1.flatten(), np_vec2.flatten()).reshape((3, 1))
@@ -18,10 +19,12 @@ class Box:
         self.top_plane = np.zeros((4, 1))
         self.bottom_plane = np.zeros((4, 1))
 
+        self.init_from_vertices()
+
     def init_from_vertices(self):
-        edge20 = vertices[0] - vertices[2]
-        edge26 = vertices[6] - vertices[2]
-        edge23 = vertices[3] - vertices[2]
+        edge20 = self.vertices[0] - self.vertices[2]
+        edge26 = self.vertices[6] - self.vertices[2]
+        edge23 = self.vertices[3] - self.vertices[2]
 
         front_normal = cross(edge20, edge26)
         top_normal = cross(edge23, edge20)
@@ -30,12 +33,12 @@ class Box:
         bottom_normal = -top_normal
         left_normal = -right_normal
 
-        self.front_plane = np.vstack((front_normal, -front_normal.dot(vertices[2])))
-        self.top_plane = np.vstack((top_normal, -top_normal.dot(vertices[2])))
-        self.right_plane = np.vstack((right_normal, -right_normal.dot(vertices[2])))
-        self.back_plane = np.vstack((back_normal, -back_normal.dot(vertices[3])))
-        self.bottom_plane = np.vstack((bottom_normal, -bottom_normal.dot(vertices[6])))
-        self.left_plane = np.vstack((left_normal, -left_normal.dot(vertices[0])))
+        self.front_plane = np.vstack((front_normal, -front_normal.dot(self.vertices[2])))
+        self.top_plane = np.vstack((top_normal, -top_normal.dot(self.vertices[2])))
+        self.right_plane = np.vstack((right_normal, -right_normal.dot(self.vertices[2])))
+        self.back_plane = np.vstack((back_normal, -back_normal.dot(self.vertices[3])))
+        self.bottom_plane = np.vstack((bottom_normal, -bottom_normal.dot(self.vertices[6])))
+        self.left_plane = np.vstack((left_normal, -left_normal.dot(self.vertices[0])))
 
     def get_sdf(self, point):
         point_ = homogenous(point).flatten()
@@ -55,10 +58,9 @@ class BoxWorld:
     gt_sdfs = None
     geometries = None
 
-    def __init__(self, vertices_msg, odometry):
-        self.odometry = odometry
+    def __init__(self, vertices_msg):
         self.boxes = []
-        vertices = points_to_numpy(vertices_msg.points)
+        vertices = self.points_to_numpy(vertices_msg.points)
         self.init_boxes_from_vertices(vertices)
 
     def points_to_numpy(self, points):
@@ -72,27 +74,6 @@ class BoxWorld:
         for vertex_idx in range(0, vertices.shape[0], 8):
             self.boxes.append(Box(vertices[vertex_idx:vertex_idx+8, :]))
 
-    def show(self):
-        if self.geometries is None:
-            self.geometries = []
-
-            # Add a coordinate frame
-            coord_frame = o3d.geometry.TriangleMesh.create_coordinate_frame()
-            self.geometries.append(coord_frame)
-
-            # Add boxes
-            self.geometries += [box.mesh for box in self.boxes]
-
-        o3d.visualization.draw_geometries(self.geometries)
-
-    def create_boxes(self, dims, translations):
-        # Construct all boxes
-        for dim, translation in zip(dims, translations):
-            box = Box(dim.flatten())
-            box.mesh.translate(translation)
-
-            self.boxes.append(box)
-
     def is_point_inside(self, point):
         min_sdf = 10000
         for box in self.boxes:
@@ -103,7 +84,6 @@ class BoxWorld:
         else:
             return False
 
-
     def is_colliding_trajectory(self, x_s, y_s, z_s):
         pts = np.vstack((x_s.flatten(), y_s.flatten(), z_s.flatten())).T
         
@@ -112,6 +92,27 @@ class BoxWorld:
                 return True
 
         return False
+
+    def get_point_cost(self, point):
+        min_sdf = 10000
+        for box in self.boxes:
+            min_sdf = min(box.get_sdf(point), min_sdf)
+
+        return min_sdf
+    
+    def get_trajectory_cost(self, x_s, y_s, z_s):
+        pts = np.vstack((x_s.flatten(), y_s.flatten(), z_s.flatten())).T
+        trajectory_cost = 0.0
+        is_colliding = False
+        
+        for pt in pts:
+           point_cost = self.get_point_cost(pt)
+           trajectory_cost += point_cost
+
+           if (point_cost <= 2.0) and not is_colliding:
+               is_colliding = True
+
+        return trajectory_cost, is_colliding 
     
     def get_plane_params(self):
         params = np.zeros((0, 4))
@@ -120,4 +121,3 @@ class BoxWorld:
             params = np.vstack((params, box.get_face_planes()))
             
         return params
-
