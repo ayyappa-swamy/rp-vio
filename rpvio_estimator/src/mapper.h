@@ -896,13 +896,20 @@ map<int, vector<Vector3d>> cluster_plane_features(
         Vector3d fpoint;
         geometry_msgs::Point32 p = features_msg->points[fi];
         fpoint << p.x, p.y, p.z;
-
-        int u = (int)features_msg->channels[0].values[fi];
-        int v = (int)features_msg->channels[1].values[fi];
         
-        // ROS_INFO("Querying at point (%d, %d)", u, v);
-        int plane_id = get_plane_id(u, v, mask_img);
-        // ROS_INFO("Found color id is %d", (int)plane_id);
+        int plane_id = 0;
+        if (features_msg->channels.size() == 1) {       
+            // to support point clouds from old bag files
+            plane_id = (int)features_msg->channels[0].values[fi];
+        }
+        else {
+            int u = (int)features_msg->channels[0].values[fi];
+            int v = (int)features_msg->channels[1].values[fi];
+        
+            // ROS_INFO("Querying at point (%d, %d)", u, v);
+            plane_id = get_plane_id(u, v, mask_img);
+            // ROS_INFO("Found color id is %d", (int)plane_id);
+        }
 
         if ((plane_id != 0) && (plane_id != 39))// Ignore sky and ground points
             mPlaneFeatures[plane_id].push_back(fpoint);
