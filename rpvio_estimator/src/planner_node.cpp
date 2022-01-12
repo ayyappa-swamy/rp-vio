@@ -344,7 +344,7 @@ int main(int argc, char **argv)
     message_filters::Subscriber<sensor_msgs::PointCloud> sub_frame_cloud(n, "/rpvio_mapper/frame_cloud", 20);
     message_filters::Subscriber<visualization_msgs::Marker> sub_cuboids(n, "/rpvio_mapper/cuboids", 100);
     // message_filters::Subscriber<visualization_msgs::MarkerArray> sub_cuboids2(n, "/rpvio_mapper/centroid_segs", 20);
-    message_filters::Subscriber<nav_msgs::Odometry> sub_odometry(n, "/vins_estimator/odometry", 20);
+    message_filters::Subscriber<nav_msgs::Odometry> sub_odometry(n, "/odometry", 20);
 
     // message_filters::TimeSynchronizer<sensor_msgs::PointCloud, nav_msgs::Odometry> sync(
     //     sub_frame_cloud,

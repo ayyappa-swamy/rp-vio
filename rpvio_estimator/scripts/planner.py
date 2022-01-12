@@ -80,7 +80,7 @@ class Planner:
 
     def compute_stomp_paths(self):
         num_goal = self.num_of_paths
-        num = max(int(1.5 * np.linalg.norm(self.local_goal)), 3)
+        num = max(int(np.linalg.norm(self.local_goal)), 3)
         self.num = num
 
         x_init =  0.0

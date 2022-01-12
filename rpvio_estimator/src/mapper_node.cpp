@@ -268,8 +268,8 @@ int main(int argc, char **argv)
     load_color_palette(COLOR_PALETTE_PATH);
 
     // Register all subscribers
-    message_filters::Subscriber<sensor_msgs::PointCloud> sub_point_cloud(n, "/vins_estimator/point_cloud", 1000);
-    message_filters::Subscriber<nav_msgs::Odometry> sub_odometry(n, "/vins_estimator/odometry", 1000);
+    message_filters::Subscriber<sensor_msgs::PointCloud> sub_point_cloud(n, "/point_cloud", 1000);
+    message_filters::Subscriber<nav_msgs::Odometry> sub_odometry(n, "/odometry", 1000);
     message_filters::Subscriber<sensor_msgs::Image> sub_image(n, "/image", 100);
     message_filters::Subscriber<sensor_msgs::Image> sub_mask(n, "/mask", 100);
 
