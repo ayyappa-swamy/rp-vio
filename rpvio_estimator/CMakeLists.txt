@@ -47,7 +47,7 @@ add_executable(rpvio_mapper
     src/parameters.cpp
     src/VPDetection.cpp
     src/mapper_node.cpp
-)
+        src/PlaneFitter.cpp src/PlaneFitter.h)
 
 add_executable(rpvio_planner
     src/planner_node.cpp
