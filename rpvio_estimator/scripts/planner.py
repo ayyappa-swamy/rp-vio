@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+from numpy.lib.function_base import append
 from geometry_msgs.msg import Point
 from sensor_msgs.msg import PointCloud
 from visualization_msgs.msg import Marker, MarkerArray
@@ -14,6 +15,7 @@ sys.path.remove('/opt/ros/kinetic/lib/python2.7/dist-packages')
 import cv2
 sys.path.append('/opt/ros/kinetic/lib/python2.7/dist-packages')
 
+is_init_path = False
 
 class Planner:
     num_of_paths = 50 #number of paths
@@ -24,7 +26,7 @@ class Planner:
     ri = np.eye(3)
     global_goal = np.array([25.0, -5.0, 5.0])
 
-    def __init__(self, vertices_msg, odometry_msg, local_goal_pub, local_stomp_pub, feasible_path_pub):
+    def __init__(self, vertices_msg, odometry_msg, local_goal_pub, local_stomp_pub, feasible_path_pub, free_cloud_pub, colliding_cloud_pub):
         self.vertices_msg = vertices_msg
         self.odometry_msg = odometry_msg
         
@@ -41,6 +43,8 @@ class Planner:
         self.local_goal_pub = local_goal_pub
         self.local_stomp_pub = local_stomp_pub
         self.feasible_path_pub = feasible_path_pub
+        self.free_cloud_pub = free_cloud_pub
+        self.colliding_cloud_pub = colliding_cloud_pub
     
     def read_cam_imu_transform(self):
         fs = cv2.FileStorage("../../config/rpvio_sim_config.yaml", cv2.FILE_STORAGE_READ)
@@ -150,7 +154,7 @@ class Planner:
     def publish_local_stomp_paths(self):
         ma = MarkerArray()
         
-        optimal_line_strip = Marker()
+        optimal_line_strip = None
         is_optimal_colliding = True
         max_sdf_cost = -100000000
 
@@ -190,38 +194,19 @@ class Planner:
 
                 traj_cost += point_cost
 
-            if not is_colliding:
-                good_trajs += pts
+            # if not is_colliding:
+                # good_trajs += pts
 
             if (traj_cost > max_sdf_cost) and not is_colliding:
                 max_sdf_cost = traj_cost
                 is_optimal_colliding = False
                 optimal_line_strip = line_strip
+                good_trajs = pts
 
             ma.markers.append(line_strip)
 
-        if not is_optimal_colliding:
-            optimal_line_strip.color.r = 0.0
-            optimal_line_strip.color.g = 1.0
-            optimal_line_strip.color.b = 0.0
-            optimal_line_strip.scale.x = 0.06
-            optimal_line_strip.color.a = 1.0
-
-            ma.markers.append(optimal_line_strip)
-
-            feasible_cloud = PointCloud()
-            feasible_cloud.header = self.vertices_msg.header
-
-            for point in optimal_line_strip.points:
-                pt = self.from_ros_point(point)
-                w_pt = self.cam2world(pt)
-                w_point = self.to_ros_point(w_pt.flatten())
-
-                feasible_cloud.points.append(w_point)
-
-            self.feasible_path_pub.publish(feasible_cloud)
-
-        self.local_stomp_pub.publish(ma)
+        if is_optimal_colliding:
+            optimal_line_strip = None
 
         # consider all collision-free trajectories
         num = self.num
@@ -233,52 +218,136 @@ class Planner:
         num_of_planes = planes.shape[0]
         print("Number of planes are : ", str(num_of_planes))
 
-        if traj_num < 1 or num_of_planes < 1:
-            return
+        optimized_traj = None
 
-        trajectories = np.array(good_trajs)
+        if traj_num > 0 and num_of_planes > 0 and not is_optimal_colliding:
 
-        normals = planes[:, :3]
-        ds = planes[:, -1:] @ np.ones((1, traj_num*num))
-        dsc= planes[:, -1:] @ np.ones((1, traj_num*num)) - 5 * np.ones((1, traj_num*num))
+            total_time = 0.0
+            for i in range(int(len(good_trajs)/num)):
+                k = i * num
+                trajectory1 = np.array(good_trajs)[k:k+num, :3]
+                
+                normals = planes[:, :3]
+                ds = planes[:, -1:] @ np.ones((1, trajectory1.shape[0]))
+                dsc = planes[:, -1:] @ np.ones((1, trajectory1.shape[0])) - 2.0 * np.ones((1, trajectory1.shape[0]))
 
-        # firstly compute the plane collision matrix
-        collision_mat = normals @ trajectories.T + ds
-        print("Collision matrix size is ", collision_mat.shape)
+                # firstly compute the plane collision matrix
+                collision_mat = normals @trajectory1.T + ds
+                print("Collision matrix size is ", collision_mat.shape)
 
-        bin_collision_mat = np.zeros(collision_mat.shape)
-        bin_collision_mat[collision_mat > 0] = 1.0
+                bin_collision_mat = np.zeros(collision_mat.shape)
+                bin_collision_mat[collision_mat > 0] = 1.0
 
-        x = cp.Variable((traj_num * num, 3))
-        x.value = trajectories
+                x = cp.Variable((num, 3))
+                x.value = trajectory1
+                constraint = [x[0, :] == trajectory1[0, :]]
+                constraint += [x[num-1, :] == trajectory1[num-1, :]]
+                constraint += [cp.multiply(bin_collision_mat, normals@x.T + dsc) >= 0.0]
 
-        constraint = [x[0, :] == trajectories[0, :]]
-        constraint += [x[num-1, :] == trajectories[num-1, :]]
-        for i in range(1, traj_num):
-            start = i*num
-            end = start + num-1
-            constraint += [x[start, :] == trajectories[start, :]]
-            constraint += [x[end, :] == trajectories[end, :]]
+                # # plane = cp.Parameter((3, 1))
+                # # plane.value = r_plane.reshape((3, 1))
 
-        constraint += [cp.multiply(bin_collision_mat, normals@x.T + dsc) >= 0]
-        print("Number of constraints are : ", len(constraint))
-        # # # plane = cp.Parameter((3, 1))
-        # # # plane.value = r_plane.reshape((3, 1))
+                # # onz = cp.Parameter((num, 1))
+                # # onz.value = np.ones((num, 1))
+                # # # constraint += [x @ r_plane - 20*onz >= 0]
+                dmat = np.diff(np.diff(np.eye(num)))
+                obj = cp.Minimize(cp.sum_squares(dmat.T @ x))
+                # obj = cp.Minimize(cp.sum_squares(cp.multiply(bin_collision_mat, normals@x.T + ds)))
+                problem = cp.Problem(obj, constraint)
+                try:
+                    problem.solve()
+                    print('Solving ...: ', problem.solve())
+                    print('Status of the problem: ', problem.status)
+                    print('Time taken to solve: ', problem.solver_stats.solve_time)
+                    total_time += problem.solver_stats.solve_time
+                    # print('x value is ', x.value)
 
-        # # # onz = cp.Parameter((num, 1))
-        # # # onz.value = np.ones((num, 1))
-        # # # # constraint += [x @ r_plane - 20*onz >= 0]
+                    # pcd2.colors = o3d.utility.Vector3dVector(np.array(traj_colors))
 
-        obj = cp.Minimize(cp.sum_squares((x[1:, :] - x[:collision_mat.shape[1]-1, :])))
-        # # obj = cp.Minimize(cp.sum_squares(cp.multiply(bin_collision_mat, normals@x.T + ds)))
-        problem = cp.Problem(obj, constraint)
-        problem.solve()
-        # print('Solving ...: ', problem.solve())
-        print('Status of the problem: ', problem.status)
-        print('Time taken to solve: ', problem.solver_stats.solve_time)
+                    if problem.status == 'optimal':
+                        optimized_traj = x.value
+                except Exception as e:
+                    print(e)
+
+            print('Total time taken for individual optimization', total_time)
+
+        if optimized_traj is not None:
+            line_strip = Marker()
+            line_strip.header = self.vertices_msg.header
+            
+            line_strip.pose.orientation.w = 1.0
+
+            line_strip.id = 9998
+            line_strip.type = Marker.LINE_STRIP
+
+            line_strip.scale.x = 0.06
+
+            line_strip.color.g = 1.0
+            line_strip.color.a = 0.7
+
+            for way_pt in optimized_traj:
+                pt = Point()
+                pt.x = way_pt[0]
+                pt.y = way_pt[1]
+                pt.z = way_pt[2]
+
+                line_strip.points.append(pt)
+        
+            optimal_line_strip = line_strip
+
+        elif not is_optimal_colliding and optimal_line_strip is not None:
+            optimal_line_strip.color.r = 0.0
+            optimal_line_strip.color.g = 0.0
+            optimal_line_strip.color.b = 1.0
+            optimal_line_strip.scale.x = 0.05
+            optimal_line_strip.color.a = 1.0
+
+        if optimal_line_strip is not None:
+            optimal_line_strip.id = 9999
+            ma.markers.append(optimal_line_strip)
+
+            global is_init_path
+            if (not is_init_path) or (optimized_traj is not None):
+                if optimized_traj is not None:
+                    is_init_path = True
+                feasible_cloud = PointCloud()
+                feasible_cloud.header = self.vertices_msg.header
+
+                for point in optimal_line_strip.points:
+                    pt = self.from_ros_point(point)
+                    w_pt = self.cam2world(pt)
+                    w_point = self.to_ros_point(w_pt.flatten())
+
+                    feasible_cloud.points.append(w_point)
+
+                self.feasible_path_pub.publish(feasible_cloud)
+
+        self.local_stomp_pub.publish(ma)
+
+        colliding_points = PointCloud()
+        colliding_points.header = self.odometry_msg.header
+        free_points = PointCloud()
+        free_points.header = self.odometry_msg.header
+
+        for i in range(-10, 10, 1):
+            for j in range(-10, 10, 1):
+                c_pt = np.array([i, 0.0, j])
+                is_colliding = False
+
+                point_cost = self.map.get_point_cost(c_pt)
+                if point_cost < 2.0:
+                    is_colliding = True
+                
+                if is_colliding:
+                    colliding_points.points.append(self.to_ros_point(c_pt))
+                else:
+                    free_points.points.append(self.to_ros_point(c_pt))
+        
+        self.free_cloud_pub.publish(free_points)
+        self.colliding_cloud_pub.publish(colliding_points)
 
     def from_ros_point(self, ros_point):
-        return np.array([ros_point.x, ros_point.y, ros_point.z]) 
+        return np.array([ros_point.x, ros_point.y, ros_point.z])
 
     def to_ros_point(self, point):
         ros_point = Point()

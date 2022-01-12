@@ -30,9 +30,9 @@ client.hoverAsync()
 #client.moveToZAsync(-2.5, 0.5)
 
 path = []
-path.append(airsim.Vector3r(0.0, 0.0, -3))
+path.append(airsim.Vector3r(0.0, 0.0, -5))
 path.append(airsim.Vector3r(0.0, 0.0, -1))
-path.append(airsim.Vector3r(0.0, 0.0, -3))
+path.append(airsim.Vector3r(0.0, 0.0, -5))
 client.moveOnPathAsync(path, 0.25, np.inf, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(True, 0.5))
 
 prev_goal = None
@@ -93,7 +93,8 @@ def control_update_callback(event):
 
     displacement = goal - current_position
     direction = displacement / displacement.get_length()
-    client.moveByVelocityAsync(direction.x_val*0.3, direction.y_val*0.3, 0.0, 5, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(True, 0.5))
+
+    client.moveByVelocityAsync(direction.x_val*0.3, direction.y_val*0.3, displacement.z_val*0.01, 5, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(True, 0.5))
 
 def listener():
 

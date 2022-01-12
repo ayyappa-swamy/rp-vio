@@ -17,13 +17,17 @@ from planner import Planner
 local_goal_pub = None
 local_stomp_pub = None
 feasible_path_pub = None
+free_cloud_pub = None
+colliding_cloud_pub = None
 
 def vertices_and_odom_callback(vertices_msg, odometry_msg):
     global local_goal_pub
     global local_stomp_pub
     global feasible_path_pub
+    global free_cloud_pub
+    global colliding_cloud_pub
     
-    planner = Planner(vertices_msg, odometry_msg, local_goal_pub, local_stomp_pub, feasible_path_pub)
+    planner = Planner(vertices_msg, odometry_msg, local_goal_pub, local_stomp_pub, feasible_path_pub, free_cloud_pub, colliding_cloud_pub)
     planner.compute_paths()
     planner.publish_paths()
 
@@ -38,10 +42,14 @@ def register_pub_sub():
     global local_goal_pub
     global local_stomp_pub
     global feasible_path_pub
+    global free_cloud_pub
+    global colliding_cloud_pub
 
     local_goal_pub = rospy.Publisher("local_goal", PointCloud, queue_size=10)
     local_stomp_pub = rospy.Publisher("gaussian_paths", MarkerArray, queue_size=1)
     feasible_path_pub = rospy.Publisher("feasible_path", PointCloud, queue_size=1)
+    free_cloud_pub = rospy.Publisher("free_cloud", PointCloud, queue_size=20)
+    colliding_cloud_pub = rospy.Publisher("colliding_cloud", PointCloud, queue_size=20)
 
     # spin() simply keeps python from exiting until this node is stopped
     rospy.spin()
