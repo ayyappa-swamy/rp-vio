@@ -24,7 +24,7 @@ class Planner:
     ric = np.eye(3)
     ti = np.zeros(3)
     ri = np.eye(3)
-    global_goal = np.array([25.0, -5.0, 5.0])
+    global_goal = np.array([23.0, -5.0, 5.0])
 
     def __init__(self, vertices_msg, odometry_msg, local_goal_pub, local_stomp_pub, feasible_path_pub, free_cloud_pub, colliding_cloud_pub):
         self.vertices_msg = vertices_msg
@@ -37,8 +37,8 @@ class Planner:
 
         self.local_goal = self.world2cam(self.global_goal)
         self.local_goal[1] = 0.0
-        print("Local goal is: ")
-        print(self.local_goal)
+        #print("Local goal is: ")
+        #print(self.local_goal)
 
         self.local_goal_pub = local_goal_pub
         self.local_stomp_pub = local_stomp_pub
@@ -51,11 +51,11 @@ class Planner:
         self.ric = np.array(fs.getNode("extrinsicRotation").mat()).reshape((3, 3))
         self.tic =  np.array(fs.getNode("extrinsicTranslation").mat()).reshape((3, 1))
         
-        print("Read cam imu transform")
-        print("tic: ")
-        print(self.tic)
-        print("ric: ")
-        print(self.ric)
+        #print("Read cam imu transform")
+        #print("tic: ")
+        #print(self.tic)
+        #print("ric: ")
+        #print(self.ric)
 
     def parse_odometry_msg(self, odometry_msg):
         trans = odometry_msg.pose.pose.position
@@ -189,7 +189,7 @@ class Planner:
                 
                 line_strip.points.append(line_pt)
                 point_cost = self.map.get_point_cost(self.from_ros_point(line_pt))
-                if point_cost < 2.0:
+                if point_cost < 1.0:
                     is_colliding = True
 
                 traj_cost += point_cost
@@ -212,11 +212,11 @@ class Planner:
         num = self.num
         traj_num = int(len(good_trajs)/num)
 
-        print("Number of collision-free trajectories are : ", str(traj_num))
+        #print("Number of collision-free trajectories are : ", str(traj_num))
 
         planes = self.map.get_plane_params()
         num_of_planes = planes.shape[0]
-        print("Number of planes are : ", str(num_of_planes))
+        #print("Number of planes are : ", str(num_of_planes))
 
         optimized_traj = None
 
@@ -229,11 +229,10 @@ class Planner:
                 
                 normals = planes[:, :3]
                 ds = planes[:, -1:] @ np.ones((1, trajectory1.shape[0]))
-                dsc = planes[:, -1:] @ np.ones((1, trajectory1.shape[0])) - 2.0 * np.ones((1, trajectory1.shape[0]))
 
                 # firstly compute the plane collision matrix
                 collision_mat = normals @trajectory1.T + ds
-                print("Collision matrix size is ", collision_mat.shape)
+                #print("Collision matrix size is ", collision_mat.shape)
 
                 bin_collision_mat = np.zeros(collision_mat.shape)
                 bin_collision_mat[collision_mat > 0] = 1.0
@@ -242,7 +241,7 @@ class Planner:
                 x.value = trajectory1
                 constraint = [x[0, :] == trajectory1[0, :]]
                 constraint += [x[num-1, :] == trajectory1[num-1, :]]
-                constraint += [cp.multiply(bin_collision_mat, normals@x.T + dsc) >= 0.0]
+                constraint += [cp.multiply(bin_collision_mat, normals@x.T + ds) >= 0.0]
 
                 # # plane = cp.Parameter((3, 1))
                 # # plane.value = r_plane.reshape((3, 1))
@@ -251,14 +250,14 @@ class Planner:
                 # # onz.value = np.ones((num, 1))
                 # # # constraint += [x @ r_plane - 20*onz >= 0]
                 dmat = np.diff(np.diff(np.eye(num)))
-                obj = cp.Minimize(cp.sum_squares(dmat.T @ x))
+                print("initial cost: ", np.linalg.norm(dmat.T@x.value)) 
+                obj = cp.Minimize(cp.sum_squares(dmat.T@x))
                 # obj = cp.Minimize(cp.sum_squares(cp.multiply(bin_collision_mat, normals@x.T + ds)))
                 problem = cp.Problem(obj, constraint)
                 try:
                     problem.solve()
-                    print('Solving ...: ', problem.solve())
-                    print('Status of the problem: ', problem.status)
-                    print('Time taken to solve: ', problem.solver_stats.solve_time)
+                    #print('Solving ...: ', problem.solve())
+                    #print('Status of the problem: ', problem.status)
                     total_time += problem.solver_stats.solve_time
                     # print('x value is ', x.value)
 
@@ -266,10 +265,12 @@ class Planner:
 
                     if problem.status == 'optimal':
                         optimized_traj = x.value
+                        print("optimal cost: ", np.linalg.norm(dmat.T@x.value)) 
+                        print('Time taken to solve: ', problem.solver_stats.solve_time)
                 except Exception as e:
                     print(e)
 
-            print('Total time taken for individual optimization', total_time)
+            #print('Total time taken for individual optimization', total_time)
 
         if optimized_traj is not None:
             line_strip = Marker()
@@ -335,7 +336,7 @@ class Planner:
                 is_colliding = False
 
                 point_cost = self.map.get_point_cost(c_pt)
-                if point_cost < 2.0:
+                if point_cost < 1.0:
                     is_colliding = True
                 
                 if is_colliding:

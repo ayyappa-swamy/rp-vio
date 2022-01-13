@@ -128,7 +128,7 @@ Visualization Manager:
           Marker Topic: /pose_graph/camera_pose_visual
           Name: camera_visual
           Namespaces:
-            CameraPoseVisualization: true
+            {}
           Queue Size: 100
           Value: true
         - Class: rviz/Image
@@ -148,7 +148,7 @@ Visualization Manager:
           Marker Topic: /pose_graph/key_odometrys
           Name: Marker
           Namespaces:
-            key_odometrys: true
+            {}
           Queue Size: 100
           Value: true
         - Alpha: 1
@@ -664,7 +664,7 @@ Visualization Manager:
       Size (Pixels): 3
       Size (m): 1
       Style: Flat Squares
-      Topic: /rpvio_planner/free_cloud
+      Topic: /free_cloud
       Unreliable: false
       Use Fixed Frame: true
       Use rainbow: true
@@ -694,7 +694,7 @@ Visualization Manager:
       Size (Pixels): 3
       Size (m): 1
       Style: Flat Squares
-      Topic: /rpvio_planner/colliding_cloud
+      Topic: /colliding_cloud
       Unreliable: false
       Use Fixed Frame: true
       Use rainbow: true
@@ -722,25 +722,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/XYOrbit
-      Distance: 25.4549599
+      Distance: 28.6050835
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.0599999987
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 1.2312007
-        Y: -2.38087988
+        X: 1.02349603
+        Y: 6.61388779
         Z: -1.06504194e-05
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.0500000007
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.00999999978
-      Pitch: -0.63479799
+      Pitch: -0.734796762
       Target Frame: <Fixed Frame>
       Value: XYOrbit (rviz)
-      Yaw: 4.73622417
+      Yaw: 4.77122498
     Saved: ~
 Window Geometry:
   Displays:

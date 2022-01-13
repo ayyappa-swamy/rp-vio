@@ -1,6 +1,9 @@
 """Utilies to create a box world"""
 import numpy as np
 
+def normalize(np_vec):
+    return np_vec / np.linalg.norm(np_vec)
+
 def cross(np_vec1, np_vec2):
     return np.cross(np_vec1.flatten(), np_vec2.flatten()).reshape((3, 1))
 
@@ -26,9 +29,9 @@ class Box:
         edge26 = self.vertices[6] - self.vertices[2]
         edge23 = self.vertices[3] - self.vertices[2]
 
-        self.front_plane[:3] = cross(edge20, edge26)
-        self.top_plane[:3] = cross(edge23, edge20)
-        self.right_plane[:3] = cross(edge26, edge23)
+        self.front_plane[:3] = normalize(cross(edge20, edge26))
+        self.top_plane[:3] = normalize(cross(edge23, edge20))
+        self.right_plane[:3] = normalize(cross(edge26, edge23))
         self.back_plane[:3] = -self.front_plane[:3]
         self.bottom_plane[:3] = -self.top_plane[:3]
         self.left_plane[:3] = -self.right_plane[:3]
@@ -91,7 +94,7 @@ class BoxWorld:
         for box in self.boxes:
             min_sdf = min(box.get_sdf(point), min_sdf)
 
-        if min_sdf <= 2:
+        if min_sdf <= 1:
             return True
         else:
             return False
@@ -121,7 +124,7 @@ class BoxWorld:
            point_cost = self.get_point_cost(pt)
            trajectory_cost += point_cost
 
-           if (point_cost <= 2.0) and not is_colliding:
+           if (point_cost <= 1.0) and not is_colliding:
                is_colliding = True
 
         return trajectory_cost, is_colliding 
