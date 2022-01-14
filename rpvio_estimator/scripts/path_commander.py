@@ -19,7 +19,7 @@ signal.signal(signal.SIGINT, signal_handler)
 print('Press Ctrl+C')
 
 inited = False
-client = airsim.MultirotorClient(ip='10.2.36.169')
+client = airsim.MultirotorClient(ip='10.2.36.227')
 client.confirmConnection()
 client.enableApiControl(True)
 client.takeoffAsync()

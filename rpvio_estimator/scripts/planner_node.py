@@ -47,7 +47,7 @@ def register_pub_sub():
 
     local_goal_pub = rospy.Publisher("local_goal", PointCloud, queue_size=10)
     local_stomp_pub = rospy.Publisher("gaussian_paths", MarkerArray, queue_size=1)
-    feasible_path_pub = rospy.Publisher("feasible_path", PointCloud, queue_size=1)
+    feasible_path_pub = rospy.Publisher("feasible_path", PointCloud, queue_size=5)
     free_cloud_pub = rospy.Publisher("free_cloud", PointCloud, queue_size=20)
     colliding_cloud_pub = rospy.Publisher("colliding_cloud", PointCloud, queue_size=20)
 

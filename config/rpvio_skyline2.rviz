@@ -3,7 +3,8 @@ Panels:
     Help Height: 0
     Name: Displays
     Property Tree Widget:
-      Expanded: ~
+      Expanded:
+        - /raw_image1
       Splitter Ratio: 0.579250693
     Tree Height: 351
   - Class: rviz/Selection
@@ -24,7 +25,7 @@ Panels:
     Experimental: false
     Name: Time
     SyncMode: 0
-    SyncSource: CollidingCloud
+    SyncSource: raw_image
   - Class: rviz/Displays
     Help Height: 78
     Name: Displays
@@ -39,7 +40,7 @@ Visualization Manager:
   Displays:
     - Class: rviz/Image
       Enabled: true
-      Image Topic: /rpvio_mapper/masked_image
+      Image Topic: /image
       Max Value: 1
       Median window: 5
       Min Value: 0
@@ -53,7 +54,7 @@ Visualization Manager:
       Cell Size: 1
       Class: rviz/Grid
       Color: 130; 130; 130
-      Enabled: true
+      Enabled: false
       Line Style:
         Line Width: 0.0299999993
         Value: Lines
@@ -63,10 +64,10 @@ Visualization Manager:
         X: 0
         Y: 0
         Z: 0
-      Plane: XZ
+      Plane: XY
       Plane Cell Count: 50
       Reference Frame: <Fixed Frame>
-      Value: true
+      Value: false
     - Class: rviz/Group
       Displays:
         - Alpha: 1
@@ -568,7 +569,7 @@ Visualization Manager:
       Marker Topic: /rpvio_mapper/centroid_segs
       Name: MarkerArray
       Namespaces:
-        "": true
+        {}
       Queue Size: 100
       Value: true
     - Alpha: 0.5
@@ -613,7 +614,7 @@ Visualization Manager:
       Color: 255; 255; 255
       Color Transformer: RGB8
       Decay Time: 0
-      Enabled: true
+      Enabled: false
       Invert Rainbow: false
       Max Color: 255; 255; 255
       Max Intensity: 4096
@@ -630,13 +631,13 @@ Visualization Manager:
       Unreliable: false
       Use Fixed Frame: true
       Use rainbow: true
-      Value: true
+      Value: false
     - Class: rviz/MarkerArray
       Enabled: true
       Marker Topic: /gaussian_paths
       Name: MarkerArray
       Namespaces:
-        "": true
+        {}
       Queue Size: 100
       Value: true
     - Alpha: 0.100000001
@@ -722,25 +723,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/XYOrbit
-      Distance: 28.6050835
+      Distance: 40.1880836
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.0599999987
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 1.02349603
-        Y: 6.61388779
-        Z: -1.06504194e-05
+        X: -2.31852531
+        Y: -6.55053902
+        Z: -1.44651167e-05
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.0500000007
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.00999999978
-      Pitch: -0.734796762
+      Pitch: 0.389797509
       Target Frame: <Fixed Frame>
       Value: XYOrbit (rviz)
-      Yaw: 4.77122498
+      Yaw: 3.19622254
     Saved: ~
 Window Geometry:
   Displays:

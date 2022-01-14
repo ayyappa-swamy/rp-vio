@@ -26,7 +26,7 @@
   <remap from="/point_cloud" to="/vins_estimator/point_cloud" />
   <remap from="/odometry" to="/vins_estimator/odometry" />
 
-  <node name="rpvio_mapper" pkg="rpvio_estimator" type="rpvio_mapper" output="log">
+  <node name="rpvio_mapper" pkg="rpvio_estimator" type="rpvio_mapper" output="screen">
     <param name="config_file" type="string" value="$(arg config_path)" />
     <param name="rpvio_folder" type="string" value="$(arg rpvio_path)" />
   </node>

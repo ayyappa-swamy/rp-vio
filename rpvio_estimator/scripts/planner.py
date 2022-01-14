@@ -148,7 +148,7 @@ class Planner:
     def publish_local_goal(self):
         goal_pc = PointCloud()
         goal_pc.header = self.vertices_msg.header
-        goal_pc.points.append(self.to_ros_point(self.local_goal))
+        goal_pc.points.append(self.to_ros_point(self.global_goal))
         self.local_goal_pub.publish(goal_pc)
     
     def publish_local_stomp_paths(self):
@@ -180,15 +180,17 @@ class Planner:
 
             pts = []
             for w in range(self.x_samples.shape[1]):
-                line_pt = Point()
-                line_pt.x = self.x_samples[p, w]
-                line_pt.y = self.y_samples[p, w]
-                line_pt.z = self.z_samples[p, w]
+                pt = np.array([
+                    self.x_samples[p, w],
+                    self.y_samples[p, w],
+                    self.z_samples[p, w]
+                ]).flatten()
+                w_pt = self.cam2world(pt).flatten() 
 
-                pts += [[line_pt.x, line_pt.y, line_pt.z]]
+                pts += [[pt[0], pt[1], pt[2]]]
                 
-                line_strip.points.append(line_pt)
-                point_cost = self.map.get_point_cost(self.from_ros_point(line_pt))
+                line_strip.points.append(self.to_ros_point(w_pt))
+                point_cost = self.map.get_point_cost(pt)
                 if point_cost < 1.0:
                     is_colliding = True
 
@@ -287,12 +289,7 @@ class Planner:
             line_strip.color.a = 0.7
 
             for way_pt in optimized_traj:
-                pt = Point()
-                pt.x = way_pt[0]
-                pt.y = way_pt[1]
-                pt.z = way_pt[2]
-
-                line_strip.points.append(pt)
+                line_strip.points.append(self.to_ros_point(self.cam2world(way_pt)))
         
             optimal_line_strip = line_strip
 
@@ -315,11 +312,11 @@ class Planner:
                 feasible_cloud.header = self.vertices_msg.header
 
                 for point in optimal_line_strip.points:
-                    pt = self.from_ros_point(point)
-                    w_pt = self.cam2world(pt)
-                    w_point = self.to_ros_point(w_pt.flatten())
+                    #pt = self.from_ros_point(point)
+                    #w_pt = self.cam2world(pt)
+                    #w_point = self.to_ros_point(w_pt.flatten())
 
-                    feasible_cloud.points.append(w_point)
+                    feasible_cloud.points.append(point)
 
                 self.feasible_path_pub.publish(feasible_cloud)
 
@@ -340,9 +337,9 @@ class Planner:
                     is_colliding = True
                 
                 if is_colliding:
-                    colliding_points.points.append(self.to_ros_point(c_pt))
+                    colliding_points.points.append(self.to_ros_point(self.cam2world(c_pt)))
                 else:
-                    free_points.points.append(self.to_ros_point(c_pt))
+                    free_points.points.append(self.to_ros_point(self.cam2world(c_pt)))
         
         self.free_cloud_pub.publish(free_points)
         self.colliding_cloud_pub.publish(colliding_points)

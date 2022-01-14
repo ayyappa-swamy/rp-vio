@@ -208,7 +208,7 @@ void mapping_callback(
                 
                 if (fit_cuboid_to_point_cloud(normed_params, plane_points, vertices))
                 {
-                    create_cuboid_frame(vertices, line_list);
+                    create_cuboid_frame(vertices, line_list, (Ti * Tic));
 
                     for (int vid = 0; vid < vertices.size(); vid++)
                     {
