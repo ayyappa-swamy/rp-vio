@@ -10,7 +10,7 @@ from sensor_msgs.msg import Image
 class Node:
     def __init__(self, options, config, camera, image_topic='/image',
                  mask_publishing_topic='/plane_mask', rate=10):
-        rospy.init_node("Planercnn Node", anonymous=True)
+        rospy.init_node("Planercnn_Node", anonymous=True)
         self.segmentor = PlaneSegmentor(options, config, camera)
         self.sub = rospy.Subscriber(image_topic, Image, self.callback)
         self.bridge = CvBridge()
