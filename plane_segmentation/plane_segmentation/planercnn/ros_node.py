@@ -1,3 +1,5 @@
+import message_filters
+
 from options import parse_args
 from config import InferenceConfig
 import numpy as np
@@ -5,21 +7,33 @@ from PlaneSegmentor import PlaneSegmentor
 import rospy
 from cv_bridge import CvBridge
 from sensor_msgs.msg import Image
+from message_filters import TimeSynchronizer
 
 
 class Node:
     def __init__(self, options, config, camera, image_topic='/image',
+                 building_mask_topic='/mask',
                  mask_publishing_topic='/plane_mask', rate=10):
-        rospy.init_node("Planercnn_Node", anonymous=True)
+        rospy.init_node("planercnn_node", anonymous=True)
         self.segmentor = PlaneSegmentor(options, config, camera)
-        self.sub = rospy.Subscriber(image_topic, Image, self.callback)
+        self.sub_image = rospy.Subscriber(image_topic, Image)
+        self.sub_mask = rospy.Subscriber(building_mask_topic, Image)
+        self.ts = message_filters.TimeSynchronizer(
+            [self.sub_image, self.sub_mask], 10)
+        self.ts.registerCallback(self.callback)
         self.bridge = CvBridge()
         self.pub = rospy.Publisher(mask_publishing_topic, Image, queue_size=10)
-        self.image = None
-        self.rate = rospy.Rate(rate)
 
-    def callback(self, message):
-        self.image = self.bridge.imgmsg_to_cv2(message)
+    # self.image = None
+    # self.rate = rospy.Rate(rate)
+
+    def callback(self, image_msg, building_mask_message):
+        rospy.loginfo("Received image")
+        image = self.bridge.imgmsg_to_cv2(image_msg)
+        building_mask = self.bridge.imgmsg_to_cv2(building_mask_message)
+        plane_mask = self.segmentor.segment(image, building_mask)
+        rospy.loginfo("Created Mask, publishing")
+        self.pub.publish(self.bridge.cv2_to_imgmsg(plane_mask))
 
     def start(self):
         rospy.loginfo("Starting segmentation")
