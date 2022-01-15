@@ -6,12 +6,13 @@ from utils import *
 from datasets.plane_dataset import *
 from evaluate import PlaneRCNNDetector
 
+
 #
 class Detector:
     def __init__(self, options, config, camera):
         camera = np.array(camera)
-        #camera[[0, 2, 4]] *= 640.0 / camera[4]
-        #camera[[1, 3, 5]] *= 480.0 / camera[5]
+        # camera[[0, 2, 4]] *= 640.0 / camera[4]
+        # camera[[1, 3, 5]] *= 480.0 / camera[5]
         self.camera = camera
         self.config = config
         self.anchors = generate_pyramid_anchors(config.RPN_ANCHOR_SCALES,
@@ -127,10 +128,12 @@ class Detector:
         :return: (masks, parameters)
         """
         sample = self.preprocess(image)
-        sample = [torch.tensor(data[None,...]) for data in sample]
-        # with torch.no_grad():
-        detection_pair = self.detector.detect(sample)
-        parameters = detection_pair[0]['detection'][:, 6:9]
-        masks = detection_pair[0]['masks'][:, 80:560]
+        sample = [torch.tensor(data[None, ...]) for data in sample]
+        with torch.no_grad():
+            detection_pair = self.detector.detect(sample)
+        parameters = detection_pair[0]['detection'][:,
+                     6:9].detach().cpu().numpy()
+        masks = detection_pair[0]['masks'][:, 80:560].detach().cpu().numpy()
+        print(masks, parameters)
 
         return masks, parameters
