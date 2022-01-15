@@ -16,8 +16,8 @@ class Node:
                  mask_publishing_topic='/plane_mask', rate=10):
         rospy.init_node("planercnn_node", anonymous=True)
         self.segmentor = PlaneSegmentor(options, config, camera)
-        self.sub_image = rospy.Subscriber(image_topic, Image)
-        self.sub_mask = rospy.Subscriber(building_mask_topic, Image)
+        self.sub_image = message_filters.Subscriber(image_topic, Image)
+        self.sub_mask = message_filters.Subscriber(building_mask_topic, Image)
         self.ts = message_filters.TimeSynchronizer(
             [self.sub_image, self.sub_mask], 10)
         self.ts.registerCallback(self.callback)
