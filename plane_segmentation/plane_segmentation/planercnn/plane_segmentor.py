@@ -5,7 +5,7 @@ from detect import Detector
 #
 class PlaneSegmentor:
     def __init__(self, options, config, camera, ids_file='seg_rgbs.txt',
-                 ground_id=212, sky_id=24):
+                 ground_id=212, sky_id=24, min_size_thresh=30000):
         self.camera = camera
         self.config = config
         self.options = options
@@ -15,6 +15,7 @@ class PlaneSegmentor:
         self.save_ids(ids_file)
         self.ground_id = ground_id
         self.sky_id = sky_id
+        self.thresh = min_size_thresh
 
     def save_ids(self, ids_file: str):
         with open(ids_file, 'r') as f:
@@ -63,8 +64,10 @@ class PlaneSegmentor:
         sky_mask = id_image == self.sky_id
         ground_mask = id_image == self.ground_id
 
-        for mask in masks:
-            mask[sky_mask | ground_mask] = 0
+        for i in range(masks.shape[0]):
+            masks[i][sky_mask | ground_mask] = 0
+            if (masks[i] == 1).sum() < self.thresh:
+                masks[i] = 0
 
         return masks
 
