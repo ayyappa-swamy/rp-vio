@@ -33,7 +33,9 @@ class Node:
         building_mask = self.bridge.imgmsg_to_cv2(building_mask_message)
         plane_mask = self.segmentor.segment(image, building_mask)
         rospy.loginfo("Created Mask, publishing")
-        self.pub.publish(self.bridge.cv2_to_imgmsg(plane_mask))
+        msg = self.bridge.cv2_to_imgmsg(plane_mask)
+        msg.header.stamp = image_msg.header.stamp
+        self.pub.publish(msg)
 
     def start(self):
         rospy.loginfo("Starting segmentation")
