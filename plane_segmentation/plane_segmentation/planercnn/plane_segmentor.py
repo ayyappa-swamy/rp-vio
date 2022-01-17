@@ -72,7 +72,7 @@ class PlaneSegmentor:
         """
         plane_seg = np.zeros((*masks.shape[1:], 3))
 
-        for i, mask in masks:
+        for i, mask in enumerate(masks):
             plane_seg[mask == 1] = self.mapping[i + 1]
 
         return plane_seg

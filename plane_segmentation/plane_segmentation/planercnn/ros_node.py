@@ -1,13 +1,11 @@
-import message_filters
-
 from options import parse_args
 from config import InferenceConfig
 import numpy as np
-from PlaneSegmentor import PlaneSegmentor
+from plane_segmentor import PlaneSegmentor
 import rospy
 from cv_bridge import CvBridge
 from sensor_msgs.msg import Image
-from message_filters import TimeSynchronizer
+import message_filters
 
 
 class Node:
@@ -32,6 +30,8 @@ class Node:
         image = self.bridge.imgmsg_to_cv2(image_msg)
         building_mask = self.bridge.imgmsg_to_cv2(building_mask_message)
         plane_mask = self.segmentor.segment(image, building_mask)
+        plane_mask = plane_mask.astype(np.uint8)
+        print(plane_mask.shape)
         rospy.loginfo("Created Mask, publishing")
         msg = self.bridge.cv2_to_imgmsg(plane_mask)
         msg.header.stamp = image_msg.header.stamp

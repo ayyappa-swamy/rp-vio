@@ -134,6 +134,5 @@ class Detector:
         parameters = detection_pair[0]['detection'][:,
                      6:9].detach().cpu().numpy()
         masks = detection_pair[0]['masks'][:, 80:560].detach().cpu().numpy()
-        print(masks, parameters)
 
         return masks, parameters
