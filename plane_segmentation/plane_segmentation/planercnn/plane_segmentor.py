@@ -56,8 +56,10 @@ class PlaneSegmentor:
 
         Returns: filtered masks
         """
+
+        # image is in BGR, ids are for RGB
         id_image = self.rev_mapping[
-            building_seg[:, :, 0], building_seg[:, :, 1], building_seg[:, :, 2]]
+            building_seg[:, :, 2], building_seg[:, :, 1], building_seg[:, :, 0]]
         sky_mask = id_image == self.sky_id
         ground_mask = id_image == self.ground_id
 
