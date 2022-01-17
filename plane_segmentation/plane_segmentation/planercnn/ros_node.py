@@ -20,22 +20,28 @@ class Node:
             [self.sub_image, self.sub_mask], 10)
         self.ts.registerCallback(self.callback)
         self.bridge = CvBridge()
-        self.pub = rospy.Publisher(mask_publishing_topic, Image, queue_size=10)
+        self.plane_mask_pub = rospy.Publisher(mask_publishing_topic, Image,
+                                              queue_size=2)
+        self.image_pub = rospy.Publisher('/image_slow', Image, queue_size=2)
+        self.mask_pub = rospy.Publisher('/mask_slow', Image, queue_size=2)
 
     # self.image = None
     # self.rate = rospy.Rate(rate)
 
     def callback(self, image_msg, building_mask_message):
+        print(image_msg.header.stamp)
+        print(building_mask_message.header.stamp)
         rospy.loginfo("Received image")
         image = self.bridge.imgmsg_to_cv2(image_msg)
         building_mask = self.bridge.imgmsg_to_cv2(building_mask_message)
         plane_mask = self.segmentor.segment(image, building_mask)
         plane_mask = plane_mask.astype(np.uint8)
-        print(plane_mask.shape)
         rospy.loginfo("Created Mask, publishing")
         msg = self.bridge.cv2_to_imgmsg(plane_mask)
         msg.header.stamp = image_msg.header.stamp
-        self.pub.publish(msg)
+        self.plane_mask_pub.publish(msg)
+        self.image_pub.publish(image_msg)
+        self.mask_pub.publish(building_mask_message)
 
     def start(self):
         rospy.loginfo("Starting segmentation")
