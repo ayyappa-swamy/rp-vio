@@ -572,6 +572,70 @@ void processMask(cv::Mat &input_mask, cv::Mat &output_mask)
     }
 }
 
+/**
+ * @brief Fills holes in the masks
+ * 
+ * @param input_mask 
+ * @param output_mask 
+ */
+void fillMaskHoles(cv::Mat &input_mask, cv::Mat &output_mask, cv::Scalar color)
+{
+    cv::Mat binary_segment;
+    cv::inRange(input_mask, color, color, binary_segment);
+
+    cv::Mat result_mask;
+    cv::bitwise_xor(input_mask, color, result_mask);
+
+    cv::morphologyEx(binary_segment, binary_segment, cv::MORPH_CLOSE, cv::Mat());
+    cv::morphologyEx(binary_segment, binary_segment, cv::MORPH_OPEN, cv::getStructuringElement(cv::MORPH_CROSS, cv::Size(5, 5)));
+
+    cv::Mat color_segment(input_mask.rows, input_mask.cols, CV_8UC3, color);
+
+    cv::Mat cs;
+    cv::cvtColor(binary_segment, cs, cv::COLOR_GRAY2RGB);
+
+    cv::Mat inv_cs;
+    cv::bitwise_xor(cs, cv::Scalar(255, 255, 255), inv_cs);
+
+    cv::Mat re_mask;
+    cv::bitwise_and(input_mask, inv_cs, re_mask);
+
+    cv::Mat ccs;
+    cv::bitwise_and(color_segment, cs, ccs);
+
+    cv::bitwise_or(ccs, re_mask, result_mask);
+
+    result_mask.copyTo(output_mask);
+}
+
+/**
+ * @brief Loop through each pixel to process mask of it's color
+ * 
+ * @param input_mask 
+ * @param output_mask 
+ */
+void processMaskSegments(cv::Mat &input_mask, cv::Mat &output_mask)
+{
+    std::vector<unsigned int> processed_colors;
+
+    for (int i = 0; i < input_mask.rows; i++) {
+        for (int j = 0; j < input_mask.cols; j++) {
+            cv::Vec3b colors = input_mask.at<cv::Vec3b>(i, j);
+
+            // Find hex representation of the color
+            unsigned int hex_color = ((colors[0] & 0xff) << 16) + ((colors[1] & 0xff) << 8) + (colors[2] & 0xff);
+
+            if(find(processed_colors.begin(), processed_colors.end(), hex_color) != processed_colors.end())
+                continue;
+
+            cv::Scalar color(colors[0], colors[1], colors[2]);
+            processed_colors.push_back(hex_color);
+
+            fillMaskHoles(input_mask, output_mask, color);
+        }
+    }
+}
+
 int get_plane_id(int u, int v, cv::Mat &mask)
 {
     int plane_id = 0;
