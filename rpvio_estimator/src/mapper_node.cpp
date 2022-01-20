@@ -23,13 +23,14 @@ void mapping_callback(
 
     // Step 1: Cluster all the feature points based on their plane ids
     cv_bridge::CvImagePtr mask_ptr = cv_bridge::toCvCopy(mask_msg, sensor_msgs::image_encodings::BGR8);
-    cv::Mat mask_img = mask_ptr->image;
+    cv::Mat raw_mask_img = mask_ptr->image;
     
     cv_bridge::CvImagePtr img_ptr = cv_bridge::toCvCopy(img_msg, sensor_msgs::image_encodings::BGR8);
     cv::Mat img = img_ptr->image;
     ROS_INFO("Received point cloud with %d points", (int)features_msg->points.size());
     ROS_INFO("Received image with dimensions (%d, %d)", img.rows, img.cols);
 
+    cv::Mat mask_img = processMaskSegments(raw_mask_img);
     map<int, vector<Vector3d>> points_map = cluster_plane_features(features_msg, mask_img);
     ROS_INFO("Clustered the feature points based on %d planes", (int)points_map.size());
 
@@ -83,6 +84,7 @@ void mapping_callback(
     // draw_quads(img, mask_img, plane_ids);
     // cv::Mat gray_img;
     // cv::cvtColor(img, gray_img, CV_BGR2GRAY);
+
     vector<Vector3d> vps;
     map<int, Vector3d> normals_map = draw_vp_lines(img, mask_img, vps);    
 
@@ -126,10 +128,11 @@ void mapping_callback(
                 int g = ((hex >> 8) & 0xFF);
                 int b = ((hex) & 0xFF);
 
+                Vector3d w_pt = fpp.second[i];
                 pcl::PointXYZRGB pt;
-                pt.x = c_pt.x();
-                pt.y = c_pt.y();
-                pt.z = c_pt.z();
+                pt.x = w_pt.x();
+                pt.y = w_pt.y();
+                pt.z = w_pt.z();
                 pt.r = b;
                 pt.g = g;
                 pt.b = r;
@@ -243,7 +246,7 @@ void mapping_callback(
     ROS_INFO("Publising marked image");
     std_msgs::Header img_header;
     img_header = img_msg->header;
-    sensor_msgs::ImagePtr marked_image_msg = cv_bridge::CvImage(img_header, sensor_msgs::image_encodings::BGR8, img).toImageMsg();
+    sensor_msgs::ImagePtr marked_image_msg = cv_bridge::CvImage(img_header, sensor_msgs::image_encodings::BGR8, mask_img).toImageMsg();
     
     // Publish raw images with marked quads
     masked_im_pub.publish(marked_image_msg);

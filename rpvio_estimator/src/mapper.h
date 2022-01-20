@@ -578,7 +578,7 @@ void processMask(cv::Mat &input_mask, cv::Mat &output_mask)
  * @param input_mask 
  * @param output_mask 
  */
-void fillMaskHoles(cv::Mat &input_mask, cv::Mat &output_mask, cv::Scalar color)
+cv::Mat fillMaskHoles(cv::Mat input_mask, cv::Scalar color)
 {
     cv::Mat binary_segment;
     cv::inRange(input_mask, color, color, binary_segment);
@@ -605,7 +605,7 @@ void fillMaskHoles(cv::Mat &input_mask, cv::Mat &output_mask, cv::Scalar color)
 
     cv::bitwise_or(ccs, re_mask, result_mask);
 
-    result_mask.copyTo(output_mask);
+    return result_mask;
 }
 
 /**
@@ -614,7 +614,7 @@ void fillMaskHoles(cv::Mat &input_mask, cv::Mat &output_mask, cv::Scalar color)
  * @param input_mask 
  * @param output_mask 
  */
-void processMaskSegments(cv::Mat &input_mask, cv::Mat &output_mask)
+cv::Mat processMaskSegments(cv::Mat input_mask)
 {
     std::vector<unsigned int> processed_colors;
 
@@ -631,9 +631,11 @@ void processMaskSegments(cv::Mat &input_mask, cv::Mat &output_mask)
             cv::Scalar color(colors[0], colors[1], colors[2]);
             processed_colors.push_back(hex_color);
 
-            fillMaskHoles(input_mask, output_mask, color);
+            input_mask = fillMaskHoles(input_mask, color);
         }
     }
+
+    return input_mask;
 }
 
 int get_plane_id(int u, int v, cv::Mat &mask)
@@ -968,6 +970,8 @@ map<int, vector<Vector3d>> cluster_plane_features(
 )
 {
     map<int, vector<Vector3d>> mPlaneFeatures;
+    bool should_compute_id = (features_msg->channels.size() == 2);
+    ROS_INFO("Point cloud has %d channels", (int)features_msg->channels.size());
 
     // Loop through all feature points
     for(int fi = 0; fi < features_msg->points.size(); fi++) {
@@ -976,7 +980,7 @@ map<int, vector<Vector3d>> cluster_plane_features(
         fpoint << p.x, p.y, p.z;
         
         int plane_id = 0;
-        if (features_msg->channels.size() == 1) {       
+        if (!should_compute_id) {      
             // to support point clouds from old bag files
             plane_id = (int)features_msg->channels[0].values[fi];
         }

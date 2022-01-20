@@ -31,10 +31,10 @@
     <param name="rpvio_folder" type="string" value="$(arg rpvio_path)" />
   </node>
 
-  <node name="rpvio_planner" pkg="rpvio_estimator" type="rpvio_planner" output="log">
+  <!-- <node name="rpvio_planner" pkg="rpvio_estimator" type="rpvio_planner" output="log">
     <param name="config_file" type="string" value="$(arg config_path)" />
     <param name="rpvio_folder" type="string" value="$(arg rpvio_path)" />
-  </node>
+  </node> -->
 
   <!--<node name="path_commander" pkg="rpvio_estimator" type="path_commander.py" output="screen">
   </node> -->
