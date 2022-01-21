@@ -5,7 +5,7 @@ from detect import Detector
 #
 class PlaneSegmentor:
     def __init__(self, options, config, camera, ids_file='seg_rgbs.txt',
-                 ground_id=212, sky_id=24, min_size_thresh=30000):
+                 ground_id=212, sky_id=24, min_size_thresh=8000):
         self.camera = camera
         self.config = config
         self.options = options
