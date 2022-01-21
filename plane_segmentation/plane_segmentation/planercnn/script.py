@@ -17,8 +17,14 @@ def run(options, config, camera):
     output_dir = options.dataPath
     segmentor = PlaneSegmentor(options, config, camera)
     for i in tqdm(range(n_frames)):
-        rgb = cv2.imread(os.path.join(data_dir, f'{i}_scene.png'))
-        building_mask = cv2.imread(os.path.join(data_dir, f'{i}_seg.png'))
+        rgb_path = os.path.join(data_dir, f'{i}_scene.png')
+        print(rgb_path)
+        rgb = cv2.imread(rgb_path)
+        print(rgb.shape)
+        mask_path = os.path.join(data_dir, f'{i}_seg.png')
+        print(mask_path)
+        building_mask = cv2.imread(mask_path)
+        print(building_mask.shape)
         plane_mask = segmentor.segment(rgb, building_mask)
         plane_mask = plane_mask.astype(np.uint8)
         cv2.imwrite(os.path.join(output_dir, f'{i}_plane_mask.png'), plane_mask)
