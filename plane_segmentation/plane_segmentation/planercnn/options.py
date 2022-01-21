@@ -6,6 +6,7 @@ Licensed under the CC BY-NC-SA 4.0 license
 
 import argparse
 
+
 def parse_args():
     """
     Parse input arguments
@@ -13,7 +14,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description='CornerNet')
     parser.add_argument('--gpu', dest='gpu',
                         help='gpu',
-                        default=1, type=int)    
+                        default=1, type=int)
     parser.add_argument('--task', dest='task',
                         help='task type: [train, test, predict]',
                         default='train', type=str)
@@ -34,13 +35,13 @@ def parse_args():
                         default='../../Data/ScanNet/', type=str)
     parser.add_argument('--anchorFolder', dest='anchorFolder',
                         help='anchor folder',
-                        default='anchors/', type=str)    
+                        default='anchors/', type=str)
     parser.add_argument('--customDataFolder', dest='customDataFolder',
                         help='data folder',
                         default='test/custom', type=str)
     parser.add_argument('--MaskRCNNPath', dest='MaskRCNNPath',
                         help='path to Mask R-CNN weights',
-                        default='../mask_rcnn_coco.pth', type=str)    
+                        default='../mask_rcnn_coco.pth', type=str)
     parser.add_argument('--numTrainingImages', dest='numTrainingImages',
                         help='the number of images to train',
                         default=1000, type=int)
@@ -89,7 +90,7 @@ def parse_args():
     ## Flags
     parser.add_argument('--visualizeMode', dest='visualizeMode',
                         help='visualization mode',
-                        default='', type=str)    
+                        default='', type=str)
     parser.add_argument('--trainingMode', dest='trainingMode',
                         help='training mode',
                         default='all', type=str)
@@ -104,7 +105,7 @@ def parse_args():
                         default='', type=str)
     parser.add_argument('--blocks', dest='blocks',
                         help='blocks',
-                        default='', type=str)        
+                        default='', type=str)
     ## Synthetic dataset
     parser.add_argument('--locationNoise', dest='locationNoise',
                         help='the location noise',
@@ -137,7 +138,7 @@ def parse_args():
     ## Mask RCNN options
     parser.add_argument('--maskWidth', dest='maskWidth',
                         help='mask width',
-                        default=56, type=int)    
+                        default=56, type=int)
     parser.add_argument('--maskHeight', dest='maskHeight',
                         help='mask height',
                         default=56, type=int)
@@ -166,7 +167,7 @@ def parse_args():
     ## Refinement options
     parser.add_argument('--cornerPositiveWeight', dest='cornerPositiveWeight',
                         help='larger weight for corners to fight the positive-negative balance issue',
-                        default=0, type=int)    
+                        default=0, type=int)
     parser.add_argument('--positiveWeight', dest='positiveWeight',
                         help='positive weight',
                         default=0.33, type=float)
@@ -175,7 +176,7 @@ def parse_args():
                         default=1, type=int)
     parser.add_argument('--warpingWeight', dest='warpingWeight',
                         help='warping weight',
-                        default=0.1, type=float)    
+                        default=0.1, type=float)
     parser.add_argument('--convType', dest='convType',
                         help='convolution type',
                         default='2', type=str)
@@ -183,6 +184,9 @@ def parse_args():
     parser.add_argument('--methods', dest='methods',
                         help='evaluation methods',
                         default='b', type=str)
-    
+
+    parser.add_argument("--dataPath", default='output/captures', type=str)
+    parser.add_argument("--numFrames", default=0, type=int)
+
     args = parser.parse_args()
     return args
