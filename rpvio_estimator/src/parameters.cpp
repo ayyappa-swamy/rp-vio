@@ -72,6 +72,7 @@ void readParameters(ros::NodeHandle &n)
     std::cout << "ground truth path " << RPVIO_GT_PATH << std::endl;
 
     fsSettings["color_palette_path"] >> COLOR_PALETTE_PATH;
+    std::cout << COLOR_PALETTE_PATH << "\n";
 
     // create folder if not exists
     FileSystemHelper::createDirectoryIfNotExists(OUTPUT_PATH.c_str());

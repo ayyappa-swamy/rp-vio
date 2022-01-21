@@ -290,7 +290,9 @@ int main(int argc, char **argv)
     ros::init(argc, argv, "vins_mapper");
     ros::NodeHandle n("~");
     ros::console::set_logger_level(ROSCONSOLE_DEFAULT_NAME, ros::console::levels::Info);
+    std::cout << "HI " << COLOR_PALETTE_PATH << "\n";
     readParameters(n);
+    std::cout << "Reading masks from " << COLOR_PALETTE_PATH << "\n";
     load_color_palette(COLOR_PALETTE_PATH);
 
     // Register all subscribers

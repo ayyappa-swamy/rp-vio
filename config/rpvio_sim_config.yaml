@@ -1,9 +1,12 @@
 %YAML:1.0
 
 #common parameters
-imu_topic: "/airsim_node/drone/imu/Imu"
-image_topic: "/airsim_node/drone/0/Scene"
-mask_topic: "/airsim_node/drone/0/Segmentation"
+#imu_topic: "/airsim_node/drone/imu/Imu"
+#image_topic: "/airsim_node/drone/0/Scene"
+#mask_topic: "/airsim_node/drone/0/Segmentation"
+imu_topic: "/imu_throttled"
+image_topic: "/image_throttled"
+mask_topic: "/plane_mask_throttled"
 output_path: "/home/user/IIIT-Stuff/RRC/Projects/skyline/catkin_workspaces/catkin_ws_skyline/src/skyline/output/"
 gt_path: "/home/user/IIIT-Stuff/RRC/Projects/skyline/catkin_workspaces/catkin_ws_skyline/src/skyline/data/minihattan/"
 color_palette_path: "/home/user/IIIT-Stuff/RRC/Projects/skyline/catkin_workspaces/catkin_ws_skyline/src/skyline/config/seg_rgbs.txt"
