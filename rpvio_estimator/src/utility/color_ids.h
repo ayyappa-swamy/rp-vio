@@ -79,6 +79,10 @@ int color2id(int r, int g, int b)
 
     unsigned long hex = ((r & 0xff) << 16) + ((g & 0xff) << 8) + (b & 0xff);
 
+    if (color_index.find(hex) == color_index.end()) {
+        color_index[hex] = 1000 + (int)color_index.size();
+    }
+
     // std::cout << "Queried for color " << std::to_string(r) << " " << std::to_string(g) << " " << std::to_string(b) << std::endl;
     // std::cout << "ID is " << std::to_string(color_index[hex]) << std::endl;
     return color_index[hex];

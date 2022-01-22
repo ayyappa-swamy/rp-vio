@@ -38,8 +38,6 @@ void mapping_callback(
     frame_cloud.header = features_msg->header;
     sensor_msgs::ChannelFloat32 plane_id_ch;
     sensor_msgs::PointCloud2 test_cloud;
-    sensor_msgs::PointCloud cent_cloud;
-    cent_cloud.header = features_msg->header;
 
     pcl::PointCloud<pcl::PointXYZRGB> test_pcd;
 
@@ -86,8 +84,18 @@ void mapping_callback(
     // cv::cvtColor(img, gray_img, CV_BGR2GRAY);
 
     vector<Vector3d> vps;
-    map<int, Vector3d> normals_map = draw_vp_lines(img, mask_img, vps);    
+    vector<Vector3d> vp_normals1;
+    map<int, Vector3d> normals_map = draw_vp_lines(img, mask_img, vps, vp_normals1);
 
+    vector<Vector3d> vp_normals;
+    Vector3d x_axis(1, 0, 0);
+    Vector3d y_axis(0, 1, 0);
+    Vector3d lx_axis = (Tic.linear().inverse() * (Ti.linear().inverse() * y_axis).normalized()).normalized();
+    Vector3d ly_axis = lx_axis.cross(vertical).normalized();
+    vp_normals.push_back(lx_axis);
+    vp_normals.push_back(ly_axis);
+
+    write_normal_error(vp_normals1, vp_normals);
 
     visualization_msgs::Marker line_list;
     line_list.header = odometry_msg->header;
@@ -140,17 +148,15 @@ void mapping_callback(
             }
         }
 
-        // if (plane_points.size() < 5)
-        //     continue;
+        if (plane_points.size() < 5)
+            continue;
 
         MatrixXd pts_mat(plane_points.size(), 4);
         vector<geometry_msgs::Point> vertices;
 
-        Vector3d centroid(0.0, 0.0, 0.0);
         Vector3d normal = normals_map[fpp.first];
 
         double d = 0.0;
-
         for (int i = 0; i < (int)plane_points.size(); i++)
         {
             Vector3d c_pt = plane_points[i];
@@ -160,9 +166,6 @@ void mapping_callback(
             p.y = (double)c_pt[1];
             p.z = (double)c_pt[2];
 
-            centroid += c_pt;
-            // frame_cloud.points.push_back(p);
-
             Vector3d pt_ = c_pt;
             // pt_[2] = 1.0;
 
@@ -170,46 +173,19 @@ void mapping_callback(
 
             pts_mat.row(i) = pt_.homogeneous().transpose();
         }
-
-        centroid /= plane_points.size();
-        geometry_msgs::Point32 c;
-        c.x = (double)centroid[0];
-        c.y = (double)centroid[1];
-        c.z = (double)centroid[2];
-        cent_cloud.points.push_back(c);
         
         d /= plane_points.size();
 
-        // find svd
         Vector4d params;
         params << normal[0], normal[1], normal[2], d;
-        // Eigen::JacobiSVD<MatrixXd> pt_svd(pts_mat, Eigen::ComputeFullU | Eigen::ComputeFullV);
-        // params = pt_svd.matrixV().col(pt_svd.matrixV().cols() - 1);
-        
-        // ROS_INFO("Plane params are : %g, %g, %g, %g", params[0], params[1], params[2], params[3]);
-        // Vector3d normal = params.head<3>();
-        // // normal[2] = 0.0;
-
-        Vector3d plane_dir = (normal.cross(vps[1])).normalized();
 
         if ((normal.norm() > 0.001) && (fabs(params[3]) > 0.001))
         {
-            // double d = params[3] / normal.norm();
-            // normal.normalize();
-
-            // // Find nearest point to origin
-            // double lambda = -d / powf(normal.norm(), 2.0);
-
-            // Vector3d point = lambda * normal;
-
             Vector4d normed_params(normal[0], normal[1], normal[2], d);
 
             if (fabs(normal.dot(vertical)) < 0.5)
-            {
-                // ROS_INFO("Normalized plane params are : %g, %g, %g, %g", normal[0], normal[1], normal[2], d);
-                // ROS_INFO("Nearest point is : %g, %g, %g", point[0], point[1], point[2]);
-                
-                if (fit_cuboid_to_point_cloud(normed_params, plane_points, vertices))
+            {             
+                if (fit_cuboid_to_point_cloud(normed_params, plane_points, vertices, vp_normals))
                 {
                     create_cuboid_frame(vertices, line_list, (Ti * Tic));
 
@@ -221,23 +197,21 @@ void mapping_callback(
                 }
                 
             }
-
-            // create_centroid_frame(centroid, plane_dir, vps[1], line_list);
         }
         
         plane_ids.push_back(fpp.first);
     }
 
     ma.markers.push_back(line_list);
-    // // Loop through all feature points
-    // for(int fi = 0; fi < features_msg->points.size(); fi++) {
-    //     int u = (int)features_msg->channels[0].values[fi];
-    //     int v = (int)features_msg->channels[1].values[fi];
+    // Loop through all feature points
+    for(int fi = 0; fi < features_msg->points.size(); fi++) {
+        int u = (int)features_msg->channels[0].values[fi];
+        int v = (int)features_msg->channels[1].values[fi];
         
-    //     cv::Vec3b pc = mask_img.at<cv::Vec3b>(v, u);
+        cv::Scalar color = hex2CvScalar(id2color(get_plane_id(u, v, mask_img)));//mask_img.at<cv::Vec3b>(v, u);
 
-    //     cv::circle(img, cv::Point(u, v), 10, cv::Scalar(pc[0], pc[1], pc[2]), -1);
-    // }
+        cv::circle(mask_img, cv::Point(u, v), 5, color, -1);
+    }
 
     pcl::toROSMsg(test_pcd, test_cloud);
     test_cloud.header = features_msg->header;
@@ -254,7 +228,6 @@ void mapping_callback(
     // Process a particular plane id
     frame_cloud.channels.push_back(plane_id_ch);
     frame_pub.publish(frame_cloud);
-    cent_pub.publish(cent_cloud);
     // sensor_msgs::PointCloud2 frame_cloud2;
     // sensor_msgs::convertPointCloudToPointCloud2(frame_cloud, frame_cloud2);
     // frame_pub2.publish(frame_cloud2);
@@ -271,10 +244,10 @@ int main(int argc, char **argv)
     load_color_palette(COLOR_PALETTE_PATH);
 
     // Register all subscribers
-    message_filters::Subscriber<sensor_msgs::PointCloud> sub_point_cloud(n, "/point_cloud", 1000);
-    message_filters::Subscriber<nav_msgs::Odometry> sub_odometry(n, "/odometry", 1000);
-    message_filters::Subscriber<sensor_msgs::Image> sub_image(n, "/image", 100);
-    message_filters::Subscriber<sensor_msgs::Image> sub_mask(n, "/mask", 100);
+    message_filters::Subscriber<sensor_msgs::PointCloud> sub_point_cloud(n, "/point_cloud", 100);
+    message_filters::Subscriber<nav_msgs::Odometry> sub_odometry(n, "/odometry", 100);
+    message_filters::Subscriber<sensor_msgs::Image> sub_image(n, "/image", 10);
+    message_filters::Subscriber<sensor_msgs::Image> sub_mask(n, "/mask", 10);
 
     typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::PointCloud, nav_msgs::Odometry, sensor_msgs::Image, sensor_msgs::Image> MySyncPolicy;
     // ApproximateTime takes a queue size as its constructor argument, hence MySyncPolicy(10)

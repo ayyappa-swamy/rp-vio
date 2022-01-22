@@ -33,7 +33,7 @@ path = []
 path.append(airsim.Vector3r(0.0, 0.0, -5))
 path.append(airsim.Vector3r(0.0, 0.0, -1))
 path.append(airsim.Vector3r(0.0, 0.0, -5))
-client.moveOnPathAsync(path, 0.25, np.inf, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(True, 0.5))
+client.moveOnPathAsync(path, 2.25, np.inf, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(True, 0.5)).join()
 
 prev_goal = None
 

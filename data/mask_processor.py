@@ -21,25 +21,18 @@ def get_opened_mask(mask, c):
     bim = cv2.inRange(mask, clr, clr)
     return cv2.morphologyEx(bim, cv2.MORPH_OPEN, None)
 
-processed_colors = []
-
 def process_color_segment(mask, c):
-    hex_color = color2hex(c)
-
-    if hex_color in processed_colors:
-        return mask
-
-    processed_colors.append(hex_color)
-
     color = np.array(c, dtype='uint8')
-    print(color)
+    # print(color)
 
     binary_segment = cv2.inRange(mask, color, color)
 
-    result_mask = cv2.bitwise_xor(mask, color)
+    mask[np.all(mask == c, axis=-1)] = (0, 0, 0)
     
     binary_segment = cv2.morphologyEx(binary_segment, cv2.MORPH_CLOSE, None)
     binary_segment = cv2.morphologyEx(binary_segment, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_CROSS,(5,5)))
+    binary_segment = cv2.erode(binary_segment, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5)), iterations=3)
+    # show_image(binary_segment)
 
     color_segment = np.full(mask.shape, color, dtype='uint8')
     # color_segment = cv2.bitwise_and(color_segment, binary_segment)
@@ -49,16 +42,26 @@ def process_color_segment(mask, c):
     re_mask = cv2.bitwise_and(mask, inv_cs)
     ccs = cv2.bitwise_and(color_segment, cs)
     result_mask = cv2.bitwise_or(ccs, re_mask)
-    show_image(result_mask)
+    # show_image(result_mask)
     return result_mask
 
 def process_mask(mask):
+    processed_colors = []
     # Loop through each pixel and process its color segment
     for i in range(mask.shape[0]):
         for j in range(mask.shape[1]):
             color = mask[i, j, :]
+            
+            hex_color = color2hex(color)
+            if hex_color in processed_colors:
+                continue
+            processed_colors.append(hex_color)
+            
             mask = process_color_segment(mask, color)
 
-for msk in masks_list[:1]:
+    return mask
+
+for msk in masks_list:
     masked_image = cv2.imread(os.path.join('masks', msk), -1)
-    process_mask(masked_image)
+    refined_mask = process_mask(masked_image)
+    show_image(refined_mask)

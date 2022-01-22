@@ -583,11 +583,14 @@ cv::Mat fillMaskHoles(cv::Mat input_mask, cv::Scalar color)
     cv::Mat binary_segment;
     cv::inRange(input_mask, color, color, binary_segment);
 
+    input_mask.setTo(cv::Scalar(0, 0, 0), binary_segment);
+
     cv::Mat result_mask;
     cv::bitwise_xor(input_mask, color, result_mask);
 
     cv::morphologyEx(binary_segment, binary_segment, cv::MORPH_CLOSE, cv::Mat());
-    cv::morphologyEx(binary_segment, binary_segment, cv::MORPH_OPEN, cv::getStructuringElement(cv::MORPH_CROSS, cv::Size(5, 5)));
+    cv::morphologyEx(binary_segment, binary_segment, cv::MORPH_OPEN, cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(5, 5)));
+    cv::erode(binary_segment, binary_segment, cv::Mat::ones(5, 5, CV_8U), cv::Point(-1, -1), 2);
 
     cv::Mat color_segment(input_mask.rows, input_mask.cols, CV_8UC3, color);
 
@@ -642,11 +645,24 @@ int get_plane_id(int u, int v, cv::Mat &mask)
 {
     int plane_id = 0;
 
-    cv::Vec3b colors = mask.at<cv::Vec3b>(v, u);
-    
-    plane_id = color2id(colors[0], colors[1], colors[2]);
+    if ((u > 0) && (v > 0) & (u < mask.cols) && (v < mask.rows)) {
+        cv::Vec3b colors = mask.at<cv::Vec3b>(v, u);
+        
+        plane_id = color2id(colors[0], colors[1], colors[2]);
+    }
 
     return plane_id;
+}
+
+cv::Scalar hex2CvScalar(unsigned long hex)
+{
+    int r = ((hex >> 16) & 0xFF);
+    int g = ((hex >> 8) & 0xFF);
+    int b = ((hex) & 0xFF);
+
+    cv::Scalar hex_color(r, g, b);
+
+    return hex_color;
 }
 
 /**
@@ -802,11 +818,11 @@ void compute_vertices_from_planes(Vector3d bound_point, vector<Vector4d> bound_p
     vertices.push_back(right_back);
 }
 
-bool fit_cuboid_to_point_cloud(Vector4d plane_params, vector<Vector3d> points, vector<geometry_msgs::Point> &vertices)
+bool fit_cuboid_to_point_cloud(Vector4d plane_params, vector<Vector3d> points, vector<geometry_msgs::Point> &vertices, vector<Vector3d> &normal_vectors)
 {
-    Vector3d normal = plane_params.head<3>().normalized();
+    Vector3d normal = normal_vectors[0].normalized();
     Vector3d vertical(0, 1, 0);
-    Vector3d horizontal = normal.cross(vertical);
+    Vector3d horizontal = normal_vectors[1].normalized();
 
     Vector3d min_n_pt;
     Vector3d min_h_pt;
@@ -826,7 +842,7 @@ bool fit_cuboid_to_point_cloud(Vector4d plane_params, vector<Vector3d> points, v
     {
         Vector3d point = points[i];
 
-        if (plane_params.dot(point.homogeneous()) > 5)
+        if (plane_params.dot(point.homogeneous()) > 2)
             continue;
 
         double nd = -normal.dot(point);
@@ -1000,7 +1016,7 @@ map<int, vector<Vector3d>> cluster_plane_features(
     return mPlaneFeatures;
 }
 
-map<int, Vector3d> draw_vp_lines(cv::Mat &gray_img, cv::Mat &mask, vector<Vector3d> &evps)
+map<int, Vector3d> draw_vp_lines(cv::Mat &gray_img, cv::Mat &mask, vector<Vector3d> &evps, vector<Vector3d> &normal_vectors)
 {   
     Eigen::Matrix3d K;
     K << FOCAL_LENGTH, 0, COL/2,
@@ -1033,7 +1049,6 @@ map<int, Vector3d> draw_vp_lines(cv::Mat &gray_img, cv::Mat &mask, vector<Vector
     ROS_INFO("Drawing vp quads");
     plane_normal_ids = drawVPQuads(gray_img, lines_klsd, clusters, mask);
 
-    std::vector<Vector3d> normal_vectors;
     cv::Point3d normal0 = vps[0].cross(vps[1]);
     cv::Point3d normal1 = vps[2].cross(vps[1]);
     Vector3d normal_vector0(normal0.x, normal0.y, normal0.z);
@@ -1090,24 +1105,28 @@ geometry_msgs::Point32 pointToPoint32(geometry_msgs::Point pt)
     return pt32;
 }
 
-void create_centroid_frame(Vector3d centroid, Vector3d plane_dir, Vector3d vertical_dir, visualization_msgs::Marker &line_list)
-{   
-    double scale = 2.0;
+void write_normal_error(vector<Vector3d> vp_normals, vector<Vector3d> gt_normals)
+{
+    double error1 = 1 - std::max(
+        fabs(vp_normals[0].dot(gt_normals[0]))
+        , fabs(vp_normals[0].dot(gt_normals[1]))
+    );
 
-    Vector3d top_right = centroid + scale * plane_dir + scale * vertical_dir;
-    Vector3d bottom_right = centroid + scale * plane_dir - scale * vertical_dir;
-    Vector3d bottom_left = centroid - scale * plane_dir - scale * vertical_dir;
-    Vector3d top_left = centroid - scale * plane_dir + scale * vertical_dir;
+    double error2 = 1 - std::max(
+        fabs(vp_normals[1].dot(gt_normals[0]))
+        , fabs(vp_normals[1].dot(gt_normals[1]))
+    );
 
-    line_list.points.push_back(toGeomPoint(top_right));
-    line_list.points.push_back(toGeomPoint(bottom_right));
+    double error = (error1 + error2) / 2;
 
-    line_list.points.push_back(toGeomPoint(bottom_right));
-    line_list.points.push_back(toGeomPoint(bottom_left));
+    ofstream file("vp_error.txt", std::ios_base::app);
 
-    line_list.points.push_back(toGeomPoint(bottom_left));
-    line_list.points.push_back(toGeomPoint(top_left));
+    file << error << std::endl;
 
-    line_list.points.push_back(toGeomPoint(top_left));
-    line_list.points.push_back(toGeomPoint(top_right));
+    file.close();
+}
+
+void fit_vertical_plane(vector<Vector3d> points, Vector4d plane_params)
+{
+   
 }
