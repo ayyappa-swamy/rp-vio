@@ -11,9 +11,9 @@ import numpy as np
 from box_world import BoxWorld
 
 import sys
-sys.path.remove('/opt/ros/kinetic/lib/python2.7/dist-packages')
+# sys.path.remove('/opt/ros/kinetic/lib/python2.7/dist-packages')
 import cv2
-sys.path.append('/opt/ros/kinetic/lib/python2.7/dist-packages')
+# sys.path.append('/opt/ros/kinetic/lib/python2.7/dist-packages')
 
 is_init_path = False
 

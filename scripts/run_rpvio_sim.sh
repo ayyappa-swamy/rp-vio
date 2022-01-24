@@ -27,11 +27,11 @@ echo -e "######c1######\n" > report.txt
 
 for((i = 1; i <=1; i++))
 do
-    roslaunch rpvio_estimator rpvio_sim.launch bagfile_path:=$dataset/minihattan/minihattan.bag
-    cp /home/tvvsstas/rpvio_ws/src/rp-vio/output/rpvio_result_no_loop.csv ./rpvio_est.csv
-    python3 ~/rpvio_ws/src/rp-vio/scripts/convert_vins_to_tum.py rpvio_est.csv minihattan/est_traj_$i.txt
-    rm rpvio_est.csv
-    evo_ape tum $dataset/minihattan/gt_data_tum.txt minihattan/est_traj_$i.txt --align --save_plot minihattan/est_traj_$i.pdf |& tee -a report.txt
+    roslaunch rpvio_estimator rpvio_sim.launch #bagfile_path:=$/home/sudarshan/Planner_ws/src/rp-vio/vins_odom_data.bag
+    # cp /home/tvvsstas/rpvio_ws/src/rp-vio/output/rpvio_result_no_loop.csv ./rpvio_est.csv
+    # python3 ~/rpvio_ws/src/rp-vio/scripts/convert_vins_to_tum.py rpvio_est.csv minihattan/est_traj_$i.txt
+    # rm rpvio_est.csv
+    # evo_ape tum $dataset/minihattan/gt_data_tum.txt minihattan/est_traj_$i.txt --align --save_plot minihattan/est_traj_$i.pdf |& tee -a report.txt
 done
 
 ########### c2 run #############

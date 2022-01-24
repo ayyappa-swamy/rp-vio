@@ -589,62 +589,62 @@ int get_plane_id(int u, int v, cv::Mat &mask)
  **/
 map<int, int> drawVPQuads( cv::Mat &img, std::vector<KeyLine> &lines, std::vector<std::vector<int> > &clusters, cv::Mat &seg_mask)
 {
-	map<int, Vector3d> plane_vplines;
+    map<int, Vector3d> plane_vplines;
     map<int, int> plane_normals;
 
     cv::Mat mask(ROW, COL, CV_8UC1, cv::Scalar(0));
     img.setTo(cv::Scalar(0, 0, 0));
     processMask(seg_mask, mask);
 
-	std::vector<cv::Scalar> plane_colors( 2 );
-	plane_colors[0] = cv::Scalar( 0, 0, 255 );
-	plane_colors[1] = cv::Scalar( 255, 0, 0 );
-	// plane_colors[2] = cv::Scalar( 0, 255, 0 );
-	
-	for ( size_t i = 0; i < clusters.size(); ++i )
-	{
-		for ( size_t j = 0; j < clusters[i].size(); ++j )
-		{
-			size_t idx = clusters[i][j];
+    std::vector<cv::Scalar> plane_colors( 2 );
+    plane_colors[0] = cv::Scalar( 0, 0, 255 );
+    plane_colors[1] = cv::Scalar( 255, 0, 0 );
+    // plane_colors[2] = cv::Scalar( 0, 255, 0 );
+    
+    for ( size_t i = 0; i < clusters.size(); ++i )
+    {
+        for ( size_t j = 0; j < clusters[i].size(); ++j )
+        {
+            size_t idx = clusters[i][j];
 
-			cv::Point pt_s = cv::Point( lines[idx].startPointX, lines[idx].startPointY );
-			cv::Point pt_e = cv::Point( lines[idx].endPointX, lines[idx].endPointY );
-			cv::Point pt_m = ( pt_s + pt_e ) * 0.5;
-			
-			int plane_id = get_plane_id((int)pt_m.x, (int)pt_m.y, seg_mask);
-			if (plane_vplines.find(plane_id) == plane_vplines.end()){
-				plane_vplines[plane_id] = Vector3d::Zero();
-			}
-			plane_vplines[plane_id](i)++;
-		}
-	}
+            cv::Point pt_s = cv::Point( lines[idx].startPointX, lines[idx].startPointY );
+            cv::Point pt_e = cv::Point( lines[idx].endPointX, lines[idx].endPointY );
+            cv::Point pt_m = ( pt_s + pt_e ) * 0.5;
+            
+            int plane_id = get_plane_id((int)pt_m.x, (int)pt_m.y, seg_mask);
+            if (plane_vplines.find(plane_id) == plane_vplines.end()){
+                plane_vplines[plane_id] = Vector3d::Zero();
+            }
+            plane_vplines[plane_id](i)++;
+        }
+    }
 
-	for (auto pvlines: plane_vplines)
-	{
-		if (
+    for (auto pvlines: plane_vplines)
+    {
+        if (
             (pvlines.first == 0)
             || (pvlines.first == 39)
         )
-			continue;
-		
-		cv::Mat mask_img = mask.clone();
-		cv::Mat mask = mask_img == pvlines.first;
-		cv::Mat mask_filled(ROW, COL, CV_8UC3, cv::Scalar(0,0,0));
+            continue;
+        
+        cv::Mat mask_img = mask.clone();
+        cv::Mat mask = mask_img == pvlines.first;
+        cv::Mat mask_filled(ROW, COL, CV_8UC3, cv::Scalar(0,0,0));
                 
-		int colour_id = pvlines.second[0] > pvlines.second[2] ?  0 : 1;
-		mask_filled.setTo(plane_colors[colour_id], mask);
-		
-		cv::addWeighted( img, 1.0, mask_filled, 1.0, 0.0, img);
-		// cv::imwrite("masked_image"+to_string(im_id)+".png", img);
+        int colour_id = pvlines.second[0] > pvlines.second[2] ?  0 : 1;
+        mask_filled.setTo(plane_colors[colour_id], mask);
+        
+        cv::addWeighted( img, 1.0, mask_filled, 1.0, 0.0, img);
+        // cv::imwrite("masked_image"+to_string(im_id)+".png", img);
         plane_normals[pvlines.first] = colour_id;
-	}
+    }
 
     // cv::addWeighted( img, 0.0, seg_mask, 1.0, 0.0, img);
     // cv::imwrite("masked_image"+to_string(im_id)+".png", img);
 
     im_id++;
 
-    return plane_normals;	
+    return plane_normals;   
 }
 
 void draw_quad(cv::Mat &image, cv::Mat mask_image, int plane_id)
@@ -778,21 +778,21 @@ bool fit_cuboid_to_point_cloud(Vector4d plane_params, vector<Vector3d> points, v
 
         if (hd < min_h_d){
             min_h_pt = point;
-	        min_h_d = hd;
+            min_h_d = hd;
         }
         else if (hd > max_h_d){
             max_h_pt = point;
-    	    max_h_d = hd;
-	    }
+            max_h_d = hd;
+        }
 
         if (vd < min_v_d){
             min_v_pt = point;
-	        min_v_d = vd;
-	    }
+            min_v_d = vd;
+        }
         else if (vd > max_v_d){
             max_v_pt = point;
-	        max_v_d = vd;
-	    }	
+            max_v_d = vd;
+        }   
     }
 
     vector<Vector4d> bound_planes;
@@ -842,8 +842,22 @@ bool fit_cuboid_to_point_cloud(Vector4d plane_params, vector<Vector3d> points, v
  * In each face, following order is used:
  * back right, front right, front left, back left
  **/
-void create_cuboid_frame(vector<geometry_msgs::Point> &vertices, visualization_msgs::Marker &line_list)
+void create_cuboid_frame(vector<geometry_msgs::Point> &local_vertices, visualization_msgs::Marker &line_list, Isometry3d local2world)
 {   
+    vector<geometry_msgs::Point> vertices; 
+    for (auto l_v: local_vertices)
+    {
+        Vector3d v(l_v.x, l_v.y, l_v.z);
+        v = local2world * v.homogeneous();
+        
+        geometry_msgs::Point vertex;
+        vertex.x = v[0];
+        vertex.y = v[1];
+        vertex.z = v[2];
+
+        vertices.push_back(vertex);
+    } 
+    
     // Define the edges for top face
     line_list.points.push_back(vertices[0]);
     line_list.points.push_back(vertices[1]);
@@ -965,15 +979,15 @@ map<int, Vector3d> draw_vp_lines(cv::Mat &gray_img, cv::Mat &mask, vector<Vector
 
     ROS_INFO("assigning plane normals");
     for (auto normal_id: plane_normal_ids)
-	{
-		if (
+    {
+        if (
             (normal_id.first == 0)
             || (normal_id.first == 39)
         )
-			continue;
-		
+            continue;
+        
         plane_normals[normal_id.first] = normal_vectors[normal_id.second].normalized();
-	}
+    }
 
     return plane_normals;
 }

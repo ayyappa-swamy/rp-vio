@@ -57,8 +57,12 @@
 #include <ceres/ceres.h>
 #include <ceres/rotation.h>
 #include "eigenmvn.h"
+
+
 #include "objects.h"
-#include "MMD.h"
+
+
+// #include "MMD.h"
 
 using namespace std;
 using namespace Eigen;
@@ -68,7 +72,7 @@ ros::Publisher pub_paths2;
 ros::Publisher pub_colliding_cloud;
 ros::Publisher pub_free_cloud;
 
-MMDFunctions::MMD_variants MMDF;
+// MMDFunctions::MMD_variants MMDF;
 std::vector<double> means;
 std::vector<double> covariances;
 std::vector<double> weights;
@@ -180,7 +184,9 @@ double getMMDcost(double sdf_value)
   Eigen::MatrixXf actual_distance = Eigen::MatrixXf::Constant( 1, n, sdf_value);
   samples = zeros_row.cwiseMax( samples - actual_distance );
 
-  return (double) MMDF.MMD_transformed_features(samples);
+  return 100 ; 
+
+  // return (double) MMDF.MMD_transformed_features(samples);
 }
 
 geometry_msgs::Point32 pointToPoint32(geometry_msgs::Point pt)

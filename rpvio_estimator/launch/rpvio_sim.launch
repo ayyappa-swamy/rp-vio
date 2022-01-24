@@ -26,15 +26,31 @@
   <remap from="/point_cloud" to="/vins_estimator/point_cloud" />
   <remap from="/odometry" to="/vins_estimator/odometry" />
 
-  <node name="rpvio_mapper" pkg="rpvio_estimator" type="rpvio_mapper" output="log">
+  <node name="rpvio_mapper" pkg="rpvio_estimator" type="rpvio_mapper" output="screen">
     <param name="config_file" type="string" value="$(arg config_path)" />
     <param name="rpvio_folder" type="string" value="$(arg rpvio_path)" />
   </node>
 
-  <node name="rpvio_planner" pkg="rpvio_estimator" type="rpvio_planner" output="log">
+<!--   <node name="rpvio_planner" pkg="rpvio_estimator" type="rpvio_planner" output="screen">
     <param name="config_file" type="string" value="$(arg config_path)" />
     <param name="rpvio_folder" type="string" value="$(arg rpvio_path)" />
   </node>
+
+  <node name = "CEMPlanner" pkg="rpvio_estimator" type= "CEMPlanner" output="screen">
+  </node> -->
+
+<!-- 
+  <node pkg="octomap_server" type="octomap_server_node" name="octomap_server">
+    <param name="resolution" value="0.40" />
+    
+    <param name="frame_id" type="string" value="world" />
+    
+    <param name="sensor_model/max_range" value="25.0" />
+    
+    <remap from="cloud_in" to="/rpvio_mapper/globalpoints" />
+  
+  </node> -->
+
 
   <!--<node name="path_commander" pkg="rpvio_estimator" type="path_commander.py" output="screen">
   </node> -->

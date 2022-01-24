@@ -1,10 +1,15 @@
 cmake_minimum_required(VERSION 2.8.3)
 project(rpvio_estimator)
 
-set(CMAKE_BUILD_TYPE "Release")
-set(CMAKE_CXX_FLAGS "-std=c++11")
+#set(CMAKE_BUILD_TYPE "Release")
+#set(CMAKE_CXX_FLAGS "-std=c++14")
 #-DEIGEN_USE_MKL_ALL")
-set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall -g")
+#set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall -g")
+
+
+
+set(dynamicEDT3D_DIR "/home/sudarshan/octomap/lib/cmake/dynamicEDT3D/")
+set(DYNAMICEDT3D_LIBRARIES "/home/sudarshan/octomap/dynamicEDT3D/lib/libdynamicedt3d.so")
 
 find_package(catkin REQUIRED COMPONENTS
     pcl_conversions
@@ -21,11 +26,12 @@ find_package(catkin REQUIRED COMPONENTS
     )
 
 find_package(OpenCV REQUIRED)
-
+find_package(dynamicEDT3D )
 # message(WARNING "OpenCV_VERSION: ${OpenCV_VERSION}")
 
-find_package(Ceres REQUIRED)
 
+find_package(Ceres REQUIRED)
+include_directories( ${DYNAMICEDT3D_INCLUDE_DIRS})
 
 find_package(PCL 1.7 REQUIRED REQUIRED)
 include_directories(${PCL_INCLUDE_DIRS})
@@ -49,9 +55,16 @@ add_executable(rpvio_mapper
     src/mapper_node.cpp
 )
 
-add_executable(rpvio_planner
-    src/planner_node.cpp
+#add_executable(rpvio_planner
+#    src/planner_node.cpp
+#    src/parameters.cpp
+#)
+
+add_executable(CEMPlanner
+    src/PlannerVins.cpp
+    src/kinodynamic_astar_Planar.cpp
     src/parameters.cpp
+
 )
 
 add_executable(rpvio_estimator
@@ -75,7 +88,9 @@ add_executable(rpvio_estimator
 
 target_link_libraries(rpvio_estimator ${catkin_LIBRARIES} ${OpenCV_LIBS} ${CERES_LIBRARIES}) 
 target_link_libraries(rpvio_mapper ${catkin_LIBRARIES} ${OpenCV_LIBS} ${CERES_LIBRARIES} ${PCL_LIBRARIES}) 
-target_link_libraries(rpvio_planner ${catkin_LIBRARIES} ${OpenCV_LIBS} ${CERES_LIBRARIES}) 
+#target_link_libraries(rpvio_planner ${catkin_LIBRARIES} ${OpenCV_LIBS} ${CERES_LIBRARIES}) 
+target_link_libraries(CEMPlanner ${catkin_LIBRARIES} ${OpenCV_LIBS} ${CERES_LIBRARIES} ${DYNAMICEDT3D_LIBRARIES}  ) 
+
 
 catkin_install_python(PROGRAMS 
   scripts/planner_node.py

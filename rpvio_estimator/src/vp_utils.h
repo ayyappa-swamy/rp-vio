@@ -165,13 +165,15 @@ void extract_lines_and_vps(
 
 	if (lines_klsd.size() > 0){
 		// Compute binary descriptors
-		bd->compute(image, lines_klsd, lines_lsd_descr);
+		// bd->compute(image, lines_klsd, lines_lsd_descr);
 
 		// Extract vps and clusters
 		std::vector<cv::Point3d> vps_(3);              // Detected vanishing points
 		std::vector<std::vector<int> > clusters_(3);   // Line segment clustering results of each vanishing point
 		VPDetection detector;
 		detector.run( lines_klsd, pp, f, vps_, clusters_ );
+
+	
 
 		ROS_INFO("Detected vanishing points are : ");
 		for (size_t i = 0; i < vps_.size(); i++)
