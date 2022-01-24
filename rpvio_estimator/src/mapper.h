@@ -1128,5 +1128,36 @@ void write_normal_error(vector<Vector3d> vp_normals, vector<Vector3d> gt_normals
 
 void fit_vertical_plane(vector<Vector3d> points, Vector4d plane_params)
 {
-   
+}
+
+void get_depth_cloud(cv::Mat depth_image, pcl::PointCloud<pcl::PointXYZRGB> &test_pcd, Isometry3d Ti, Isometry3d Tic)
+{
+    Eigen::Matrix3d K;
+    K << FOCAL_LENGTH, 0, COL/2,
+        0, FOCAL_LENGTH, ROW/2,
+        0, 0, 1;
+    
+    for (int i = 0; i < depth_image.rows; i++)
+    {
+        for (int j = 0; j < depth_image.cols; j++)
+        {
+            Vector3d cpt;
+            Vector2d ipt(j, i);
+            cpt = K.inverse() * ipt.homogeneous();
+            cpt.normalize();
+            cpt = (depth_image.at<uint16_t>(i, j)/1000) * cpt;
+
+            Vector3d w_pt;
+            w_pt = Ti * (Tic * cpt);
+
+            pcl::PointXYZRGB pt;
+            pt.x = w_pt.x();
+            pt.y = w_pt.y();
+            pt.z = w_pt.z();
+            pt.r = 100;
+            pt.g = 100;
+            pt.b = 100;
+            test_pcd.points.push_back(pt);
+        }
+    }
 }

@@ -8,6 +8,31 @@ sensor_msgs::PointField getFieldWithName(string name)
     return pf;
 }
 
+void depth_image_callback(const sensor_msgs::ImageConstPtr &depth_msg)
+{
+    sensor_msgs::PointCloud2 test_cloud;
+
+    pcl::PointCloud<pcl::PointXYZRGB> test_pcd;
+
+    cv_bridge::CvImagePtr depth_ptr = cv_bridge::toCvCopy(depth_msg);
+    cv::Mat raw_depth_img = depth_ptr->image;
+
+
+    Isometry3d Tic;
+    Tic.linear() = RIC[0];
+    Tic.translation() = TIC[0];
+
+    Isometry3d Ti;
+    Ti.linear() = Matrix3d::Identity();
+    Ti.translation() = Vector3d::Zero();
+
+    get_depth_cloud(raw_depth_img, test_pcd, Ti, Tic);
+
+    pcl::toROSMsg(test_pcd, test_cloud);
+    test_cloud.header = depth_msg->header;
+    frame_pub2.publish(test_cloud);
+}
+
 void mapping_callback(
     const sensor_msgs::PointCloudConstPtr &features_msg,
     const nav_msgs::OdometryConstPtr &odometry_msg,
@@ -195,7 +220,6 @@ void mapping_callback(
                         plane_id_ch.values.push_back(fpp.first);
                     }
                 }
-                
             }
         }
         
@@ -261,6 +285,8 @@ int main(int argc, char **argv)
     //     2000
     // );
     sync.registerCallback(boost::bind(&mapping_callback, _1, _2, _3, _4));
+
+    ros::Subscriber sub_depth_image = n.subscribe("/airsim_node/drone/0/DepthPerspective", 5, depth_image_callback);
 
     // Register all publishers
     // Publish coloured point cloud
