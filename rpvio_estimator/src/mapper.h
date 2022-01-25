@@ -1130,33 +1130,42 @@ void fit_vertical_plane(vector<Vector3d> points, Vector4d plane_params)
 {
 }
 
-void get_depth_cloud(cv::Mat depth_image, pcl::PointCloud<pcl::PointXYZRGB> &test_pcd, Isometry3d Ti, Isometry3d Tic)
+void get_depth_cloud(cv_bridge::CvImagePtr depth_ptr, cv_bridge::CvImagePtr mask_ptr, pcl::PointCloud<pcl::PointXYZRGB> &test_pcd, Isometry3d Ti, Isometry3d Tic)
 {
     Eigen::Matrix3d K;
     K << FOCAL_LENGTH, 0, COL/2,
         0, FOCAL_LENGTH, ROW/2,
         0, 0, 1;
     
-    for (int i = 0; i < depth_image.rows; i++)
+    cv::Mat raw_mask_img = mask_ptr->image;
+    cv::Mat mask_img = processMaskSegments(raw_mask_img);
+    
+    for (int i = 0; i < depth_ptr->image.rows; i++)
     {
-        for (int j = 0; j < depth_image.cols; j++)
+        for (int j = 0; j < depth_ptr->image.cols; j++)
         {
             Vector3d cpt;
             Vector2d ipt(j, i);
             cpt = K.inverse() * ipt.homogeneous();
             cpt.normalize();
-            cpt = (depth_image.at<uint16_t>(i, j)/1000) * cpt;
+            float depth = depth_ptr->image.at<float>(i, j);
+            if (std::isnan(depth) || depth > 50.0)
+                continue;
+            //std::cout << "Depth value is " << std::to_string(depth) << std::endl;
+            cpt = depth * cpt;
 
             Vector3d w_pt;
             w_pt = Ti * (Tic * cpt);
-
+            
+            cv::Scalar color = hex2CvScalar(id2color(get_plane_id(j, i, mask_img)));
+            
             pcl::PointXYZRGB pt;
             pt.x = w_pt.x();
             pt.y = w_pt.y();
             pt.z = w_pt.z();
-            pt.r = 100;
-            pt.g = 100;
-            pt.b = 100;
+            pt.r = color(0);
+            pt.g = color(1);
+            pt.b = color(2);
             test_pcd.points.push_back(pt);
         }
     }

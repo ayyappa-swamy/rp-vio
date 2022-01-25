@@ -8,15 +8,16 @@ sensor_msgs::PointField getFieldWithName(string name)
     return pf;
 }
 
-void depth_image_callback(const sensor_msgs::ImageConstPtr &depth_msg)
+void depth_image_callback(const sensor_msgs::ImageConstPtr &depth_msg, const sensor_msgs::ImageConstPtr &mask_msg)
 {
     sensor_msgs::PointCloud2 test_cloud;
 
     pcl::PointCloud<pcl::PointXYZRGB> test_pcd;
 
     cv_bridge::CvImagePtr depth_ptr = cv_bridge::toCvCopy(depth_msg);
-    cv::Mat raw_depth_img = depth_ptr->image;
+    cv_bridge::CvImagePtr mask_ptr = cv_bridge::toCvCopy(mask_msg);
 
+    // std::cout << "Encoding of depth image is " << depth_msg->encoding << std::endl;
 
     Isometry3d Tic;
     Tic.linear() = RIC[0];
@@ -26,10 +27,11 @@ void depth_image_callback(const sensor_msgs::ImageConstPtr &depth_msg)
     Ti.linear() = Matrix3d::Identity();
     Ti.translation() = Vector3d::Zero();
 
-    get_depth_cloud(raw_depth_img, test_pcd, Ti, Tic);
+    get_depth_cloud(depth_ptr, mask_ptr, test_pcd, Ti, Tic);
 
     pcl::toROSMsg(test_pcd, test_cloud);
     test_cloud.header = depth_msg->header;
+    test_cloud.header.frame_id = "world";
     frame_pub2.publish(test_cloud);
 }
 
@@ -272,10 +274,14 @@ int main(int argc, char **argv)
     message_filters::Subscriber<nav_msgs::Odometry> sub_odometry(n, "/odometry", 100);
     message_filters::Subscriber<sensor_msgs::Image> sub_image(n, "/image", 10);
     message_filters::Subscriber<sensor_msgs::Image> sub_mask(n, "/mask", 10);
+    message_filters::Subscriber<sensor_msgs::Image> sub_seg(n, "/airsim_node/drone/0/Segmentation", 10);
+    message_filters::Subscriber<sensor_msgs::Image> sub_depth(n, "/airsim_node/drone/0/DepthPerspective", 10);
 
     typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::PointCloud, nav_msgs::Odometry, sensor_msgs::Image, sensor_msgs::Image> MySyncPolicy;
+    typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image, sensor_msgs::Image> MySyncPolicyDepth;
     // ApproximateTime takes a queue size as its constructor argument, hence MySyncPolicy(10)
     message_filters::Synchronizer<MySyncPolicy> sync(MySyncPolicy(10), sub_point_cloud, sub_odometry, sub_image, sub_mask);
+    message_filters::Synchronizer<MySyncPolicyDepth> sync_depth(MySyncPolicyDepth(10), sub_depth, sub_seg);
 
     // message_filters::TimeSynchronizer<sensor_msgs::PointCloud, nav_msgs::Odometry, sensor_msgs::Image, sensor_msgs::Image> sync(
     //     sub_point_cloud,
@@ -286,7 +292,7 @@ int main(int argc, char **argv)
     // );
     sync.registerCallback(boost::bind(&mapping_callback, _1, _2, _3, _4));
 
-    ros::Subscriber sub_depth_image = n.subscribe("/airsim_node/drone/0/DepthPerspective", 5, depth_image_callback);
+    sync_depth.registerCallback(boost::bind(&depth_image_callback, _1, _2));
 
     // Register all publishers
     // Publish coloured point cloud
