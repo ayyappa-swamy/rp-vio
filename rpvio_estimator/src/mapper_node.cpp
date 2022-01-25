@@ -206,6 +206,9 @@ void mapping_callback(
         Vector4d params;
         params << normal[0], normal[1], normal[2], d;
 
+        params = fit_vertical_plane(plane_points);
+        normal = params.head<3>();
+
         if ((normal.norm() > 0.001) && (fabs(params[3]) > 0.001))
         {
             Vector4d normed_params(normal[0], normal[1], normal[2], d);

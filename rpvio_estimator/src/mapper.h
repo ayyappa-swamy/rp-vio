@@ -820,9 +820,9 @@ void compute_vertices_from_planes(Vector3d bound_point, vector<Vector4d> bound_p
 
 bool fit_cuboid_to_point_cloud(Vector4d plane_params, vector<Vector3d> points, vector<geometry_msgs::Point> &vertices, vector<Vector3d> &normal_vectors)
 {
-    Vector3d normal = normal_vectors[0].normalized();
+    Vector3d normal = plane_params.head<3>(); 
     Vector3d vertical(0, 1, 0);
-    Vector3d horizontal = normal_vectors[1].normalized();
+    Vector3d horizontal = normal.cross(vertical).normalized();
 
     Vector3d min_n_pt;
     Vector3d min_h_pt;
@@ -1126,8 +1126,42 @@ void write_normal_error(vector<Vector3d> vp_normals, vector<Vector3d> gt_normals
     file.close();
 }
 
-void fit_vertical_plane(vector<Vector3d> points, Vector4d plane_params)
+void fit_vertical_plane_ransac(vector<Vector3d> plane_points, Vector4d &plane_params)
 {
+    // Implement ransac for vertical planes
+    vector<int> inlier_index;
+    // Compute the number of iterations based on the outlier probability
+    // Loop for 'n' iterations
+    // For each iteration:
+    //      choose two random indices (as the plane is vertical, we just need two points)
+    //      fit a vertical plane
+    //      count the number of inliers
+    //      if the count is greater than previous and if the error is also less than previous
+    //      make current model as the best and save all inliers
+}
+
+Vector4d fit_vertical_plane(vector<Vector3d> plane_points)
+{
+    MatrixXd pts_mat(plane_points.size(), 3);
+    Vector4d plane_params;
+
+    for (int i = 0; i < (int)plane_points.size(); i++)
+    {
+        Vector3d c_pt = plane_points[i];
+
+        Vector3d c_pt_flat(c_pt[0], c_pt[2], 1.0);
+
+        pts_mat.row(i) = c_pt_flat.transpose();
+    }
+
+    Vector3d params;
+    Eigen::JacobiSVD<MatrixXd> pt_svd(pts_mat, Eigen::ComputeFullU | Eigen::ComputeFullV);
+    params = pt_svd.matrixV().col(pt_svd.matrixV().cols() - 1);
+
+    plane_params << params[0], 0.0, params[1], params[2];
+    plane_params /= plane_params.head<3>().norm();
+
+    return plane_params;
 }
 
 void get_depth_cloud(cv_bridge::CvImagePtr depth_ptr, cv_bridge::CvImagePtr mask_ptr, pcl::PointCloud<pcl::PointXYZRGB> &test_pcd, Isometry3d Ti, Isometry3d Tic)
@@ -1138,7 +1172,7 @@ void get_depth_cloud(cv_bridge::CvImagePtr depth_ptr, cv_bridge::CvImagePtr mask
         0, 0, 1;
     
     cv::Mat raw_mask_img = mask_ptr->image;
-    cv::Mat mask_img = processMaskSegments(raw_mask_img);
+    // cv::Mat mask_img = processMaskSegments(raw_mask_img);
     
     for (int i = 0; i < depth_ptr->image.rows; i++)
     {
@@ -1157,15 +1191,15 @@ void get_depth_cloud(cv_bridge::CvImagePtr depth_ptr, cv_bridge::CvImagePtr mask
             Vector3d w_pt;
             w_pt = Ti * (Tic * cpt);
             
-            cv::Scalar color = hex2CvScalar(id2color(get_plane_id(j, i, mask_img)));
+            cv::Vec3b colors = raw_mask_img.at<cv::Vec3b>(i, j);
             
             pcl::PointXYZRGB pt;
             pt.x = w_pt.x();
             pt.y = w_pt.y();
             pt.z = w_pt.z();
-            pt.r = color(0);
-            pt.g = color(1);
-            pt.b = color(2);
+            pt.r = colors[2];
+            pt.g = colors[1];
+            pt.b = colors[0];
             test_pcd.points.push_back(pt);
         }
     }
