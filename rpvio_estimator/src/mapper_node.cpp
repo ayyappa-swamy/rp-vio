@@ -9,10 +9,9 @@ sensor_msgs::PointField getFieldWithName(string name)
 }
 
 void depth_image_callback(
-        const sensor_msgs::ImageConstPtr &depth_msg, 
-        const sensor_msgs::ImageConstPtr &mask_msg,
-        const nav_msgs::OdometryConstPtr &odometry_msg
-)
+    const sensor_msgs::ImageConstPtr &depth_msg,
+    const sensor_msgs::ImageConstPtr &mask_msg,
+    const nav_msgs::OdometryConstPtr &odometry_msg)
 {
     sensor_msgs::PointCloud2 test_cloud;
 
@@ -28,8 +27,7 @@ void depth_image_callback(
     Tic.translation() = TIC[0];
 
     Vector3d trans;
-    trans <<
-        odometry_msg->pose.pose.position.x,
+    trans << odometry_msg->pose.pose.position.x,
         odometry_msg->pose.pose.position.y,
         odometry_msg->pose.pose.position.z;
 
@@ -55,10 +53,10 @@ void mapping_callback(
     const sensor_msgs::PointCloudConstPtr &features_msg,
     const nav_msgs::OdometryConstPtr &odometry_msg,
     const sensor_msgs::ImageConstPtr &img_msg,
-    const sensor_msgs::ImageConstPtr &mask_msg
-)
+    const sensor_msgs::ImageConstPtr &mask_msg)
 {
-    Vector3d ggoal(25.0, -5.0, 2.5); 
+    std::cout << "CALLED\n";
+    Vector3d ggoal(25.0, -5.0, 2.5);
 
     ROS_INFO("Image message timestamp %f", img_msg->header.stamp.toSec());
     ROS_INFO("Features message timestamp %f", features_msg->header.stamp.toSec());
@@ -67,7 +65,7 @@ void mapping_callback(
     // Step 1: Cluster all the feature points based on their plane ids
     cv_bridge::CvImagePtr mask_ptr = cv_bridge::toCvCopy(mask_msg, sensor_msgs::image_encodings::BGR8);
     cv::Mat raw_mask_img = mask_ptr->image;
-    
+
     cv_bridge::CvImagePtr img_ptr = cv_bridge::toCvCopy(img_msg, sensor_msgs::image_encodings::BGR8);
     cv::Mat img = img_ptr->image;
     ROS_INFO("Received point cloud with %d points", (int)features_msg->points.size());
@@ -87,8 +85,7 @@ void mapping_callback(
     Tic.translation() = TIC[0];
 
     Vector3d trans;
-    trans <<
-        odometry_msg->pose.pose.position.x,
+    trans << odometry_msg->pose.pose.position.x,
         odometry_msg->pose.pose.position.y,
         odometry_msg->pose.pose.position.z;
 
@@ -120,7 +117,7 @@ void mapping_callback(
 
     if (points_map.size() == 0)
         return;
-        
+
     // ROS_INFO("Drawing quads for %d planes", plane_ids.size());
     // draw_quads(img, mask_img, plane_ids);
     // cv::Mat gray_img;
@@ -156,11 +153,11 @@ void mapping_callback(
     // if (fabs(normal[0]) > fabs(normal[2]))
     line_list.color.r = 1.0;
     // else
-        // line_list.color.b = 1.0;
+    // line_list.color.b = 1.0;
     line_list.color.a = 1.0;
 
     // Print number of features per plane
-    for (auto const& fpp: points_map)
+    for (auto const &fpp : points_map)
     {
         ROS_INFO("Number of features in plane id %d are %d", fpp.first, (int)fpp.second.size());
 
@@ -168,7 +165,7 @@ void mapping_callback(
         for (int i = 0; i < (int)fpp.second.size(); i++)
         {
             Vector3d c_pt = Tic.inverse() * (Ti.inverse() * fpp.second[i]);
-            
+
             Vector3d t_pt(c_pt[0], 0.0, c_pt[2]);
             if ((t_pt.norm() <= 15) && (c_pt.norm() > 2))
             {
@@ -177,7 +174,7 @@ void mapping_callback(
                 unsigned long hex = id2color(fpp.first);
                 int r = ((hex >> 16) & 0xFF);
                 int g = ((hex >> 8) & 0xFF);
-                int b = ((hex) & 0xFF);
+                int b = ((hex)&0xFF);
 
                 Vector3d w_pt = fpp.second[i];
                 pcl::PointXYZRGB pt;
@@ -216,7 +213,7 @@ void mapping_callback(
 
             pts_mat.row(i) = pt_.homogeneous().transpose();
         }
-        
+
         d /= plane_points.size();
 
         Vector4d params;
@@ -230,7 +227,7 @@ void mapping_callback(
             Vector4d normed_params(normal[0], normal[1], normal[2], d);
 
             if (fabs(normal.dot(vertical)) < 0.5)
-            {             
+            {
                 if (fit_cuboid_to_point_cloud(normed_params, plane_points, vertices, vp_normals))
                 {
                     create_cuboid_frame(vertices, line_list, (Ti * Tic));
@@ -242,12 +239,13 @@ void mapping_callback(
                         plane_id_ch.values.push_back(fpp.first);
                     }
                 }
-                else {
-                    ROS_INFO("Not plotting cuboid %d with params %f %f %f %f", fpp.first, normed_params[0], normed_params[1], normed_params[2], normed_params[3]); 
+                else
+                {
+                    ROS_INFO("Not plotting cuboid %d with params %f %f %f %f", fpp.first, normed_params[0], normed_params[1], normed_params[2], normed_params[3]);
                 }
             }
         }
-        
+
         plane_ids.push_back(fpp.first);
     }
 
@@ -256,7 +254,7 @@ void mapping_callback(
     // for(int fi = 0; fi < features_msg->points.size(); fi++) {
     //     int u = (int)features_msg->channels[0].values[fi];
     //     int v = (int)features_msg->channels[1].values[fi];
-        
+
     //     cv::Scalar color = hex2CvScalar(id2color(get_plane_id(u, v, mask_img)));//mask_img.at<cv::Vec3b>(v, u);
 
     //     cv::circle(mask_img, cv::Point(u, v), 5, color, -1);
@@ -271,8 +269,10 @@ void mapping_callback(
     ROS_INFO("Publising marked image");
     std_msgs::Header img_header;
     img_header = img_msg->header;
-    sensor_msgs::ImagePtr marked_image_msg = cv_bridge::CvImage(img_header, sensor_msgs::image_encodings::BGR8, mask_img).toImageMsg();
-    
+    sensor_msgs::ImagePtr marked_image_msg = cv_bridge::CvImage(img_header, sensor_msgs::image_encodings::BGR8,
+                                                                mask_img)
+                                                 .toImageMsg();
+
     // Publish raw images with marked quads
     masked_im_pub.publish(marked_image_msg);
 
@@ -333,7 +333,6 @@ int main(int argc, char **argv)
     masked_im_pub = n.advertise<sensor_msgs::Image>("masked_image", 10);
     marker_pub = n.advertise<visualization_msgs::Marker>("cuboids", 10);
     // ma_pub = n.advertise<visualization_msgs::MarkerArray>("centroid_segs", 100);
-    
+
     ros::spin();
-    
 }

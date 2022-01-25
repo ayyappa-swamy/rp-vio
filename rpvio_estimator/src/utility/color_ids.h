@@ -54,15 +54,15 @@ void load_color_palette(std::string PALETTE_FILE_PATH)
 
         // Exatract r, g, b
         int id = row_values[0];
-        int r = row_values[3];
+        int b = row_values[3];
         int g = row_values[2];
-        int b = row_values[1];
+        int r = row_values[1];
 
         unsigned long hex = ((r & 0xff) << 16) + ((g & 0xff) << 8) + (b & 0xff);
         
-        if ((r == 7) && (g == 93) && (b == 182)) {
-            id = 0;    
-        }
+//        if ((r == 7) && (g == 93) && (b == 182)) {
+//            id = 0;
+//        }
 
         if (color_index.find(hex) == color_index.end()) {
             color_index[hex] = id;

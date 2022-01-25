@@ -931,7 +931,7 @@ bool fit_cuboid_to_point_cloud(Vector4d plane_params, vector<Vector3d> points, v
         vertices.push_back(pt);
         
         Vector3d t_pt(pt.x, 0.0, pt.z);
-        if (t_pt.norm() > 30)
+        if (t_pt.norm() > 50)
             return false;
     }
 
