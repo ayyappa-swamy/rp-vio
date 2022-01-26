@@ -5,6 +5,7 @@ Panels:
     Property Tree Widget:
       Expanded:
         - /Odometry1/Shape1
+        - /Path3
       Splitter Ratio: 0.579250693321228
     Tree Height: 179
   - Class: rviz/Selection
@@ -25,7 +26,7 @@ Panels:
     Experimental: false
     Name: Time
     SyncMode: 0
-    SyncSource: ""
+    SyncSource: raw_image
   - Class: rviz/Displays
     Help Height: 78
     Name: Displays
@@ -565,7 +566,7 @@ Visualization Manager:
       Marker Topic: /rpvio_mapper/centroid_segs
       Name: MarkerArray
       Namespaces:
-        {}
+        "": true
       Queue Size: 100
       Value: true
     - Alpha: 0.5
@@ -750,7 +751,7 @@ Visualization Manager:
       Marker Topic: /STOMP_vis
       Name: Marker
       Namespaces:
-        {}
+        my_namespace: true
       Queue Size: 100
       Value: true
     - Class: rviz/Marker
@@ -758,8 +759,31 @@ Visualization Manager:
       Marker Topic: /OptimizedTraj
       Name: Marker
       Namespaces:
-        {}
+        my_namespace: true
       Queue Size: 100
+      Value: true
+    - Alpha: 5
+      Buffer Length: 1
+      Class: rviz/Path
+      Color: 237; 212; 0
+      Enabled: true
+      Head Diameter: 0.30000001192092896
+      Head Length: 0.20000000298023224
+      Length: 0.30000001192092896
+      Line Style: Billboards
+      Line Width: 0.029999999329447746
+      Name: Path
+      Offset:
+        X: 0
+        Y: 0
+        Z: 0
+      Pose Color: 255; 85; 255
+      Pose Style: None
+      Radius: 0.029999999329447746
+      Shaft Diameter: 0.10000000149011612
+      Shaft Length: 0.10000000149011612
+      Topic: /CEMPath
+      Unreliable: false
       Value: true
   Enabled: true
   Global Options:
@@ -802,10 +826,10 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.5347975492477417
+      Pitch: 0.5397975444793701
       Target Frame: <Fixed Frame>
       Value: XYOrbit (rviz)
-      Yaw: 4.3180646896362305
+      Yaw: 3.4830563068389893
     Saved: ~
 Window Geometry:
   Displays:
@@ -824,7 +848,7 @@ Window Geometry:
     collapsed: true
   Width: 1389
   X: 298
-  Y: 114
+  Y: 84
   loop_match_image:
     collapsed: false
   raw_image:

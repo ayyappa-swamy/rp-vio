@@ -19,7 +19,7 @@ namespace Optimization
 		int CEM( Eigen::MatrixXd x_samples ,  Eigen::MatrixXd y_samples  , Eigen::MatrixXd z_samples , int num_iterations , Eigen::MatrixXd PlaneParams ,
 		ros::Publisher OptimTraj , ros::Publisher SampleTraj );
 
-		int CrossEntropyOptimize(  Eigen::MatrixXd x_samples ,  Eigen::MatrixXd y_samples  , Eigen::MatrixXd z_samples , int num_iterations , std::vector<Eigen::Vector3d>  Centers,  
+		std::vector<Eigen::MatrixXd> CrossEntropyOptimize(  Eigen::MatrixXd x_samples ,  Eigen::MatrixXd y_samples  , Eigen::MatrixXd z_samples , int num_iterations , std::vector<Eigen::Vector3d>  Centers,  
 		ros::Publisher OptimTraj , ros::Publisher SampleTraj );
 
 
@@ -539,16 +539,18 @@ double MeasureSphericalDistance( std::vector<Eigen::Vector3d> Centers , Eigen::V
 
 
 
-int Optimization::TrajectoryOptimization::CrossEntropyOptimize( Eigen::MatrixXd x_samples ,  Eigen::MatrixXd y_samples  , Eigen::MatrixXd z_samples , int num_iterations , 
+std::vector<Eigen::MatrixXd> Optimization::TrajectoryOptimization::CrossEntropyOptimize( Eigen::MatrixXd x_samples ,  Eigen::MatrixXd y_samples  , Eigen::MatrixXd z_samples , int num_iterations , 
 	std::vector<Eigen::Vector3d> Centers,   ros::Publisher OptimTraj , ros::Publisher SampleTraj )
 {
 
 	// x_samples shape is ( num_trajs , num_pts_per_traj )
 
+	std::vector<Eigen::MatrixXd> CEMOptimizedTraj; 
+
 
 	std::vector<Eigen::MatrixXd> MeanTraj; 
 	int numTrajs = x_samples.rows();
-	int num_top_samples = int(0.1*numTrajs) ;
+	int num_top_samples = int(0.5*numTrajs) ;
 	int numPts_perTraj = x_samples.cols();
 	Eigen::Vector3d Qpt; 
 	 
@@ -655,6 +657,13 @@ int Optimization::TrajectoryOptimization::CrossEntropyOptimize( Eigen::MatrixXd 
 
 
 	}
+
+	CEMOptimizedTraj.push_back( temp_x_samples ); 
+	CEMOptimizedTraj.push_back( temp_y_samples );
+	CEMOptimizedTraj.push_back(temp_z_samples ); 
+
+
+	return CEMOptimizedTraj ;
 
 
 

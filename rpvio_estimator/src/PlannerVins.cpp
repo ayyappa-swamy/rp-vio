@@ -25,17 +25,20 @@ Eigen::MatrixXd z_samples;
 ros::Publisher PubSTOMP; 
 ros::Publisher CEMOptimTraj;
 
+nav_msgs::Path CEMOptimTrajectory ; 
+
 bool status ;
 double deltaT = 0.1;  
 nav_msgs::Path AstarTrajectory;
 int numIters = 10;
 
 ros::Publisher AstarTraj ; 
+ros::Publisher CEMOptimPath;
 
 bool In= true ; 
 
 
-Eigen::Vector3d PrevState;
+Eigen::Vector3d GoalState;
 Eigen::Vector3d CurState; 
 
 
@@ -49,8 +52,10 @@ void current_state_callback2( const sensor_msgs::PointCloudConstPtr &frames_msg,
     CurState << odometry_msg->pose.pose.position.x, odometry_msg->pose.pose.position.y,
                  odometry_msg->pose.pose.position.z ; 
 
+    double dist_since_last = (GoalState - CurState).norm();  
+
     
-    if( (cnt%10) == 0  ){
+    if(  ((cnt) == 0  ) || ( dist_since_last <  4.0 ) ){
 
     
     In = true ; 
@@ -138,8 +143,7 @@ void current_state_callback2( const sensor_msgs::PointCloudConstPtr &frames_msg,
     }
     else{
 
-
-        status  = kAstar.search( StartPose ,startVel ,  startAcc , goal  , goalVel , false, false , 0.0 ,  Centers);
+    status  = kAstar.search( StartPose ,startVel ,  startAcc , goal  , goalVel , false, false , 0.0 ,  Centers);
 
     }
 
@@ -177,7 +181,7 @@ void current_state_callback2( const sensor_msgs::PointCloudConstPtr &frames_msg,
     }
 
     AstarTraj.publish(AstarTrajectory);
-    PrevState = CurState ;
+    // PrevState = CurState ;
 
 
     std::vector<Eigen::MatrixXd> initTrajectory;
@@ -207,7 +211,38 @@ void current_state_callback2( const sensor_msgs::PointCloudConstPtr &frames_msg,
 
     std::cout << "Here " << std::endl;
 
-    CEMOptim.CrossEntropyOptimize(xPts ,yPts , zPts , numIters ,   Centers ,CEMOptimTraj , PubSTOMP );
+    std::vector<Eigen::MatrixXd> CEMOptimizedTraj; 
+
+    CEMOptimizedTraj = CEMOptim.CrossEntropyOptimize(xPts ,yPts , zPts , numIters ,   Centers ,CEMOptimTraj , PubSTOMP );
+
+    Eigen::MatrixXd X;
+    Eigen::MatrixXd Y ; 
+    Eigen::MatrixXd Z; 
+
+    X = CEMOptimizedTraj.at(0);
+    Y = CEMOptimizedTraj.at(1);
+    Z = CEMOptimizedTraj.at(2);
+
+    int num = X.cols(); 
+
+    for(int i =0 ; i< num ; i++)
+    {
+
+        geometry_msgs::PoseStamped p2;
+
+        p2.pose.position.x = X(0 , i );
+        p2.pose.position.y= Y(0 , i);
+        p2.pose.position.z = Z( 0, i);
+
+        p2.pose.orientation.w = 1.0 ; 
+
+        CEMOptimTrajectory.poses.push_back(p2);
+        CEMOptimTrajectory.header.stamp = ros::Time::now();
+
+        CEMOptimTrajectory.header.frame_id = "world";
+    }
+
+    CEMOptimPath.publish(CEMOptimTrajectory);
 
 
 
@@ -217,11 +252,10 @@ void current_state_callback2( const sensor_msgs::PointCloudConstPtr &frames_msg,
     std::cout << " End " << "  " << x_samples(0 ,numPts-1) << " " << y_samples(0 ,numPts-1 ) << " " << z_samples(0,numPts-1) << std::endl; 
     std::cout << " ---------------------------" << std::endl;
 
+    GoalState <<  x_samples(0 ,numPts-1) , y_samples(0 ,numPts-1 ) , z_samples(0,numPts-1) ;
 
 
-
-
-    kAstar.reset(); 
+    // kAstar.reset(); 
 }
 
 std::cout << cnt << std::endl ;
@@ -246,6 +280,7 @@ int main(int argc, char **argv)
     message_filters::Subscriber<nav_msgs::Odometry> sub_odometry(n, "/vins_estimator/odometry", 20);
     PubSTOMP = n.advertise<visualization_msgs::Marker>( "/STOMP_vis", 0 );
     CEMOptimTraj = n.advertise<visualization_msgs::Marker>( "/OptimizedTraj", 0 );
+    CEMOptimPath = n.advertise<nav_msgs::Path>("/CEMPath" , 0 ); 
 
     startVel = Eigen::Vector3d::Zero();
     startAcc = Eigen::Vector3d::Ones(); 
@@ -253,6 +288,8 @@ int main(int argc, char **argv)
 
     AstarTraj = n.advertise<nav_msgs::Path>( "/AstarTraj", 0 );
     kAstar.setParam(n);
+
+    GoalState = Eigen::Vector3d::Zero(); 
 
 
 
