@@ -122,7 +122,7 @@ void mapping_callback(
     vp_normals.push_back(lx_axis);
     vp_normals.push_back(ly_axis);
 
-    write_normal_error(vp_normals1, vp_normals);
+    // write_normal_error(vp_normals1, vp_normals);
 
     visualization_msgs::Marker line_list;
     line_list.header = odometry_msg->header;
@@ -134,7 +134,7 @@ void mapping_callback(
     line_list.type = visualization_msgs::Marker::LINE_LIST;
 
     // LINE_LIST markers use only the x component of scale, for the line width
-    line_list.scale.x = 0.05;
+    line_list.scale.x = 0.08;
 
     // Line list is green
     // if (fabs(normal[0]) > fabs(normal[2]))
@@ -154,7 +154,7 @@ void mapping_callback(
             Vector3d c_pt = Tic.inverse() * (Ti.inverse() * fpp.second[i]);
             
             Vector3d t_pt(c_pt[0], 0.0, c_pt[2]);
-            if ((t_pt.norm() <= 10) && (c_pt.norm() > 2))
+            if ((t_pt.norm() <= 50) && (c_pt.norm() > 2))
             {
                 plane_points.push_back(c_pt);
 
@@ -206,18 +206,19 @@ void mapping_callback(
         Vector4d params;
         params << normal[0], normal[1], normal[2], d;
 
-        params = fit_vertical_plane(plane_points);
+        params = fit_vertical_plane_ransac(plane_points);
         normal = params.head<3>();
 
         if ((normal.norm() > 0.001) && (fabs(params[3]) > 0.001))
         {
             Vector4d normed_params(normal[0], normal[1], normal[2], d);
 
-            if (fabs(normal.dot(vertical)) < 0.5)
-            {             
+            // if (fabs(normal.dot(vertical)) < 0.5)
+            // {             
                 if (fit_cuboid_to_point_cloud(normed_params, plane_points, vertices, vp_normals))
                 {
                     create_cuboid_frame(vertices, line_list, (Ti * Tic));
+                    //write_estimated_normal_error(normal , vp_normals /*ground truth*/);
 
                     for (int vid = 0; vid < vertices.size(); vid++)
                     {
@@ -225,13 +226,13 @@ void mapping_callback(
                         plane_id_ch.values.push_back(fpp.first);
                     }
                 }
-            }
+            // }
         }
         
         plane_ids.push_back(fpp.first);
     }
 
-    ma.markers.push_back(line_list);
+    // ma.markers.push_back(line_list);
     // Loop through all feature points
     for(int fi = 0; fi < features_msg->points.size(); fi++) {
         int u = (int)features_msg->channels[0].values[fi];
@@ -241,6 +242,8 @@ void mapping_callback(
 
         cv::circle(mask_img, cv::Point(u, v), 5, color, -1);
     }
+
+    marker_pub.publish(line_list);
 
     pcl::toROSMsg(test_pcd, test_cloud);
     test_cloud.header = features_msg->header;
@@ -260,8 +263,7 @@ void mapping_callback(
     // sensor_msgs::PointCloud2 frame_cloud2;
     // sensor_msgs::convertPointCloudToPointCloud2(frame_cloud, frame_cloud2);
     // frame_pub2.publish(frame_cloud2);
-    ma_pub.publish(ma);
-    marker_pub.publish(line_list);
+    // ma_pub.publish(ma);
 }
 
 int main(int argc, char **argv)
@@ -276,7 +278,7 @@ int main(int argc, char **argv)
     message_filters::Subscriber<sensor_msgs::PointCloud> sub_point_cloud(n, "/point_cloud", 100);
     message_filters::Subscriber<nav_msgs::Odometry> sub_odometry(n, "/odometry", 100);
     message_filters::Subscriber<sensor_msgs::Image> sub_image(n, "/image", 10);
-    message_filters::Subscriber<sensor_msgs::Image> sub_mask(n, "/mask", 10);
+    message_filters::Subscriber<sensor_msgs::Image> sub_mask(n, "/plane_mask", 10);
     message_filters::Subscriber<sensor_msgs::Image> sub_seg(n, "/airsim_node/drone/0/Segmentation", 10);
     message_filters::Subscriber<sensor_msgs::Image> sub_depth(n, "/airsim_node/drone/0/DepthPerspective", 10);
 
@@ -306,8 +308,8 @@ int main(int argc, char **argv)
     lgoal_pub = n.advertise<sensor_msgs::PointCloud>("local_goal", 100);
     frame_pub2 = n.advertise<sensor_msgs::PointCloud2>("frame_cloud2", 100);
     masked_im_pub = n.advertise<sensor_msgs::Image>("masked_image", 10);
-    marker_pub = n.advertise<visualization_msgs::Marker>("cuboids", 100);
-    ma_pub = n.advertise<visualization_msgs::MarkerArray>("centroid_segs", 100);
+    marker_pub = n.advertise<visualization_msgs::Marker>("cuboids", 10);
+    // ma_pub = n.advertise<visualization_msgs::MarkerArray>("centroid_segs", 100);
     
     ros::spin();
     

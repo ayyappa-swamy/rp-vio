@@ -48,6 +48,7 @@
 #include <fstream>
 #include <string>
 #include <sstream>
+#include <random>
 
 #include <stdio.h>
 #include <queue>
@@ -641,6 +642,25 @@ cv::Mat processMaskSegments(cv::Mat input_mask)
     return input_mask;
 }
 
+double get_absolute_point_plane_distance(Vector3d point, Vector4d plane)
+{
+    Vector4d plane1(plane[0], plane[1], plane[2], plane[3]);
+    Vector4d plane2(-plane[0], -plane[1], -plane[2], plane[3]);
+    Vector4d plane3 = -plane1;
+    Vector4d plane4 = -plane2;
+    
+    return min(
+        min(
+            fabs(plane1.dot(point.homogeneous())),
+            fabs(plane2.dot(point.homogeneous()))
+        ),
+        min(            
+            fabs(plane3.dot(point.homogeneous())),
+            fabs(plane4.dot(point.homogeneous()))
+        )
+    );
+}
+
 int get_plane_id(int u, int v, cv::Mat &mask)
 {
     int plane_id = 0;
@@ -842,8 +862,8 @@ bool fit_cuboid_to_point_cloud(Vector4d plane_params, vector<Vector3d> points, v
     {
         Vector3d point = points[i];
 
-        if (plane_params.dot(point.homogeneous()) > 2)
-            continue;
+        if (get_absolute_point_plane_distance(point, plane_params) <= 2)
+           continue;
 
         double nd = -normal.dot(point);
         double hd = -horizontal.dot(point);
@@ -909,7 +929,7 @@ bool fit_cuboid_to_point_cloud(Vector4d plane_params, vector<Vector3d> points, v
         vertices.push_back(pt);
         
         Vector3d t_pt(pt.x, 0.0, pt.z);
-        if (t_pt.norm() > 20)
+        if (t_pt.norm() > 75)
             return false;
     }
 
@@ -1126,18 +1146,34 @@ void write_normal_error(vector<Vector3d> vp_normals, vector<Vector3d> gt_normals
     file.close();
 }
 
-void fit_vertical_plane_ransac(vector<Vector3d> plane_points, Vector4d &plane_params)
+void write_estimated_normal_error(Vector3d estimated_normal, vector<Vector3d> gt_normals)
 {
-    // Implement ransac for vertical planes
-    vector<int> inlier_index;
-    // Compute the number of iterations based on the outlier probability
-    // Loop for 'n' iterations
-    // For each iteration:
-    //      choose two random indices (as the plane is vertical, we just need two points)
-    //      fit a vertical plane
-    //      count the number of inliers
-    //      if the count is greater than previous and if the error is also less than previous
-    //      make current model as the best and save all inliers
+    double error = 1 - std::max(
+        fabs(estimated_normal.dot(gt_normals[0]))
+        , fabs(estimated_normal.dot(gt_normals[1]))
+    );
+
+    ofstream file("estim_error.txt", std::ios_base::app);
+
+    file << error << std::endl;
+
+    file.close();
+}
+
+vector<int> get_s_random_indices_within_n(int n /*range (1, n)*/, int s /*required number of samples*/)
+{
+    std::random_device rd; // obtain a random number from hardware
+    std::mt19937 gen(rd()); // seed the generator
+    std::uniform_int_distribution<> uniform_distro(0, n); // define the range
+
+    vector<int> rand_ints;
+
+    for (int i = 0; i < s; i++)
+    {
+        rand_ints.push_back(uniform_distro(gen));
+    }
+
+    return rand_ints;
 }
 
 Vector4d fit_vertical_plane(vector<Vector3d> plane_points)
@@ -1162,6 +1198,102 @@ Vector4d fit_vertical_plane(vector<Vector3d> plane_points)
     plane_params /= plane_params.head<3>().norm();
 
     return plane_params;
+}
+
+double get_plane_inliers_error(vector<int> &inlier_indices, vector<Vector3d> &plane_points, Vector4d plane_model)
+{
+    double error = 0.0;
+    for (int i = 0; i < inlier_indices.size(); i++)
+    {
+        error += get_absolute_point_plane_distance(plane_points[inlier_indices[i]], plane_model);
+    }
+
+    return error / inlier_indices.size();
+}
+
+Vector4d fit_vertical_plane_to_indices(vector<int> &indices, vector<Vector3d> &plane_points)
+{
+    vector<Vector3d> indexed_points;
+
+    for(int i = 0; i < indices.size(); i++)
+    {
+        indexed_points.push_back(plane_points[indices[i]]);
+    }
+
+    return fit_vertical_plane(indexed_points);
+}
+
+/**
+ * @brief implements a ransac for vertical plane
+ * 
+ * Formula to compute ransac number of iterations (N):
+ * N = log(1-p)/log(1-((1-e)^s))
+ * 
+ * where:
+ * p = desired probability that we get a good sample
+ * s = number of points in a sample
+ * e = probability that a point is outlier
+ * 
+ * @param plane_points 
+ * @param plane_params 
+ */
+Vector4d fit_vertical_plane_ransac(vector<Vector3d> &plane_points)
+{
+    // Implement ransac for vertical planes
+    // For each iteration:
+    //      choose two random indices (as the plane is vertical, we just need two points)
+    //      fit a vertical plane
+    //      count the number of inliers
+    //      if the count is greater than previous and if the error is also less than previous
+    //      make current model as the best and save all inliers
+
+    // Compute the number of iterations based on the outlier probability
+    // Loop for 'n' iterations
+    double p = 0.99; // p = desired probability that we get a good sample
+    double s = 3; // s = number of points in a sample
+    double e = 0.33; // e = probability that a point is outlier
+    int N = (int)(log(1 - p) / log(1 - pow(1 - e, s)));
+    N++;
+
+    double plane_distance_threshold = 2.0;
+
+    int bestNumOfInliers = 4;
+    Vector4d bestFit;
+    double bestError = 100000.0;
+
+    for (int iter = 0; iter < N; iter++)
+    {
+        vector<int> maybeInliers = get_s_random_indices_within_n(plane_points.size(), s);
+        Vector4d maybeModel = fit_vertical_plane_to_indices(maybeInliers, plane_points);
+
+        vector<int> alsoInliers;
+        for(int i = 0; i < plane_points.size(); i++)
+        {
+            if (find(maybeInliers.begin(), maybeInliers.end(), i) == maybeInliers.end()) // if not in maybeInliers
+            {
+                if (get_absolute_point_plane_distance(plane_points[i], maybeModel) <= plane_distance_threshold)
+                {
+                    alsoInliers.push_back(i);
+                }
+            }
+        }
+
+        // if ((alsoInliers.size() >= bestNumOfInliers))
+        // {
+            maybeInliers.insert(maybeInliers.end(), alsoInliers.begin(), alsoInliers.end());
+            Vector4d betterModel = fit_vertical_plane_to_indices(maybeInliers, plane_points);
+            double currentError = get_plane_inliers_error(maybeInliers, plane_points, betterModel);
+
+            if (currentError < bestError)
+            {
+                bestFit = betterModel;
+                bestError = currentError;
+                bestNumOfInliers = alsoInliers.size();
+            }
+        // }
+    }
+
+    return bestFit;
 }
 
 void get_depth_cloud(cv_bridge::CvImagePtr depth_ptr, cv_bridge::CvImagePtr mask_ptr, pcl::PointCloud<pcl::PointXYZRGB> &test_pcd, Isometry3d Ti, Isometry3d Tic)
