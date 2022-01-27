@@ -24,12 +24,12 @@ class Planner:
     ric = np.eye(3)
     ti = np.zeros(3)
     ri = np.eye(3)
-    global_goal = np.array([23.0, -5.0, 5.0])
+    global_goal = np.array([52.5,-53,1.468])
 
     def __init__(self, vertices_msg, odometry_msg, local_goal_pub, local_stomp_pub, feasible_path_pub, free_cloud_pub, colliding_cloud_pub):
         self.vertices_msg = vertices_msg
         self.odometry_msg = odometry_msg
-        
+
         self.read_cam_imu_transform()
         self.parse_odometry_msg(odometry_msg)
 
@@ -45,12 +45,12 @@ class Planner:
         self.feasible_path_pub = feasible_path_pub
         self.free_cloud_pub = free_cloud_pub
         self.colliding_cloud_pub = colliding_cloud_pub
-    
+
     def read_cam_imu_transform(self):
         fs = cv2.FileStorage("../../config/rpvio_sim_config.yaml", cv2.FILE_STORAGE_READ)
         self.ric = np.array(fs.getNode("extrinsicRotation").mat()).reshape((3, 3))
         self.tic =  np.array(fs.getNode("extrinsicTranslation").mat()).reshape((3, 1))
-        
+
         #print("Read cam imu transform")
         #print("tic: ")
         #print(self.tic)
@@ -115,9 +115,9 @@ class Planner:
 
         A_mat = -np.vstack(( temp_1, temp_2, A, temp_3, temp_4   ))
 
-        x_fin = self.local_goal[0] 
+        x_fin = self.local_goal[0]
         y_fin = self.local_goal[1]
-        z_fin = self.local_goal[2] 
+        z_fin = self.local_goal[2]
 
         t_interp = np.linspace(0, t_fin, num)
         x_interp = x_des_traj_init + ((x_fin-x_des_traj_init)/t_fin) * t_interp
@@ -150,10 +150,10 @@ class Planner:
         goal_pc.header = self.vertices_msg.header
         goal_pc.points.append(self.to_ros_point(self.global_goal))
         self.local_goal_pub.publish(goal_pc)
-    
+
     def publish_local_stomp_paths(self):
         ma = MarkerArray()
-        
+
         optimal_line_strip = None
         is_optimal_colliding = True
         max_sdf_cost = -100000000
@@ -164,7 +164,7 @@ class Planner:
         for p in range(self.x_samples.shape[0]):
             line_strip = Marker()
             line_strip.header = self.vertices_msg.header
-            
+
             line_strip.pose.orientation.w = 1.0
 
             line_strip.id = p+2
@@ -185,10 +185,10 @@ class Planner:
                     self.y_samples[p, w],
                     self.z_samples[p, w]
                 ]).flatten()
-                w_pt = self.cam2world(pt).flatten() 
+                w_pt = self.cam2world(pt).flatten()
 
                 pts += [[pt[0], pt[1], pt[2]]]
-                
+
                 line_strip.points.append(self.to_ros_point(w_pt))
                 point_cost = self.map.get_point_cost(pt)
                 if point_cost < 1.0:
@@ -228,7 +228,7 @@ class Planner:
             for i in range(int(len(good_trajs)/num)):
                 k = i * num
                 trajectory1 = np.array(good_trajs)[k:k+num, :3]
-                
+
                 normals = planes[:, :3]
                 ds = planes[:, -1:] @ np.ones((1, trajectory1.shape[0]))
 
@@ -252,7 +252,7 @@ class Planner:
                 # # onz.value = np.ones((num, 1))
                 # # # constraint += [x @ r_plane - 20*onz >= 0]
                 dmat = np.diff(np.diff(np.eye(num)))
-                print("initial cost: ", np.linalg.norm(dmat.T@x.value)) 
+                print("initial cost: ", np.linalg.norm(dmat.T@x.value))
                 obj = cp.Minimize(cp.sum_squares(dmat.T@x))
                 # obj = cp.Minimize(cp.sum_squares(cp.multiply(bin_collision_mat, normals@x.T + ds)))
                 problem = cp.Problem(obj, constraint)
@@ -267,7 +267,7 @@ class Planner:
 
                     if problem.status == 'optimal':
                         optimized_traj = x.value
-                        print("optimal cost: ", np.linalg.norm(dmat.T@x.value)) 
+                        print("optimal cost: ", np.linalg.norm(dmat.T@x.value))
                         print('Time taken to solve: ', problem.solver_stats.solve_time)
                 except Exception as e:
                     print(e)
@@ -277,7 +277,7 @@ class Planner:
         if optimized_traj is not None:
             line_strip = Marker()
             line_strip.header = self.vertices_msg.header
-            
+
             line_strip.pose.orientation.w = 1.0
 
             line_strip.id = 9998
@@ -290,7 +290,7 @@ class Planner:
 
             for way_pt in optimized_traj:
                 line_strip.points.append(self.to_ros_point(self.cam2world(way_pt)))
-        
+
             optimal_line_strip = line_strip
 
         elif not is_optimal_colliding and optimal_line_strip is not None:
@@ -335,12 +335,12 @@ class Planner:
                 point_cost = self.map.get_point_cost(c_pt)
                 if point_cost < 1.0:
                     is_colliding = True
-                
+
                 if is_colliding:
                     colliding_points.points.append(self.to_ros_point(self.cam2world(c_pt)))
                 else:
                     free_points.points.append(self.to_ros_point(self.cam2world(c_pt)))
-        
+
         self.free_cloud_pub.publish(free_points)
         self.colliding_cloud_pub.publish(colliding_points)
 
