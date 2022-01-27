@@ -864,7 +864,7 @@ bool fit_cuboid_to_point_cloud(Vector4d plane_params, vector<Vector3d> points, v
     {
         Vector3d point = points[i];
 
-        if (get_absolute_point_plane_distance(point, plane_params) > 2)
+        if (get_absolute_point_plane_distance(point, plane_params) > 1.25)
            continue;
 
         double nd = -normal.dot(point);
@@ -1004,7 +1004,8 @@ void create_cuboid_frame(vector<geometry_msgs::Point> &local_vertices, visualiza
 
 map<int, vector<Vector3d>> cluster_plane_features(
     const sensor_msgs::PointCloudConstPtr &features_msg,
-    cv::Mat &mask_img
+    cv::Mat &mask_img,
+    Isometry3d world2local
 )
 {
     map<int, vector<Vector3d>> mPlaneFeatures;
@@ -1025,8 +1026,21 @@ map<int, vector<Vector3d>> cluster_plane_features(
         else {
             int u = (int)features_msg->channels[0].values[fi];
             int v = (int)features_msg->channels[1].values[fi];
-        
             // ROS_INFO("Querying at point (%d, %d)", u, v);
+
+            Vector3d lpoint = world2local * fpoint;
+            Eigen::Matrix3d K;
+            K << FOCAL_LENGTH, 0, COL/2,
+                0, FOCAL_LENGTH, ROW/2,
+                0, 0, 1;
+
+            Vector3d pt = K * lpoint;
+            pt /= pt[2];
+
+            u = (int)pt.x();
+            v = (int)pt.y();
+            
+            // ROS_INFO("Querying at new point (%d, %d)", u, v);
             plane_id = get_plane_id(u, v, mask_img);
             // ROS_INFO("Found color id is %d", (int)plane_id);
         }
@@ -1257,7 +1271,7 @@ Vector4d fit_vertical_plane_ransac(vector<Vector3d> &plane_points)
     int N = (int)(log(1 - p) / log(1 - pow(1 - e, s)));
     N++;
 
-    double plane_distance_threshold = 2.0;
+    double plane_distance_threshold = 1.25;
 
     int bestNumOfInliers = 4;
     Vector4d bestFit;

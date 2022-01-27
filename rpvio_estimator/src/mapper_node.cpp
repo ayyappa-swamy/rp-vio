@@ -73,10 +73,6 @@ void mapping_callback(
     ROS_INFO("Received point cloud with %d points", (int)features_msg->points.size());
     ROS_INFO("Received image with dimensions (%d, %d)", img.rows, img.cols);
 
-    cv::Mat mask_img = processMaskSegments(raw_mask_img);
-    map<int, vector<Vector3d>> points_map = cluster_plane_features(features_msg, mask_img);
-    ROS_INFO("Clustered the feature points based on %d planes", (int)points_map.size());
-
     sensor_msgs::PointCloud frame_cloud;
     frame_cloud.header = features_msg->header;
     sensor_msgs::ChannelFloat32 plane_id_ch;
@@ -105,6 +101,10 @@ void mapping_callback(
     Isometry3d Ti;
     Ti.linear() = quat.normalized().toRotationMatrix();
     Ti.translation() = trans;
+
+    cv::Mat mask_img = processMaskSegments(raw_mask_img);
+    map<int, vector<Vector3d>> points_map = cluster_plane_features(features_msg, mask_img, Tic.inverse() * Ti.inverse());
+    ROS_INFO("Clustered the feature points based on %d planes", (int)points_map.size());
 
     Vector3d lgoal = Tic.inverse() * (Ti.inverse() * ggoal);
     lgoal[1] = 0.0;
@@ -170,7 +170,7 @@ void mapping_callback(
             Vector3d c_pt = Tic.inverse() * (Ti.inverse() * fpp.second[i]);
             
             Vector3d t_pt(c_pt[0], 0.0, c_pt[2]);
-            if ((c_pt.norm() <= 20) && (c_pt.norm() > 2))
+            if ((t_pt.norm() <= 15) && (c_pt.norm() > 2))
             {
                 plane_points.push_back(c_pt);
 
@@ -253,14 +253,14 @@ void mapping_callback(
 
     // ma.markers.push_back(line_list);
     // Loop through all feature points
-    for(int fi = 0; fi < features_msg->points.size(); fi++) {
-        int u = (int)features_msg->channels[0].values[fi];
-        int v = (int)features_msg->channels[1].values[fi];
+    // for(int fi = 0; fi < features_msg->points.size(); fi++) {
+    //     int u = (int)features_msg->channels[0].values[fi];
+    //     int v = (int)features_msg->channels[1].values[fi];
         
-        cv::Scalar color = hex2CvScalar(id2color(get_plane_id(u, v, mask_img)));//mask_img.at<cv::Vec3b>(v, u);
+    //     cv::Scalar color = hex2CvScalar(id2color(get_plane_id(u, v, mask_img)));//mask_img.at<cv::Vec3b>(v, u);
 
-        cv::circle(mask_img, cv::Point(u, v), 5, color, -1);
-    }
+    //     cv::circle(mask_img, cv::Point(u, v), 5, color, -1);
+    // }
 
     marker_pub.publish(line_list);
 
@@ -300,12 +300,13 @@ int main(int argc, char **argv)
     message_filters::Subscriber<sensor_msgs::Image> sub_mask(n, "/mask", 10);
     message_filters::Subscriber<sensor_msgs::Image> sub_seg(n, "/airsim_node/drone/0/Segmentation", 10);
     message_filters::Subscriber<sensor_msgs::Image> sub_depth(n, "/airsim_node/drone/0/DepthPerspective", 10);
+    message_filters::Subscriber<nav_msgs::Odometry> sub_gt_odom(n, "/airsim_node/drone/odom_local_ned", 10);
 
     typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::PointCloud, nav_msgs::Odometry, sensor_msgs::Image, sensor_msgs::Image> MySyncPolicy;
     typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image, sensor_msgs::Image, nav_msgs::Odometry> MySyncPolicyDepth;
     // ApproximateTime takes a queue size as its constructor argument, hence MySyncPolicy(10)
     message_filters::Synchronizer<MySyncPolicy> sync(MySyncPolicy(10), sub_point_cloud, sub_odometry, sub_image, sub_mask);
-    message_filters::Synchronizer<MySyncPolicyDepth> sync_depth(MySyncPolicyDepth(2), sub_depth, sub_seg, sub_odometry);
+    message_filters::Synchronizer<MySyncPolicyDepth> sync_depth(MySyncPolicyDepth(2), sub_depth, sub_seg, sub_gt_odom);
 
     // message_filters::TimeSynchronizer<sensor_msgs::PointCloud, nav_msgs::Odometry, sensor_msgs::Image, sensor_msgs::Image> sync(
     //     sub_point_cloud,
@@ -316,7 +317,7 @@ int main(int argc, char **argv)
     // );
     sync.registerCallback(boost::bind(&mapping_callback, _1, _2, _3, _4));
 
-    //sync_depth.registerCallback(boost::bind(&depth_image_callback, _1, _2, _3));
+    // sync_depth.registerCallback(boost::bind(&depth_image_callback, _1, _2, _3));
 
     // Register all publishers
     // Publish coloured point cloud
