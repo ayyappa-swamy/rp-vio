@@ -152,7 +152,8 @@ private:
   /* shot trajectory */
   std::vector<double> cubic(double a, double b, double c, double d);
   std::vector<double> quartic(double a, double b, double c, double d, double e);
-  bool computeShotTraj(Eigen::VectorXd state1, Eigen::VectorXd state2, double time_to_goal , std::vector<Eigen::Vector3d> Centers);
+  bool computeShotTraj(Eigen::VectorXd state1, Eigen::VectorXd state2, double time_to_goal , std::vector<Eigen::Vector3d> Centers , std::vector<double> radius_vector 
+    , double GroundLocation);
   double estimateHeuristic(Eigen::VectorXd x1, Eigen::VectorXd x2, double& optimal_time);
   double get_EDT_cost( float distance);
 
@@ -172,7 +173,8 @@ public:
   void reset();
   int search(Eigen::Vector3d start_pt, Eigen::Vector3d start_v, Eigen::Vector3d start_a,
                              Eigen::Vector3d end_pt, Eigen::Vector3d end_v, bool init, bool dynamic,
-                             double time_start , std::vector<Eigen::Vector3d> Centers);   // main function which starts the Kinodynamic Planner
+                             double time_start , std::vector<Eigen::Vector3d> Centers , std::vector<double> radius_vector , 
+                             double GroundLocation );   // main function which starts the Kinodynamic Planner
 
   void setEnvironment(DynamicEDTOctomap* ptr , octomap::OcTree* octomap_tree ,  octomap::AbstractOcTree* abstract_tree , octomap::point3d map_start_pt, octomap::point3d map_end_pt);
 

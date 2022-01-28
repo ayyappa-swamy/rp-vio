@@ -132,7 +132,7 @@ std::vector<Eigen::MatrixXd> Initilizer::STOMP::PerturbAstar( std::vector<Eigen:
 bool PubSTOMP_bin )
 {
 
-
+	std::default_random_engine de(time(0));
 	std::random_device rd;
     std::mt19937_64 gen(rd());
     std::uniform_int_distribution<uint64_t> dis;
@@ -184,7 +184,7 @@ bool PubSTOMP_bin )
 	Eigen::MatrixXd cov ; 
 
 	R = A_mat.transpose() *A_mat; 
-	cov = 0.005*R.inverse(); 
+	cov = 0.0005*R.inverse(); 
 
 
 	Eigen::MatrixXd mu = Eigen::MatrixXd::Zero(num_samples, 1);
@@ -228,6 +228,42 @@ bool PubSTOMP_bin )
     z_samples = eps_kz;
     z_samples.rowwise() += z_interp.transpose();
 
+
+    Eigen::Vector3d var_vector; 
+    var_vector << 0.2,0.2,0.2 ; 
+
+    /*
+
+
+    for( int i =0 ; i <  num_samples ; i++ ){
+
+    	std::normal_distribution<double> ndX( x_interp(i), var_vector.x() );
+    	std::normal_distribution<double> ndY(y_interp( i ), var_vector.y());
+    	std::normal_distribution<double> ndZ(z_samples(i), var_vector.z());
+
+
+
+    	for( int j =0 ; j <  NumTrajSamples ; j++){
+
+    		if( i == 0 || i == (num_samples -1) ){
+    			x_samples( j , i ) = x_interp(i);
+    			y_samples(j , i ) = y_interp(i);
+    			z_samples(j, i ) =z_interp(i) ; 
+
+    			break;
+    		}
+
+    		x_samples( j , i ) = ndX(de); 
+    		y_samples(j , i ) = ndY(de);
+    		z_samples(j , i ) = ndZ(de);
+    	}
+    }
+*/
+
+
+
+
+
     std::vector<Eigen::MatrixXd> STOMPTraj;
     STOMPTraj.push_back( x_samples);
     STOMPTraj.push_back( y_samples);
@@ -253,6 +289,7 @@ bool PubSTOMP_bin )
 std::vector<Eigen::MatrixXd> Initilizer::STOMP::InitSTOMP( Eigen::Vector3d Start ,  Eigen::Vector3d Goal  ,  int num_samples , ros::Publisher PubSTOMP , bool PubTraj  , 
 	int NumTrajSamples    )
 {
+	std::default_random_engine de(time(0));
 
 	std::random_device rd;
     std::mt19937_64 gen(rd());
@@ -329,7 +366,7 @@ std::vector<Eigen::MatrixXd> Initilizer::STOMP::InitSTOMP( Eigen::Vector3d Start
 	Eigen::MatrixXd cov ; 
 
 	R = A_mat.transpose() *A_mat; 
-	cov = 0.005*R.inverse(); 
+	cov = 0.0005*R.inverse(); 
 
 	// std::cout<< cov.rows() << "  " << cov.cols() <<  std::endl;
 
@@ -366,6 +403,38 @@ std::vector<Eigen::MatrixXd> Initilizer::STOMP::InitSTOMP( Eigen::Vector3d Start
     y_samples.rowwise() += y_interp.transpose();
     z_samples = eps_kz;
     z_samples.rowwise() += z_interp.transpose();
+
+    Eigen::Vector3d var_vector;
+    var_vector << 0.2,0.2,0.2;
+
+/*
+
+    for( int i =0 ; i <  num_samples ; i++ ){
+
+    	std::normal_distribution<double> ndX( x_interp(i), var_vector.x() );
+    	std::normal_distribution<double> ndY(y_interp( i ), var_vector.y());
+    	std::normal_distribution<double> ndZ(z_samples(i), var_vector.z());
+
+
+
+    	for( int j =0 ; j <  NumTrajSamples ; j++){
+
+    		if( i == 0 || i == (num_samples -1) ){
+    			x_samples( j , i ) = x_interp(i);
+    			y_samples(j , i ) = y_interp(i);
+    			z_samples(j, i ) =z_interp(i) ; 
+
+    			break;
+    		}
+
+    		x_samples( j , i ) = ndX(de); 
+    		y_samples(j , i ) = ndY(de);
+    		z_samples(j , i ) = ndZ(de);
+    	}
+    }
+
+*/
+
 
     std::vector<Eigen::MatrixXd> STOMPTraj;
     STOMPTraj.push_back( x_samples);

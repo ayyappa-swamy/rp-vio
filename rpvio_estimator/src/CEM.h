@@ -353,6 +353,9 @@ std::vector<Eigen::MatrixXd> PerturbTraj( Eigen::MatrixXd x_samples_iter , Eigen
   int num_samples , ros::Publisher SampleTraj , bool PubTraj  , int NumTrajSamples  , int iterNum  )
 {
 
+	std::default_random_engine de(time(0));
+
+
 	std::random_device rd;
     std::mt19937_64 gen(rd());
     std::uniform_int_distribution<uint64_t> dis;
@@ -435,10 +438,10 @@ std::vector<Eigen::MatrixXd> PerturbTraj( Eigen::MatrixXd x_samples_iter , Eigen
 
 	R = A_mat.transpose() *A_mat; 
 	if( iterNum > 0 ){
-	cov = (0.005/iterNum)*R.inverse(); 
+	cov = (0.0005/iterNum)*R.inverse(); 
 	}
 	else{
-		cov = 0.05*R.inverse(); 
+		cov = 0.0005*R.inverse(); 
 
 	}
 
@@ -485,6 +488,39 @@ std::vector<Eigen::MatrixXd> PerturbTraj( Eigen::MatrixXd x_samples_iter , Eigen
     z_samples.rowwise() += z_interp.transpose();
 
     // std::cout << " Got till here 456 " << std::endl ;
+
+    Eigen::Vector3d var_vector;
+    var_vector << 0.2,0.2,0.2;
+
+    /*
+
+    for( int i =0 ; i <  num_samples ; i++ ){
+
+    	std::normal_distribution<double> ndX( x_interp(i), var_vector.x() );
+    	std::normal_distribution<double> ndY(y_interp( i ), var_vector.y());
+    	std::normal_distribution<double> ndZ(z_samples(i), var_vector.z());
+
+
+
+    	for( int j =0 ; j <  NumTrajSamples ; j++){
+
+    		if( i == 0 || i == (num_samples -1) ){
+    			x_samples( j , i ) = x_interp(i);
+    			y_samples(j , i ) = y_interp(i);
+    			z_samples(j, i ) =z_interp(i) ; 
+
+    			break;
+    		}
+
+    		x_samples( j , i ) = ndX(de); 
+    		y_samples(j , i ) = ndY(de);
+    		z_samples(j , i ) = ndZ(de);
+    	}
+    }*/
+
+
+
+
 
     std::vector<Eigen::MatrixXd> STOMPTraj;
     STOMPTraj.push_back( x_samples);
@@ -550,7 +586,7 @@ std::vector<Eigen::MatrixXd> Optimization::TrajectoryOptimization::CrossEntropyO
 
 	std::vector<Eigen::MatrixXd> MeanTraj; 
 	int numTrajs = x_samples.rows();
-	int num_top_samples = int(0.5*numTrajs) ;
+	int num_top_samples = int(0.3*numTrajs) ;
 	int numPts_perTraj = x_samples.cols();
 	Eigen::Vector3d Qpt; 
 	 

@@ -11,6 +11,8 @@
 
 fast_planner::KinodynamicAstar kAstar;
 Initilizer::STOMP STOMPTrajectories ; 
+
+ros::Publisher Centervis; 
  
 Optimization::TrajectoryOptimization CEMOptim; 
 
@@ -30,7 +32,7 @@ nav_msgs::Path CEMOptimTrajectory ;
 bool status ;
 double deltaT = 0.1;  
 nav_msgs::Path AstarTrajectory;
-int numIters = 10;
+int numIters = 8;
 
 ros::Publisher AstarTraj ; 
 ros::Publisher CEMOptimPath;
@@ -43,8 +45,91 @@ Eigen::Vector3d CurState;
 
 
 int cnt =0 ;
-int NumTraj_perturb = 75;
+int NumTraj_perturb = 100;
 int NumPts_perTraj ; 
+
+
+
+void VisulizeCenters( std::vector<Eigen::Vector3d> Centers )
+{
+
+    int numObs = Centers.size();
+    int color_counter =0 ; 
+
+    Eigen::Vector3d Center; 
+    geometry_msgs::Point pt;
+    visualization_msgs::Marker marker;
+
+
+    for( int i =0 ; i < numObs ; i++){
+
+        color_counter++;
+        
+        marker.type = visualization_msgs::Marker::SPHERE;
+        marker.action = visualization_msgs::Marker::ADD;
+
+        marker.header.frame_id = "world";
+        marker.header.stamp = ros::Time();
+        marker.ns = "my_namespace";
+        marker.id = color_counter;
+
+        Center = Centers.at(i);
+
+        // std::cout << " Centers " <<  Center << " " << i << std::endl ;
+
+        pt.x = Center.x();
+        pt.y  = Center.y();
+        pt.z = Center.z() ;
+
+        marker.points.push_back(pt);
+
+
+        marker.scale.x = 0.1;
+        marker.scale.y = 0.1;
+        marker.scale.z = 0.1;
+        marker.color.a = 1; 
+        marker.color.r = 1.0 ;
+        marker.color.g = 0.5;
+        marker.color.b = 0.2*(numObs - float(color_counter))/numObs;
+        marker.pose.orientation.x = 0.0;
+        marker.pose.orientation.y = 0.0;
+        marker.pose.orientation.z = 0.0;
+        marker.pose.orientation.w = 1.0;
+
+    }
+
+    if( numObs %2 == 1){
+
+
+        pt.x = 0;
+        pt.y  = 0;
+        pt.z = 0 ;
+
+        marker.points.push_back(pt);
+
+
+        marker.scale.x = 0.1;
+        marker.scale.y = 0.1;
+        marker.scale.z = 0.1;
+        marker.color.a = 1; 
+        marker.color.r = 1.0 ; //(num_samples - float(color_counter))/num_samples;
+        marker.color.g = 0.5;
+        marker.color.b = 0.2*(numObs - float(color_counter))/numObs;
+        marker.pose.orientation.x = 0.0;
+        marker.pose.orientation.y = 0.0;
+        marker.pose.orientation.z = 0.0;
+        marker.pose.orientation.w = 1.0;
+
+
+    }
+
+    Centervis.publish(marker);
+
+
+
+
+}
+
 
 void current_state_callback2( const sensor_msgs::PointCloudConstPtr &frames_msg, const nav_msgs::OdometryConstPtr &odometry_msg )
 {
@@ -52,15 +137,31 @@ void current_state_callback2( const sensor_msgs::PointCloudConstPtr &frames_msg,
     CurState << odometry_msg->pose.pose.position.x, odometry_msg->pose.pose.position.y,
                  odometry_msg->pose.pose.position.z ; 
 
+    CurState.z() = 0 ; 
+    GoalState.z() = 0;
+
+
     double dist_since_last = (GoalState - CurState).norm();  
 
     
-    if(  ((cnt) == 0  ) || ( dist_since_last <  4.0 ) ){
+    if(  ((cnt) == 0  ) || ( dist_since_last <  1.5 ) ){
 
     
     In = true ; 
 
-	Eigen::Vector3d goal( 25.0, -5.0, 5.0 );
+	Eigen::Vector3d goal( 24.0, -5, -1 );
+
+    double DistToGoal = (CurState - goal).norm() ; 
+    bool Done = false ;
+
+    if( DistToGoal < 3.0 ){
+
+        std::cout << "*********** REACHED GOAL congratulations *******************" << std::endl ;
+        Done = true ;
+
+    }
+
+    if( !Done){
 
     Eigen::Isometry3d Tic;
 
@@ -109,6 +210,12 @@ void current_state_callback2( const sensor_msgs::PointCloudConstPtr &frames_msg,
 
 
     std::vector<Eigen::Vector3d>  Centers ;
+    std::vector<double> radius_vector; 
+    double radius; 
+    Eigen::Vector3d Ground;
+
+    double GroundLocation ;
+    double ground_dist = 100 ;  
 
     for (unsigned int i = 0; i < frames_msg->points.size(); i += 8)
     {
@@ -116,22 +223,47 @@ void current_state_callback2( const sensor_msgs::PointCloudConstPtr &frames_msg,
 
         Point center(0, 0, 0);
         std::vector<Eigen::Vector3d> vertices;
+        Eigen::Vector3d refVertex; 
+        
+        
 
         for (int vid = 0; vid < 8; vid++)
         {
             geometry_msgs::Point32 gpt =  frames_msg->points[i + vid];
             Point pt(gpt.x, gpt.y, gpt.z);
             vertices.push_back(pt);
+            refVertex << gpt.x, gpt.y, gpt.z ;
 
             center += pt;
+
+            if(gpt.y < ground_dist ){
+                ground_dist = gpt.y ;
+            }
+
         }
+
+        Ground << 0 , ground_dist , 0; 
 
         center = center/8;
         center = (Ti*Tic)*center ; 
 
+        Ground = (Ti*Tic)*Ground;  // Ground distance in world frame 
+
+
+        refVertex.z() = 0 ;
+        center.z() =0 ;
+        radius = (center - refVertex).norm(); 
+
 
         Centers.push_back(center);
+        radius_vector.push_back(radius);
+
+        GroundLocation = Ground.z() ;
+
     }
+
+
+    VisulizeCenters( Centers );
 
 
     kAstar.init( MapStart  , MapEnd , StartPose );
@@ -139,11 +271,13 @@ void current_state_callback2( const sensor_msgs::PointCloudConstPtr &frames_msg,
     if( cnt == 0 ){
 
 
-    status  = kAstar.search( StartPose ,startVel ,  startAcc , goal  , goalVel , true, false , 0.0 ,  Centers);
+    status  = kAstar.search( StartPose ,startVel ,  startAcc , goal  , goalVel , true /*true original */, false , 0.0 ,  Centers, radius_vector 
+        , GroundLocation );
     }
     else{
 
-    status  = kAstar.search( StartPose ,startVel ,  startAcc , goal  , goalVel , false, false , 0.0 ,  Centers);
+    status  = kAstar.search( StartPose ,startVel ,  startAcc , goal  , goalVel , false, false , 0.0 ,  Centers, radius_vector, 
+    GroundLocation );
 
     }
 
@@ -255,7 +389,11 @@ void current_state_callback2( const sensor_msgs::PointCloudConstPtr &frames_msg,
     GoalState <<  x_samples(0 ,numPts-1) , y_samples(0 ,numPts-1 ) , z_samples(0,numPts-1) ;
 
 
-    // kAstar.reset(); 
+    kAstar.reset(); 
+
+}
+
+
 }
 
 std::cout << cnt << std::endl ;
@@ -281,6 +419,8 @@ int main(int argc, char **argv)
     PubSTOMP = n.advertise<visualization_msgs::Marker>( "/STOMP_vis", 0 );
     CEMOptimTraj = n.advertise<visualization_msgs::Marker>( "/OptimizedTraj", 0 );
     CEMOptimPath = n.advertise<nav_msgs::Path>("/CEMPath" , 0 ); 
+
+    Centervis = n.advertise<visualization_msgs::Marker>("/CenterObs" , 0 );
 
     startVel = Eigen::Vector3d::Zero();
     startAcc = Eigen::Vector3d::Ones(); 
