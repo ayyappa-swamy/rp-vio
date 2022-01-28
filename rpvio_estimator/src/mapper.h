@@ -864,7 +864,7 @@ bool fit_cuboid_to_point_cloud(Vector4d plane_params, vector<Vector3d> points, v
     {
         Vector3d point = points[i];
 
-        if (get_absolute_point_plane_distance(point, plane_params) > 1.25)
+        if (get_absolute_point_plane_distance(point, plane_params) > 1.5)
            continue;
 
         double nd = -normal.dot(point);
@@ -931,7 +931,7 @@ bool fit_cuboid_to_point_cloud(Vector4d plane_params, vector<Vector3d> points, v
         vertices.push_back(pt);
         
         Vector3d t_pt(pt.x, 0.0, pt.z);
-        if (t_pt.norm() > 30)
+        if (t_pt.norm() > 100)
             return false;
     }
 
@@ -1192,7 +1192,7 @@ vector<int> get_s_random_indices_within_n(int n /*range (1, n)*/, int s /*requir
     return rand_ints;
 }
 
-Vector4d fit_vertical_plane(vector<Vector3d> plane_points)
+Vector4d fit_vertical_plane(vector<Vector3d> &plane_points)
 {
     MatrixXd pts_mat(plane_points.size(), 3);
     Vector4d plane_params;
@@ -1312,7 +1312,7 @@ Vector4d fit_vertical_plane_ransac(vector<Vector3d> &plane_points)
     return bestFit;
 }
 
-void get_depth_cloud(cv_bridge::CvImagePtr depth_ptr, cv_bridge::CvImagePtr mask_ptr, pcl::PointCloud<pcl::PointXYZRGB> &test_pcd, Isometry3d Ti, Isometry3d Tic)
+map<int, vector<Vector3d>> cluster_depth_cloud(cv_bridge::CvImagePtr depth_ptr, cv_bridge::CvImagePtr mask_ptr, pcl::PointCloud<pcl::PointXYZRGB> &test_pcd, Isometry3d Ti, Isometry3d Tic)
 {
     Eigen::Matrix3d K;
     K << FOCAL_LENGTH, 0, COL/2,
@@ -1321,10 +1321,11 @@ void get_depth_cloud(cv_bridge::CvImagePtr depth_ptr, cv_bridge::CvImagePtr mask
     
     cv::Mat raw_mask_img = mask_ptr->image;
     // cv::Mat mask_img = processMaskSegments(raw_mask_img);
+    map<int, vector<Vector3d>> mDenseClusters;
     
-    for (int i = 0; i < depth_ptr->image.rows; i++)
+    for (int i = 0; i < depth_ptr->image.rows; i=i+5)
     {
-        for (int j = 0; j < depth_ptr->image.cols; j++)
+        for (int j = 0; j < depth_ptr->image.cols; j=j+5)
         {
             Vector3d cpt;
             Vector2d ipt(j, i);
@@ -1340,6 +1341,8 @@ void get_depth_cloud(cv_bridge::CvImagePtr depth_ptr, cv_bridge::CvImagePtr mask
             w_pt = Ti * (Tic * cpt);
             
             cv::Vec3b colors = raw_mask_img.at<cv::Vec3b>(i, j);
+
+            int plane_id = color2id(colors[0], colors[1], colors[2]);
             
             pcl::PointXYZRGB pt;
             pt.x = w_pt.x();
@@ -1349,6 +1352,11 @@ void get_depth_cloud(cv_bridge::CvImagePtr depth_ptr, cv_bridge::CvImagePtr mask
             pt.g = colors[1];
             pt.b = colors[0];
             test_pcd.points.push_back(pt);
+
+            if ((plane_id != 0) && (plane_id != 39))// Ignore sky and ground points
+                mDenseClusters[plane_id].push_back(cpt);
         }
     }
+
+    return mDenseClusters;
 }
