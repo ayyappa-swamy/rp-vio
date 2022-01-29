@@ -184,7 +184,7 @@ bool PubSTOMP_bin )
 	Eigen::MatrixXd cov ; 
 
 	R = A_mat.transpose() *A_mat; 
-	cov = 0.0005*R.inverse(); 
+	cov = 0.005*R.inverse(); 
 
 
 	Eigen::MatrixXd mu = Eigen::MatrixXd::Zero(num_samples, 1);
@@ -366,7 +366,7 @@ std::vector<Eigen::MatrixXd> Initilizer::STOMP::InitSTOMP( Eigen::Vector3d Start
 	Eigen::MatrixXd cov ; 
 
 	R = A_mat.transpose() *A_mat; 
-	cov = 0.0005*R.inverse(); 
+	cov = 0.005*R.inverse(); 
 
 	// std::cout<< cov.rows() << "  " << cov.cols() <<  std::endl;
 

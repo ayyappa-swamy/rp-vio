@@ -6,10 +6,13 @@ project(rpvio_estimator)
 #-DEIGEN_USE_MKL_ALL")
 #set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall -g")
 
-
+LIST(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/../cmake-modules") 
 
 set(dynamicEDT3D_DIR "/home/sudarshan/octomap/lib/cmake/dynamicEDT3D/")
 set(DYNAMICEDT3D_LIBRARIES "/home/sudarshan/octomap/dynamicEDT3D/lib/libdynamicedt3d.so")
+
+set(AIRSIM_ROOT "/home/sudarshan/Planner_ws/src/AirSim" )
+
 
 find_package(catkin REQUIRED COMPONENTS
     pcl_conversions
@@ -24,6 +27,15 @@ find_package(catkin REQUIRED COMPONENTS
     tf
     cv_bridge
     )
+
+include_directories(
+  ${AIRSIM_ROOT}/HelloDrone
+  ${AIRSIM_ROOT}/AirLib/include
+  ${RPC_LIB_INCLUDES}
+  ${AIRSIM_ROOT}/MavLinkCom/include
+  ${AIRSIM_ROOT}/MavLinkCom/common_utils
+)
+
 
 find_package(OpenCV REQUIRED)
 find_package(dynamicEDT3D )
@@ -89,7 +101,7 @@ add_executable(rpvio_estimator
 target_link_libraries(rpvio_estimator ${catkin_LIBRARIES} ${OpenCV_LIBS} ${CERES_LIBRARIES}) 
 target_link_libraries(rpvio_mapper ${catkin_LIBRARIES} ${OpenCV_LIBS} ${CERES_LIBRARIES} ${PCL_LIBRARIES}) 
 #target_link_libraries(rpvio_planner ${catkin_LIBRARIES} ${OpenCV_LIBS} ${CERES_LIBRARIES}) 
-target_link_libraries(CEMPlanner ${catkin_LIBRARIES} ${OpenCV_LIBS} ${CERES_LIBRARIES} ${DYNAMICEDT3D_LIBRARIES}  ) 
+target_link_libraries(CEMPlanner ${catkin_LIBRARIES} ${OpenCV_LIBS} ${CERES_LIBRARIES} ${DYNAMICEDT3D_LIBRARIES}  AirLib ${RPC_LIB} ) 
 
 
 catkin_install_python(PROGRAMS 

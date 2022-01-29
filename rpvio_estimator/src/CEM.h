@@ -659,7 +659,7 @@ std::vector<Eigen::MatrixXd> Optimization::TrajectoryOptimization::CrossEntropyO
 
 		TopIndices = GetIndex( MMD_cost , num_top_samples );
 
-		// std::cout << " Got index " << std::endl;
+		std::cout << " Got index " << std::endl;
 
 		MeanTraj = UpdateMeanTraj( TopIndices , x_samples  ,  y_samples , z_samples , num_top_samples , numPts_perTraj );
 
@@ -667,17 +667,18 @@ std::vector<Eigen::MatrixXd> Optimization::TrajectoryOptimization::CrossEntropyO
 		temp_y_samples = MeanTraj.at(1);
 		temp_z_samples = MeanTraj.at(2); 
 
-				// std::cout << " Got Mean " << std::endl;
+				std::cout << " Got Mean " << std::endl;
 
 
 
 		temp_x_samples(0 , 0 )=  x_samples(0,0) ; 
 		temp_y_samples(0,0) =   y_samples(0,0) ; 
 		temp_z_samples(0 ,0 ) =  z_samples( 0,0 ) ; 
-
+/*
 		temp_x_samples(0, numPts_perTraj -1 ) = x_samples( 0,numPts_perTraj-1 );
 		temp_y_samples(0, numPts_perTraj -1 ) = y_samples(0 , numPts_perTraj -1);
 		temp_z_samples(0, numPts_perTraj -1 ) = z_samples(0, numPts_perTraj -1) ;
+*/
 
 		VisOptimTraj( temp_x_samples ,  temp_y_samples  , temp_z_samples  ,  OptimTraj);
 				// std::cout << " Got vis " << std::endl;

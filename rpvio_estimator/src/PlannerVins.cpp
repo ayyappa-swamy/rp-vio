@@ -6,7 +6,13 @@
 #include "planner.h"
 #include"STOMP.h"
 #include"CEM.h"
+#include <iostream>
+#include "vehicles/multirotor/api/MultirotorRpcLibClient.hpp"
+#include <string>
 
+std::string ip ; 
+// ip.push_back( '10.2.36.227' ) ; 
+// extern /;
 
 
 fast_planner::KinodynamicAstar kAstar;
@@ -42,11 +48,12 @@ bool In= true ;
 
 Eigen::Vector3d GoalState;
 Eigen::Vector3d CurState; 
-
+Eigen::Vector3d PrevState ;
 
 int cnt =0 ;
 int NumTraj_perturb = 100;
 int NumPts_perTraj ; 
+bool Remap = false ;
 
 
 
@@ -125,10 +132,9 @@ void VisulizeCenters( std::vector<Eigen::Vector3d> Centers )
 
     Centervis.publish(marker);
 
-
-
-
 }
+
+
 
 
 void current_state_callback2( const sensor_msgs::PointCloudConstPtr &frames_msg, const nav_msgs::OdometryConstPtr &odometry_msg )
@@ -137,14 +143,27 @@ void current_state_callback2( const sensor_msgs::PointCloudConstPtr &frames_msg,
     CurState << odometry_msg->pose.pose.position.x, odometry_msg->pose.pose.position.y,
                  odometry_msg->pose.pose.position.z ; 
 
-    CurState.z() = 0 ; 
-    GoalState.z() = 0;
+    // CurState.z() = 0 ; 
+    // GoalState.z() = 0;
+ 
 
 
-    double dist_since_last = (GoalState - CurState).norm();  
+
+
+    double distTravelled = (CurState - PrevState ).norm() ;
+
+    PrevState = CurState ;
+
+
+    double dist_since_last = (GoalState - CurState).norm();   // distance between current pose and local goal 
 
     
     if(  ((cnt) == 0  ) || ( dist_since_last <  1.5 ) ){
+
+
+
+        std::cout << distTravelled <<  "  " << " Replanning " <<  std::endl ;
+        std::cout << dist_since_last << " " << "dist_since_last" << std::endl;
 
     
     In = true ; 
@@ -200,7 +219,7 @@ void current_state_callback2( const sensor_msgs::PointCloudConstPtr &frames_msg,
     Eigen::Vector3d local_goal_dir = local_goal.normalized();
 
     Eigen::Vector3d MapStart  ; 
-    MapStart << -10 , -10 , -10 ; 
+    MapStart << -100 , -100 , -100 ; 
     Eigen::Vector3d MapEnd ; 
     MapEnd << 100 , 100 , 100 ; 
 
@@ -380,8 +399,6 @@ void current_state_callback2( const sensor_msgs::PointCloudConstPtr &frames_msg,
 
 
 
-
-
     std::cout << " Start " << " " << x_samples(0, 0 ) << " " << y_samples(0 ,0 ) << " " << z_samples(0,0) << std::endl; 
     std::cout << " End " << "  " << x_samples(0 ,numPts-1) << " " << y_samples(0 ,numPts-1 ) << " " << z_samples(0,numPts-1) << std::endl; 
     std::cout << " ---------------------------" << std::endl;
@@ -426,6 +443,8 @@ int main(int argc, char **argv)
     startAcc = Eigen::Vector3d::Ones(); 
     goalVel  = Eigen::Vector3d::Zero();
 
+    PrevState = Eigen::Vector3d::Zero();
+
     AstarTraj = n.advertise<nav_msgs::Path>( "/AstarTraj", 0 );
     kAstar.setParam(n);
 
@@ -433,13 +452,18 @@ int main(int argc, char **argv)
 
 
 
+
+
     message_filters::TimeSynchronizer<sensor_msgs::PointCloud, nav_msgs::Odometry> sync2(
         sub_frame_cloud,
-        sub_odometry,
+        sub_odometry, 
         100);
     
   
     sync2.registerCallback(boost::bind(&current_state_callback2, _1, _2));
+
+    // ros::Timer timer = nh.createTimer(ros::Duration(1), timerCallback);
+
 
 	
 

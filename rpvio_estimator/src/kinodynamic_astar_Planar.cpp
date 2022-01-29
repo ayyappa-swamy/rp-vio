@@ -62,7 +62,7 @@ std::vector<double> radius_vector , double GroundLocation  )
   for( int i =0 ;i < distances.size() ; i++){
 
     dist = distances.at(i); 
-    dist -=  radius_vector.at(i)/4 ; 
+    dist -=  radius_vector.at(i) /4; 
     distances.at(i) = (dist);
   }
 
@@ -174,7 +174,7 @@ int fast_planner::KinodynamicAstar::search(Eigen::Vector3d start_pt, Eigen::Vect
     iter_num_ += 1;
 
     /* ---------- init state propagation ---------- */
-    double res = 1 / 4.0 /*1/4*/, time_res = 1 / 1.0, time_res_init = 1 / 8.0; 
+    double res = 1 / 2.0 /*1/4*/, time_res = 1 / 1.0, time_res_init = 1 / 8.0; 
 
     Eigen::Matrix<double, 6, 1> cur_state = cur_node->state;
     Eigen::Matrix<double, 6, 1> pro_state;
@@ -184,6 +184,8 @@ int fast_planner::KinodynamicAstar::search(Eigen::Vector3d start_pt, Eigen::Vect
 
     vector<Eigen::Vector3d> inputs;
     vector<double>          durations;
+
+    // max_acc_ = 2*max_acc_; 
 
     if (init_search) {
       inputs.push_back(start_acc_); // if the searching is initialized now, push the start acceleration in the input vector
@@ -334,7 +336,7 @@ int fast_planner::KinodynamicAstar::search(Eigen::Vector3d start_pt, Eigen::Vect
         /* ---------- compute cost ---------- */
         double time_to_goal, tmp_g_score, tmp_f_score;
         tmp_g_score = (um.squaredNorm() + w_time_) * tau + cur_node->g_score;
-        tmp_f_score = tmp_g_score + lambda_heu_ * estimateHeuristic(pro_state, end_state, time_to_goal) -dist_cost   ;
+        tmp_f_score = tmp_g_score + lambda_heu_ * estimateHeuristic(pro_state, end_state, time_to_goal) - 3*dist_cost   ;
         
         /* ---------- compare expanded node in this loop ---------- */
 
@@ -414,13 +416,13 @@ void fast_planner::KinodynamicAstar::setParam(ros::NodeHandle& nh) {
   nh.param("search/max_vel", max_vel_, 2.0);
   nh.param("search/max_acc", max_acc_, 2.5); //3 
   nh.param("search/w_time", w_time_, 10.0);
-  nh.param("search/horizon", horizon_, 2.0);
+  nh.param("search/horizon", horizon_, 3.0);
   nh.param("search/resolution_astar", resolution_, 0.05);
   nh.param("search/time_resolution", time_resolution_, 0.8);
-  nh.param("search/lambda_heu", lambda_heu_, 1.0);
-  nh.param("search/margin", margin_, 0.1);
+  nh.param("search/lambda_heu", lambda_heu_, 5.0);
+  nh.param("search/margin", margin_, 0.5);
   nh.param("search/allocate_num", allocate_num_, 100000);
-  nh.param("search/check_num", check_num_, 3);
+  nh.param("search/check_num", check_num_, 5);
 
   cout << "margin:" << margin_ << endl;
   cout << "allocate num:" << allocate_num_ << endl;
