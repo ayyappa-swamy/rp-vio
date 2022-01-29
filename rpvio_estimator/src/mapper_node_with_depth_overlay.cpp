@@ -8,11 +8,133 @@ sensor_msgs::PointField getFieldWithName(string name)
     return pf;
 }
 
+void depth_image_callback(
+        const sensor_msgs::ImageConstPtr &depth_msg, 
+        const sensor_msgs::ImageConstPtr &mask_msg,
+        const nav_msgs::OdometryConstPtr &odometry_msg
+)
+{
+    sensor_msgs::PointCloud2 test_cloud;
+
+    pcl::PointCloud<pcl::PointXYZRGB> test_pcd;
+
+    cv_bridge::CvImagePtr depth_ptr = cv_bridge::toCvCopy(depth_msg);
+    cv_bridge::CvImagePtr mask_ptr = cv_bridge::toCvCopy(mask_msg);
+
+    // std::cout << "Encoding of depth image is " << depth_msg->encoding << std::endl;
+
+    Isometry3d Tic;
+    Tic.linear() = RIC[0];
+    Tic.translation() = TIC[0];
+
+    Vector3d trans;
+    trans <<
+        odometry_msg->pose.pose.position.x,
+        odometry_msg->pose.pose.position.y,
+        odometry_msg->pose.pose.position.z;
+
+    double quat_x = odometry_msg->pose.pose.orientation.x;
+    double quat_y = odometry_msg->pose.pose.orientation.y;
+    double quat_z = odometry_msg->pose.pose.orientation.z;
+    double quat_w = odometry_msg->pose.pose.orientation.w;
+    Quaterniond quat(quat_w, quat_x, quat_y, quat_z);
+
+    Isometry3d Ti;
+    Ti.linear() = quat.normalized().toRotationMatrix();
+    Ti.translation() = trans;
+
+    map<int, vector<Vector3d>> dense_clusters = cluster_depth_cloud(depth_ptr, mask_ptr, test_pcd, Ti, Tic);
+
+    pcl::toROSMsg(test_pcd, test_cloud);
+    test_cloud.header = odometry_msg->header;
+    dense_pub.publish(test_cloud);
+    
+    sensor_msgs::PointCloud frame_cloud;
+    frame_cloud.header = odometry_msg->header;
+    sensor_msgs::ChannelFloat32 plane_id_ch;
+    
+    visualization_msgs::MarkerArray ma;
+
+    Vector3d vertical(0, 1, 0);
+
+    if (dense_clusters.size() == 0)
+        return;
+
+    visualization_msgs::Marker line_list;
+    line_list.header = odometry_msg->header;
+    line_list.pose.orientation.w = 1.0;
+
+    line_list.id = 2;
+    line_list.type = visualization_msgs::Marker::LINE_LIST;
+
+    line_list.scale.x = 0.08;
+
+    line_list.color.r = 1.0;
+    line_list.color.a = 1.0;
+
+    // Print number of features per plane
+    for (auto & cluster: dense_clusters)
+    {
+        ROS_INFO("Number of features in plane id %d are %d", cluster.first, (int)cluster.second.size());
+
+        int max_points = min((int)2000, (int)cluster.second.size());
+        vector<Vector3d> plane_points;
+
+        for (int c = 0; c < max_points; c++)
+        {
+            plane_points.push_back(cluster.second[c]);    
+        }
+
+        if (plane_points.size() < 5)
+            continue;
+
+        vector<geometry_msgs::Point> vertices;
+
+        Vector3d normal;
+        double d = 0.0;
+
+        Vector4d params;
+        params = fit_vertical_plane_ransac(plane_points);
+        normal = params.head<3>();
+        d = params[3];
+
+        if ((normal.norm() > 0.001) && (fabs(params[3]) > 0.001))
+        {
+            Vector4d normed_params(normal[0], normal[1], normal[2], d);
+
+            if (fabs(normal.dot(vertical)) < 0.5)
+            {             
+                vector<Vector3d> vp_normals;
+                if (fit_cuboid_to_point_cloud(normed_params, plane_points, vertices, vp_normals))
+                {
+                    create_cuboid_frame(vertices, line_list, (Ti * Tic));
+
+                    for (int vid = 0; vid < vertices.size(); vid++)
+                    {
+                        frame_cloud.points.push_back(pointToPoint32(vertices[vid]));
+                        plane_id_ch.values.push_back(cluster.first);
+                    }
+                }
+                else {
+                    ROS_INFO("Not plotting cuboid %d with params %f %f %f %f", cluster.first, normed_params[0], normed_params[1], normed_params[2], normed_params[3]);
+                }
+            }
+        }
+    }
+
+    marker_pub.publish(line_list);
+
+    // Process a particular plane id
+    frame_cloud.channels.push_back(plane_id_ch);
+    frame_pub.publish(frame_cloud);
+}
+
 void mapping_callback(
     const sensor_msgs::PointCloudConstPtr &features_msg,
     const nav_msgs::OdometryConstPtr &odometry_msg,
     const sensor_msgs::ImageConstPtr &img_msg,
-    const sensor_msgs::ImageConstPtr &mask_msg
+    const sensor_msgs::ImageConstPtr &mask_msg,
+    const sensor_msgs::ImageConstPtr &depth_msg
 )
 {
     Vector3d ggoal(25.0, -5.0, 2.5); 
@@ -59,6 +181,13 @@ void mapping_callback(
     Isometry3d Ti;
     Ti.linear() = quat.normalized().toRotationMatrix();
     Ti.translation() = trans;
+
+    cv_bridge::CvImagePtr depth_ptr = cv_bridge::toCvCopy(depth_msg);
+    map<int, vector<Vector3d>> dense_clusters = cluster_depth_cloud(depth_ptr, mask_ptr, test_pcd2, Ti, Tic);
+
+    pcl::toROSMsg(test_pcd2, test_cloud2);
+    test_cloud2.header = odometry_msg->header;
+    dense_pub.publish(test_cloud2);
 
     cv::Mat mask_img = processMaskSegments(raw_mask_img);
     map<int, vector<Vector3d>> points_map = cluster_plane_features(features_msg, mask_img, Tic.inverse() * Ti.inverse());
@@ -183,6 +312,8 @@ void mapping_callback(
         params = fit_vertical_plane_ransac(plane_points);
         normal = params.head<3>();
 
+        Vector4d gt_params = fit_vertical_plane_ransac(dense_clusters[fpp.first]);
+
         if ((normal.norm() > 0.001) && (fabs(params[3]) > 0.001))
         {
             Vector4d normed_params(normal[0], normal[1], normal[2], d);
@@ -193,6 +324,8 @@ void mapping_callback(
                 {
                     create_cuboid_frame(vertices, line_list, (Ti * Tic));
                     //write_estimated_normal_error(normal , vp_normals /*ground truth*/);
+                    
+                    write_normal_and_distance_errors(params, gt_params, fpp.first, plane_points.size(), dense_clusters[fpp.first].size());
 
                     for (int vid = 0; vid < vertices.size(); vid++)
                     {
@@ -245,10 +378,15 @@ int main(int argc, char **argv)
     message_filters::Subscriber<nav_msgs::Odometry> sub_odometry(n, "/odometry", 100);
     message_filters::Subscriber<sensor_msgs::Image> sub_image(n, "/image", 10);
     message_filters::Subscriber<sensor_msgs::Image> sub_mask(n, "/mask", 10);
+    message_filters::Subscriber<sensor_msgs::Image> sub_seg(n, "/airsim_node/drone/0/Segmentation", 10);
+    message_filters::Subscriber<sensor_msgs::Image> sub_depth(n, "/airsim_node/drone/0/DepthPerspective", 10);
+    message_filters::Subscriber<nav_msgs::Odometry> sub_gt_odom(n, "/airsim_node/drone/odom_local_ned", 10);
 
-    typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::PointCloud, nav_msgs::Odometry, sensor_msgs::Image, sensor_msgs::Image> MySyncPolicy;
+    typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::PointCloud, nav_msgs::Odometry, sensor_msgs::Image, sensor_msgs::Image, sensor_msgs::Image> MySyncPolicy;
+    typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image, sensor_msgs::Image, nav_msgs::Odometry> MySyncPolicyDepth;
     // ApproximateTime takes a queue size as its constructor argument, hence MySyncPolicy(10)
-    message_filters::Synchronizer<MySyncPolicy> sync(MySyncPolicy(10), sub_point_cloud, sub_odometry, sub_image, sub_mask);
+    message_filters::Synchronizer<MySyncPolicy> sync(MySyncPolicy(10), sub_point_cloud, sub_odometry, sub_image, sub_mask, sub_depth);
+    message_filters::Synchronizer<MySyncPolicyDepth> sync_depth(MySyncPolicyDepth(2), sub_depth, sub_seg, sub_odometry);
 
     // message_filters::TimeSynchronizer<sensor_msgs::PointCloud, nav_msgs::Odometry, sensor_msgs::Image, sensor_msgs::Image> sync(
     //     sub_point_cloud,
@@ -257,7 +395,9 @@ int main(int argc, char **argv)
     //     sub_mask,
     //     2000
     // );
-    sync.registerCallback(boost::bind(&mapping_callback, _1, _2, _3, _4));
+    sync.registerCallback(boost::bind(&mapping_callback, _1, _2, _3, _4, _5));
+
+    // sync_depth.registerCallback(boost::bind(&depth_image_callback, _1, _2, _3));
 
     // Register all publishers
     // Publish coloured point cloud
@@ -267,6 +407,7 @@ int main(int argc, char **argv)
     cent_pub = n.advertise<sensor_msgs::PointCloud>("centroid_cloud", 100);
     lgoal_pub = n.advertise<sensor_msgs::PointCloud>("local_goal", 100);
     frame_pub2 = n.advertise<sensor_msgs::PointCloud2>("frame_cloud2", 100);
+    dense_pub = n.advertise<sensor_msgs::PointCloud2>("dense_cloud", 5);
     masked_im_pub = n.advertise<sensor_msgs::Image>("masked_image", 10);
     marker_pub = n.advertise<visualization_msgs::Marker>("cuboids", 10);
     // ma_pub = n.advertise<visualization_msgs::MarkerArray>("centroid_segs", 100);

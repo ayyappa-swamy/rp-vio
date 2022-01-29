@@ -931,7 +931,7 @@ bool fit_cuboid_to_point_cloud(Vector4d plane_params, vector<Vector3d> points, v
         vertices.push_back(pt);
         
         Vector3d t_pt(pt.x, 0.0, pt.z);
-        if (t_pt.norm() > 100)
+        if (t_pt.norm() > 50)
             return false;
     }
 
@@ -1172,6 +1172,18 @@ void write_estimated_normal_error(Vector3d estimated_normal, vector<Vector3d> gt
     ofstream file("estim_error.txt", std::ios_base::app);
 
     file << error << std::endl;
+
+    file.close();
+}
+
+void write_normal_and_distance_errors(Vector4d est_params, Vector4d gt_params, int plane_id, int est_num_of_points, int gt_num_of_points)
+{
+    ofstream file("plane_error.txt", std::ios_base::app);
+
+    double normal_error = fabs(est_params.head<3>().normalized().dot(gt_params.head<3>().normalized()));
+    double offset_error = fabs(fabs(est_params[3]) - fabs(gt_params[3]));
+
+    file << plane_id << " " << normal_error << " " << offset_error << " " << fabs(gt_params[3]) << " " << est_num_of_points << " " << gt_num_of_points << std::endl;
 
     file.close();
 }
