@@ -167,7 +167,7 @@ void mapping_callback(
             Vector3d c_pt = Tic.inverse() * (Ti.inverse() * fpp.second[i]);
 
             Vector3d t_pt(c_pt[0], 0.0, c_pt[2]);
-            if ((t_pt.norm() <= 15) && (c_pt.norm() > 2))
+            if ((t_pt.norm() <= 30) && (c_pt.norm() > 2))
             {
                 plane_points.push_back(c_pt);
 
@@ -299,7 +299,7 @@ int main(int argc, char **argv)
     message_filters::Subscriber<sensor_msgs::PointCloud> sub_point_cloud(n, "/point_cloud", 100);
     message_filters::Subscriber<nav_msgs::Odometry> sub_odometry(n, "/odometry", 100);
     message_filters::Subscriber<sensor_msgs::Image> sub_image(n, "/image", 10);
-    message_filters::Subscriber<sensor_msgs::Image> sub_mask(n, "/mask", 10);
+    message_filters::Subscriber<sensor_msgs::Image> sub_mask(n, "/plane_mask", 10);
     message_filters::Subscriber<sensor_msgs::Image> sub_seg(n, "/airsim_node/drone/0/Segmentation", 10);
     message_filters::Subscriber<sensor_msgs::Image> sub_depth(n, "/airsim_node/drone/0/DepthPerspective", 10);
     message_filters::Subscriber<nav_msgs::Odometry> sub_gt_odom(n, "/airsim_node/drone/odom_local_ned", 10);

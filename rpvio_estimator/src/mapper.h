@@ -864,7 +864,7 @@ bool fit_cuboid_to_point_cloud(Vector4d plane_params, vector<Vector3d> points, v
     {
         Vector3d point = points[i];
 
-        if (get_absolute_point_plane_distance(point, plane_params) > 1.25)
+        if (get_absolute_point_plane_distance(point, plane_params) > 1.5)
            continue;
 
         double nd = -normal.dot(point);
@@ -931,7 +931,7 @@ bool fit_cuboid_to_point_cloud(Vector4d plane_params, vector<Vector3d> points, v
         vertices.push_back(pt);
         
         Vector3d t_pt(pt.x, 0.0, pt.z);
-        if (t_pt.norm() > 50)
+        if (t_pt.norm() > 75)
             return false;
     }
 
