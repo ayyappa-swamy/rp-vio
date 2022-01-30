@@ -129,6 +129,8 @@ def resize_image(image, min_dim=None, max_dim=None, padding=False, interp='bilin
     scale: The scale factor used to resize the image
     padding: Padding added to the image [(top, bottom), (left, right), (0, 0)]
     """
+
+    print('hiii')
     ## Default window (y1, x1, y2, x2) and default scale == 1.
     h, w = image.shape[:2]
     window = (0, 0, h, w)
@@ -143,6 +145,7 @@ def resize_image(image, min_dim=None, max_dim=None, padding=False, interp='bilin
         image_max = max(h, w)
         if round(image_max * scale) > max_dim:
             scale = max_dim / image_max
+    print(scale)
     ## Resize image and mask
     if scale != 1:
         image = cv2.resize(image, (image.shape[1] * scale, image.shape[0] * scale))
