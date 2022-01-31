@@ -49,6 +49,7 @@
 #include <string>
 #include <sstream>
 #include <random>
+#include <chrono>
 
 #include <stdio.h>
 #include <queue>
@@ -816,6 +817,7 @@ Vector3d project_point_to_plane(Vector3d point, Vector4d plane)
 
 void compute_vertices_from_planes(Vector3d bound_point, vector<Vector4d> bound_planes, vector<Vector3d> &vertices)
 {
+    auto t_start = std::chrono::high_resolution_clock::now();
     // Assuming planes are in this order: left, right, front back
 
     // There are four bound planes assuming they are vertical
@@ -838,10 +840,16 @@ void compute_vertices_from_planes(Vector3d bound_point, vector<Vector4d> bound_p
     vertices.push_back(left_back);
     vertices.push_back(right_front);
     vertices.push_back(right_back);
+
+    auto t_end = std::chrono::high_resolution_clock::now();
+    double elapsed_time_ms = std::chrono::duration<double, std::milli>(t_end-t_start).count();
+    ROS_INFO("time taken for computing plane vertices is %g ms", elapsed_time_ms);
 }
 
 bool fit_cuboid_to_point_cloud(Vector4d plane_params, vector<Vector3d> points, vector<geometry_msgs::Point> &vertices, vector<Vector3d> &normal_vectors)
 {
+    auto t_start = std::chrono::high_resolution_clock::now();
+
     Vector3d normal = plane_params.head<3>(); 
     Vector3d vertical(0, 1, 0);
     Vector3d horizontal = normal.cross(vertical).normalized();
@@ -934,6 +942,10 @@ bool fit_cuboid_to_point_cloud(Vector4d plane_params, vector<Vector3d> points, v
         if (t_pt.norm() > 50)
             return false;
     }
+
+    auto t_end = std::chrono::high_resolution_clock::now();
+    double elapsed_time_ms = std::chrono::duration<double, std::milli>(t_end-t_start).count();
+    ROS_INFO("time taken for cuboid fitting is %g ms", elapsed_time_ms);
 
     return true;
 }
@@ -1054,6 +1066,7 @@ map<int, vector<Vector3d>> cluster_plane_features(
 
 map<int, Vector3d> draw_vp_lines(cv::Mat &gray_img, cv::Mat &mask, vector<Vector3d> &evps, vector<Vector3d> &normal_vectors)
 {   
+    auto t_start = std::chrono::high_resolution_clock::now();
     Eigen::Matrix3d K;
     K << FOCAL_LENGTH, 0, COL/2,
         0, FOCAL_LENGTH, ROW/2,
@@ -1107,6 +1120,10 @@ map<int, Vector3d> draw_vp_lines(cv::Mat &gray_img, cv::Mat &mask, vector<Vector
 		
         plane_normals[normal_id.first] = normal_vectors[normal_id.second].normalized();
 	}
+
+    auto t_end = std::chrono::high_resolution_clock::now();
+    double elapsed_time_ms = std::chrono::duration<double, std::milli>(t_end-t_start).count();
+    ROS_INFO("time taken for vanishing point computation is %g ms", elapsed_time_ms);
 
     return plane_normals;
 }
@@ -1267,6 +1284,7 @@ Vector4d fit_vertical_plane_to_indices(vector<int> &indices, vector<Vector3d> &p
  */
 Vector4d fit_vertical_plane_ransac(vector<Vector3d> &plane_points)
 {
+    auto t_start = std::chrono::high_resolution_clock::now();
     // Implement ransac for vertical planes
     // For each iteration:
     //      choose two random indices (as the plane is vertical, we just need two points)
@@ -1320,6 +1338,11 @@ Vector4d fit_vertical_plane_ransac(vector<Vector3d> &plane_points)
             }
         // }
     }
+
+
+    auto t_end = std::chrono::high_resolution_clock::now();
+    double elapsed_time_ms = std::chrono::duration<double, std::milli>(t_end-t_start).count();
+    ROS_INFO("time taken for RANSAC is %g ms", elapsed_time_ms);
 
     return bestFit;
 }
