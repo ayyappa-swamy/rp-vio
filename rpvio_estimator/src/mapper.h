@@ -874,7 +874,7 @@ bool fit_cuboid_to_point_cloud(Vector4d plane_params, vector<Vector3d> points, v
     {
         Vector3d point = points[i];
 
-        if (get_absolute_point_plane_distance(point, plane_params) > 0.75)
+        if (get_absolute_point_plane_distance(point, plane_params) > 1.25)
            continue;
 
         double nd = -normal.dot(point);
@@ -941,7 +941,7 @@ bool fit_cuboid_to_point_cloud(Vector4d plane_params, vector<Vector3d> points, v
         vertices.push_back(pt);
         
         Vector3d t_pt(pt.x, 0.0, pt.z);
-        if (t_pt.norm() > 30)
+        if (t_pt.norm() > 35)
             return false;
     }
 
@@ -1295,7 +1295,7 @@ Vector4d fit_vertical_plane_ransac(vector<Vector3d> &plane_points)
     int N = (int)(log(1 - p) / log(1 - pow(1 - e, s)));
     N++;
 
-    double plane_distance_threshold = 0.75;
+    double plane_distance_threshold = 1.25;
 
     int bestNumOfInliers = 4;
     Vector4d bestFit;
@@ -1318,8 +1318,8 @@ Vector4d fit_vertical_plane_ransac(vector<Vector3d> &plane_points)
             }
         }
 
-        if ((alsoInliers.size() >= bestNumOfInliers))
-        {
+        // if ((alsoInliers.size() >= bestNumOfInliers))
+        // {
             maybeInliers.insert(maybeInliers.end(), alsoInliers.begin(), alsoInliers.end());
             Vector4d betterModel = fit_vertical_plane_to_indices(maybeInliers, plane_points);
             double currentError = get_plane_inliers_error(maybeInliers, plane_points, betterModel);
@@ -1330,7 +1330,7 @@ Vector4d fit_vertical_plane_ransac(vector<Vector3d> &plane_points)
                 bestError = currentError;
                 bestNumOfInliers = alsoInliers.size();
             }
-        }
+        // }
     }
 
 

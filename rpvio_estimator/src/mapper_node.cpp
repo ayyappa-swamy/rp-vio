@@ -132,7 +132,7 @@ void mapping_callback(
             Vector3d c_pt = Tic.inverse() * (Ti.inverse() * w_pt);
             
             Vector3d t_pt(c_pt[0], 0.0, c_pt[2]);
-            if ((c_pt.norm() <= 10) && (c_pt.norm() > 2))
+            if ((t_pt.norm() <= 35) && (c_pt.norm() > 2))
             {
                 plane_points.push_back(c_pt);
 
@@ -188,7 +188,7 @@ void mapping_callback(
 
         if ((normal.norm() > 0.001) && (fabs(params[3]) > 0.001))
         {
-            Vector4d normed_params(normal[0], normal[1], normal[2], d);
+            Vector4d normed_params(normal[0], normal[1], normal[2], params[3]);
 
             if (fabs(normal.dot(vertical)) < 0.5)
             {             
