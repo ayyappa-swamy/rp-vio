@@ -9,6 +9,8 @@
 #include <iostream>
 #include "vehicles/multirotor/api/MultirotorRpcLibClient.hpp"
 #include <string>
+#include <chrono>
+#include <thread>
 
 std::string ip ; 
 // ip.push_back( '10.2.36.227' ) ; 
@@ -51,7 +53,7 @@ Eigen::Vector3d CurState;
 Eigen::Vector3d PrevState ;
 
 int cnt =0 ;
-int NumTraj_perturb = 100;
+int NumTraj_perturb = 500;
 int NumPts_perTraj ; 
 bool Remap = false ;
 
@@ -158,7 +160,7 @@ void current_state_callback2( const sensor_msgs::PointCloudConstPtr &frames_msg,
     double dist_since_last = (GoalState - CurState).norm();   // distance between current pose and local goal 
 
     
-    if(  ((cnt) == 0  ) || ( dist_since_last <  1.5 ) ){
+    if(  ((cnt) == 0  ) || ( dist_since_last <  1.0 ) ){
 
 
 
@@ -282,7 +284,7 @@ void current_state_callback2( const sensor_msgs::PointCloudConstPtr &frames_msg,
     }
 
 
-    VisulizeCenters( Centers );
+    // VisulizeCenters( Centers );
 
 
     kAstar.init( MapStart  , MapEnd , StartPose );
@@ -394,6 +396,8 @@ void current_state_callback2( const sensor_msgs::PointCloudConstPtr &frames_msg,
 
         CEMOptimTrajectory.header.frame_id = "world";
     }
+
+    std::this_thread::sleep_for(std::chrono::seconds(5));
 
     CEMOptimPath.publish(CEMOptimTrajectory);
 

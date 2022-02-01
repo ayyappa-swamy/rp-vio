@@ -438,7 +438,7 @@ std::vector<Eigen::MatrixXd> PerturbTraj( Eigen::MatrixXd x_samples_iter , Eigen
 
 	R = A_mat.transpose() *A_mat; 
 	if( iterNum > 0 ){
-	cov = (0.0005/iterNum)*R.inverse(); 
+	cov = (0.00005/iterNum)*R.inverse(); 
 	}
 	else{
 		cov = 0.0005*R.inverse(); 
@@ -453,7 +453,7 @@ std::vector<Eigen::MatrixXd> PerturbTraj( Eigen::MatrixXd x_samples_iter , Eigen
 
     Eigen::EigenMultivariateNormal<double> *normX_solver = new Eigen::EigenMultivariateNormal<double>(mu, 0.5*cov, true, dis(gen));
     Eigen::EigenMultivariateNormal<double> *normY_solver = new Eigen::EigenMultivariateNormal<double>(mu, 0.5*cov, true, dis(gen));
-    Eigen::EigenMultivariateNormal<double> *normZ_solver = new Eigen::EigenMultivariateNormal<double>(mu, 0.3*cov, true, dis(gen));
+    Eigen::EigenMultivariateNormal<double> *normZ_solver = new Eigen::EigenMultivariateNormal<double>(mu, 0.5*cov, true, dis(gen));
 
 
     Eigen::MatrixXd eps_kx = normX_solver->samples(NumTrajSamples).transpose();
@@ -586,7 +586,7 @@ std::vector<Eigen::MatrixXd> Optimization::TrajectoryOptimization::CrossEntropyO
 
 	std::vector<Eigen::MatrixXd> MeanTraj; 
 	int numTrajs = x_samples.rows();
-	int num_top_samples = int(0.3*numTrajs) ;
+	int num_top_samples = int(0.25*numTrajs) ;
 	int numPts_perTraj = x_samples.cols();
 	Eigen::Vector3d Qpt; 
 	 
