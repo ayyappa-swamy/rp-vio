@@ -103,6 +103,8 @@ ros::Publisher lgoal_pub;
 ros::Publisher dense_pub;
 
 map<double, vector<Vector4d>> plane_measurements;
+map<int, set<int>> mPlaneFeatureIds;
+map<int, Vector3d> mFeatures;
 
 /**
  * Implements vector1.dot(vector2) == 0 constraint
@@ -872,7 +874,7 @@ bool fit_cuboid_to_point_cloud(Vector4d plane_params, vector<Vector3d> points, v
     {
         Vector3d point = points[i];
 
-        if (get_absolute_point_plane_distance(point, plane_params) > 1.5)
+        if (get_absolute_point_plane_distance(point, plane_params) > 0.75)
            continue;
 
         double nd = -normal.dot(point);
@@ -939,7 +941,7 @@ bool fit_cuboid_to_point_cloud(Vector4d plane_params, vector<Vector3d> points, v
         vertices.push_back(pt);
         
         Vector3d t_pt(pt.x, 0.0, pt.z);
-        if (t_pt.norm() > 50)
+        if (t_pt.norm() > 30)
             return false;
     }
 
@@ -1014,14 +1016,12 @@ void create_cuboid_frame(vector<geometry_msgs::Point> &local_vertices, visualiza
     line_list.points.push_back(vertices[7]);
 }
 
-map<int, vector<Vector3d>> cluster_plane_features(
+void cluster_plane_features(
     const sensor_msgs::PointCloudConstPtr &features_msg,
     cv::Mat &mask_img,
     Isometry3d world2local
 )
 {
-    map<int, vector<Vector3d>> mPlaneFeatures;
-    bool should_compute_id = (features_msg->channels.size() == 2);
     ROS_INFO("Point cloud has %d channels", (int)features_msg->channels.size());
 
     // Loop through all feature points
@@ -1029,16 +1029,12 @@ map<int, vector<Vector3d>> cluster_plane_features(
         Vector3d fpoint;
         geometry_msgs::Point32 p = features_msg->points[fi];
         fpoint << p.x, p.y, p.z;
-        
-        int plane_id = 0;
-        if (!should_compute_id) {      
-            // to support point clouds from old bag files
-            plane_id = (int)features_msg->channels[0].values[fi];
-        }
-        else {
+
+        int feature_id = (int)features_msg->channels[2].values[fi];
+
+        if (mFeatures.find(feature_id) == mFeatures.end()) {
             int u = (int)features_msg->channels[0].values[fi];
             int v = (int)features_msg->channels[1].values[fi];
-            // ROS_INFO("Querying at point (%d, %d)", u, v);
 
             Vector3d lpoint = world2local * fpoint;
             Eigen::Matrix3d K;
@@ -1052,16 +1048,14 @@ map<int, vector<Vector3d>> cluster_plane_features(
             u = (int)pt.x();
             v = (int)pt.y();
             
-            // ROS_INFO("Querying at new point (%d, %d)", u, v);
-            plane_id = get_plane_id(u, v, mask_img);
-            // ROS_INFO("Found color id is %d", (int)plane_id);
+            int plane_id = get_plane_id(u, v, mask_img);
+
+            if ((plane_id != 0) && (plane_id != 39))// Ignore sky and ground points
+                mPlaneFeatureIds[plane_id].insert(feature_id);
         }
 
-        if ((plane_id != 0) && (plane_id != 39))// Ignore sky and ground points
-            mPlaneFeatures[plane_id].push_back(fpoint);
+        mFeatures[feature_id] = fpoint;
     }
-
-    return mPlaneFeatures;
 }
 
 map<int, Vector3d> draw_vp_lines(cv::Mat &gray_img, cv::Mat &mask, vector<Vector3d> &evps, vector<Vector3d> &normal_vectors)
@@ -1297,11 +1291,11 @@ Vector4d fit_vertical_plane_ransac(vector<Vector3d> &plane_points)
     // Loop for 'n' iterations
     double p = 0.99; // p = desired probability that we get a good sample
     double s = 3; // s = number of points in a sample
-    double e = 0.33; // e = probability that a point is outlier
+    double e = 0.4; // e = probability that a point is outlier
     int N = (int)(log(1 - p) / log(1 - pow(1 - e, s)));
     N++;
 
-    double plane_distance_threshold = 1.25;
+    double plane_distance_threshold = 0.75;
 
     int bestNumOfInliers = 4;
     Vector4d bestFit;
@@ -1324,8 +1318,8 @@ Vector4d fit_vertical_plane_ransac(vector<Vector3d> &plane_points)
             }
         }
 
-        // if ((alsoInliers.size() >= bestNumOfInliers))
-        // {
+        if ((alsoInliers.size() >= bestNumOfInliers))
+        {
             maybeInliers.insert(maybeInliers.end(), alsoInliers.begin(), alsoInliers.end());
             Vector4d betterModel = fit_vertical_plane_to_indices(maybeInliers, plane_points);
             double currentError = get_plane_inliers_error(maybeInliers, plane_points, betterModel);
@@ -1336,7 +1330,7 @@ Vector4d fit_vertical_plane_ransac(vector<Vector3d> &plane_points)
                 bestError = currentError;
                 bestNumOfInliers = alsoInliers.size();
             }
-        // }
+        }
     }
 
 

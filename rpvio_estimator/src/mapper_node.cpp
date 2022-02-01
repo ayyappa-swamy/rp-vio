@@ -61,8 +61,9 @@ void mapping_callback(
     Ti.translation() = trans;
 
     cv::Mat mask_img = processMaskSegments(raw_mask_img);
-    map<int, vector<Vector3d>> points_map = cluster_plane_features(features_msg, mask_img, Tic.inverse() * Ti.inverse());
-    ROS_INFO("Clustered the feature points based on %d planes", (int)points_map.size());
+    cluster_plane_features(features_msg, mask_img, Tic.inverse() * Ti.inverse());
+
+    ROS_INFO("Clustered the feature points based on %d planes", (int)mPlaneFeatureIds.size());
 
     Vector3d lgoal = Tic.inverse() * (Ti.inverse() * ggoal);
     lgoal[1] = 0.0;
@@ -76,7 +77,7 @@ void mapping_callback(
 
     Vector3d vertical(0, 1, 0);
 
-    if (points_map.size() == 0)
+    if (mPlaneFeatureIds.size() == 0)
         return;
         
     // ROS_INFO("Drawing quads for %d planes", plane_ids.size());
@@ -118,26 +119,28 @@ void mapping_callback(
     line_list.color.a = 1.0;
 
     // Print number of features per plane
-    for (auto const& fpp: points_map)
+    for (auto const& sFeatureIds: mPlaneFeatureIds)
     {
-        ROS_INFO("Number of features in plane id %d are %d", fpp.first, (int)fpp.second.size());
+        int plane_id = sFeatureIds.first;
+        ROS_INFO("Number of features in plane id %d are %d", sFeatureIds.first, (int)sFeatureIds.second.size());
 
         vector<Vector3d> plane_points;
-        for (int i = 0; i < (int)fpp.second.size(); i++)
+        for (auto feature_id: sFeatureIds.second)
         {
-            Vector3d c_pt = Tic.inverse() * (Ti.inverse() * fpp.second[i]);
+            Vector3d w_pt = mFeatures[feature_id];
+
+            Vector3d c_pt = Tic.inverse() * (Ti.inverse() * w_pt);
             
             Vector3d t_pt(c_pt[0], 0.0, c_pt[2]);
-            if ((t_pt.norm() <= 35) && (c_pt.norm() > 2))
+            if ((c_pt.norm() <= 10) && (c_pt.norm() > 2))
             {
                 plane_points.push_back(c_pt);
 
-                unsigned long hex = id2color(fpp.first);
+                unsigned long hex = id2color(plane_id);
                 int r = ((hex >> 16) & 0xFF);
                 int g = ((hex >> 8) & 0xFF);
                 int b = ((hex) & 0xFF);
 
-                Vector3d w_pt = fpp.second[i];
                 pcl::PointXYZRGB pt;
                 pt.x = w_pt.x();
                 pt.y = w_pt.y();
@@ -155,7 +158,7 @@ void mapping_callback(
         MatrixXd pts_mat(plane_points.size(), 4);
         vector<geometry_msgs::Point> vertices;
 
-        Vector3d normal = normals_map[fpp.first];
+        Vector3d normal = normals_map[plane_id];
 
         double d = 0.0;
         for (int i = 0; i < (int)plane_points.size(); i++)
@@ -197,16 +200,16 @@ void mapping_callback(
                     for (int vid = 0; vid < vertices.size(); vid++)
                     {
                         frame_cloud.points.push_back(pointToPoint32(vertices[vid]));
-                        plane_id_ch.values.push_back(fpp.first);
+                        plane_id_ch.values.push_back(plane_id);
                     }
                 }
                 else {
-                    ROS_INFO("Not plotting cuboid %d with params %f %f %f %f", fpp.first, normed_params[0], normed_params[1], normed_params[2], normed_params[3]); 
+                    ROS_INFO("Not plotting cuboid %d with params %f %f %f %f", plane_id, normed_params[0], normed_params[1], normed_params[2], normed_params[3]); 
                 }
             }
         }
         
-        plane_ids.push_back(fpp.first);
+        plane_ids.push_back(plane_id);
     }
 
     marker_pub.publish(line_list);
