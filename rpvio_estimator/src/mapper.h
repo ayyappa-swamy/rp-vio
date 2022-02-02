@@ -62,6 +62,7 @@
 #include <pcl/point_types.h>
 #include <pcl/visualization/pcl_visualizer.h>
 #include <pcl_conversions/pcl_conversions.h>
+#include <pcl/filters/statistical_outlier_removal.h>
 
 #include <message_filters/subscriber.h>
 #include <message_filters/synchronizer.h>
@@ -102,9 +103,17 @@ ros::Publisher masked_im_pub;
 ros::Publisher lgoal_pub;
 ros::Publisher dense_pub;
 
+struct PlaneFeature
+{
+    Vector3d point;
+    int measurement_count = 0;
+    int plane_id;
+    bool is_outlier;
+};
+
 map<double, vector<Vector4d>> plane_measurements;
 map<int, set<int>> mPlaneFeatureIds;
-map<int, Vector3d> mFeatures;
+map<int, PlaneFeature> mFeatures;
 
 /**
  * Implements vector1.dot(vector2) == 0 constraint
@@ -1051,10 +1060,16 @@ void cluster_plane_features(
             int plane_id = get_plane_id(u, v, mask_img);
 
             if ((plane_id != 0) && (plane_id != 39))// Ignore sky and ground points
+            {
                 mPlaneFeatureIds[plane_id].insert(feature_id);
+                PlaneFeature new_plane_feature;
+                new_plane_feature.plane_id = plane_id;
+                mFeatures[feature_id] = new_plane_feature;
+            }
         }
 
-        mFeatures[feature_id] = fpoint;
+        mFeatures[feature_id].point = fpoint;
+        mFeatures[feature_id].measurement_count++;
     }
 }
 

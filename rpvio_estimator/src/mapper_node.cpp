@@ -125,14 +125,16 @@ void mapping_callback(
         ROS_INFO("Number of features in plane id %d are %d", sFeatureIds.first, (int)sFeatureIds.second.size());
 
         vector<Vector3d> plane_points;
+        
+        pcl::PointCloud<pcl::PointXYZRGB> plane_pcd;
         for (auto feature_id: sFeatureIds.second)
         {
-            Vector3d w_pt = mFeatures[feature_id];
+            Vector3d w_pt = mFeatures[feature_id].point;
 
             Vector3d c_pt = Tic.inverse() * (Ti.inverse() * w_pt);
             
             Vector3d t_pt(c_pt[0], 0.0, c_pt[2]);
-            if ((t_pt.norm() <= 35) && (c_pt.norm() > 2))
+            if (mFeatures[feature_id].measurement_count > 10)
             {
                 plane_points.push_back(c_pt);
 
@@ -148,12 +150,35 @@ void mapping_callback(
                 pt.r = b;
                 pt.g = g;
                 pt.b = r;
-                test_pcd.points.push_back(pt);
+                plane_pcd.points.push_back(pt);
             }
         }
 
-        if (plane_points.size() < 5)
+        // Create the filtering object
+        pcl::StatisticalOutlierRemoval<pcl::PointXYZRGB> sor;
+        sor.setInputCloud (plane_pcd.makeShared());
+        sor.setMeanK (7);
+        sor.setStddevMulThresh (0.5);
+        sor.filter (plane_pcd);
+        
+        if (plane_pcd.points.size() < 10)
             continue;
+
+        for (int pid = 0; pid < plane_pcd.points.size(); pid++)
+        {   
+            pcl::PointXYZRGB pt = plane_pcd.points[pid];
+            Vector3d w_pt(pt.x, pt.y, pt.z);
+
+            Vector3d c_pt = Tic.inverse() * (Ti.inverse() * w_pt);
+            
+            // Vector3d t_pt(c_pt[0], 0.0, c_pt[2]);
+            // if ((t_pt.norm() <= 35) && (c_pt.norm() > 2) && (mFeatures[feature_id].measurement_count > 5))
+            // {
+                plane_points.push_back(c_pt);
+            // }
+        }
+
+        test_pcd += plane_pcd;
 
         MatrixXd pts_mat(plane_points.size(), 4);
         vector<geometry_msgs::Point> vertices;
