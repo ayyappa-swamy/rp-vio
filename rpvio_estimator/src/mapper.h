@@ -63,6 +63,7 @@
 #include <pcl/visualization/pcl_visualizer.h>
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/filters/statistical_outlier_removal.h>
+#include <pcl/filters/radius_outlier_removal.h>
 
 #include <message_filters/subscriber.h>
 #include <message_filters/synchronizer.h>
@@ -103,6 +104,16 @@ ros::Publisher masked_im_pub;
 ros::Publisher lgoal_pub;
 ros::Publisher dense_pub;
 
+struct Plane
+{
+    Vector4d plane;
+    int plane_id;
+    bool is_initialized = false;
+    set<int> feature_ids;
+    double best_fit_error = 100000.0;
+    int best_num_of_inliers = 4;
+};
+
 struct PlaneFeature
 {
     Vector3d point;
@@ -112,7 +123,7 @@ struct PlaneFeature
 };
 
 map<double, vector<Vector4d>> plane_measurements;
-map<int, set<int>> mPlaneFeatureIds;
+map<int, Plane> mPlaneFeatureIds;
 map<int, PlaneFeature> mFeatures;
 
 /**
@@ -950,7 +961,7 @@ bool fit_cuboid_to_point_cloud(Vector4d plane_params, vector<Vector3d> points, v
         vertices.push_back(pt);
         
         Vector3d t_pt(pt.x, 0.0, pt.z);
-        if (t_pt.norm() > 35)
+        if (t_pt.norm() > 50)
             return false;
     }
 
@@ -1061,7 +1072,15 @@ void cluster_plane_features(
 
             if ((plane_id != 0) && (plane_id != 39))// Ignore sky and ground points
             {
-                mPlaneFeatureIds[plane_id].insert(feature_id);
+                if (! mPlaneFeatureIds.count(plane_id))
+                {
+                    Plane new_plane;
+                    new_plane.plane_id = plane_id;
+                    
+                    mPlaneFeatureIds[plane_id] = new_plane;
+                }
+                mPlaneFeatureIds[plane_id].feature_ids.insert(feature_id);
+
                 PlaneFeature new_plane_feature;
                 new_plane_feature.plane_id = plane_id;
                 mFeatures[feature_id] = new_plane_feature;
@@ -1291,7 +1310,7 @@ Vector4d fit_vertical_plane_to_indices(vector<int> &indices, vector<Vector3d> &p
  * @param plane_points 
  * @param plane_params 
  */
-Vector4d fit_vertical_plane_ransac(vector<Vector3d> &plane_points)
+Vector4d fit_vertical_plane_ransac(vector<Vector3d> &plane_points, int plane_id)
 {
     auto t_start = std::chrono::high_resolution_clock::now();
     // Implement ransac for vertical planes
@@ -1333,8 +1352,8 @@ Vector4d fit_vertical_plane_ransac(vector<Vector3d> &plane_points)
             }
         }
 
-        // if ((alsoInliers.size() >= bestNumOfInliers))
-        // {
+        if ((alsoInliers.size() >= bestNumOfInliers))
+        {
             maybeInliers.insert(maybeInliers.end(), alsoInliers.begin(), alsoInliers.end());
             Vector4d betterModel = fit_vertical_plane_to_indices(maybeInliers, plane_points);
             double currentError = get_plane_inliers_error(maybeInliers, plane_points, betterModel);
@@ -1343,11 +1362,10 @@ Vector4d fit_vertical_plane_ransac(vector<Vector3d> &plane_points)
             {
                 bestFit = betterModel;
                 bestError = currentError;
-                bestNumOfInliers = alsoInliers.size();
+                bestNumOfInliers = maybeInliers.size();
             }
-        // }
+        }
     }
-
 
     auto t_end = std::chrono::high_resolution_clock::now();
     double elapsed_time_ms = std::chrono::duration<double, std::milli>(t_end-t_start).count();

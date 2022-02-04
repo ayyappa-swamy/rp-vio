@@ -122,22 +122,20 @@ void mapping_callback(
     for (auto const& sFeatureIds: mPlaneFeatureIds)
     {
         int plane_id = sFeatureIds.first;
-        ROS_INFO("Number of features in plane id %d are %d", sFeatureIds.first, (int)sFeatureIds.second.size());
+        ROS_INFO("Number of features in plane id %d are %d", sFeatureIds.first, (int)sFeatureIds.second.feature_ids.size());
 
         vector<Vector3d> plane_points;
         
         pcl::PointCloud<pcl::PointXYZRGB> plane_pcd;
-        for (auto feature_id: sFeatureIds.second)
+        for (auto feature_id: sFeatureIds.second.feature_ids)
         {
             Vector3d w_pt = mFeatures[feature_id].point;
 
             Vector3d c_pt = Tic.inverse() * (Ti.inverse() * w_pt);
             
             Vector3d t_pt(c_pt[0], 0.0, c_pt[2]);
-            if (mFeatures[feature_id].measurement_count > 10)
+            if (mFeatures[feature_id].measurement_count > 5)
             {
-                plane_points.push_back(c_pt);
-
                 unsigned long hex = id2color(plane_id);
                 int r = ((hex >> 16) & 0xFF);
                 int g = ((hex >> 8) & 0xFF);
@@ -155,11 +153,12 @@ void mapping_callback(
         }
 
         // Create the filtering object
-        pcl::StatisticalOutlierRemoval<pcl::PointXYZRGB> sor;
-        sor.setInputCloud (plane_pcd.makeShared());
-        sor.setMeanK (7);
-        sor.setStddevMulThresh (0.5);
-        sor.filter (plane_pcd);
+        pcl::RadiusOutlierRemoval<pcl::PointXYZRGB> ror;
+        ror.setInputCloud (plane_pcd.makeShared());
+        ror.setRadiusSearch (0.75);
+        ror.setMinNeighborsInRadius (3);
+        ror.setKeepOrganized (true);
+        ror.filter (plane_pcd);
         
         if (plane_pcd.points.size() < 10)
             continue;
@@ -208,7 +207,7 @@ void mapping_callback(
         Vector4d params;
         params << normal[0], normal[1], normal[2], d;
 
-        params = fit_vertical_plane_ransac(plane_points);
+        params = fit_vertical_plane_ransac(plane_points, plane_id);
         normal = params.head<3>();
 
         if ((normal.norm() > 0.001) && (fabs(params[3]) > 0.001))
