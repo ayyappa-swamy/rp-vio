@@ -28,11 +28,15 @@ xPose = 0
 yPose = 0 
 zPose = 0 
 
+zoffset =0 
 
+zcur_airsim =0 
+zcur_world = 0
 
 def path_cb(path_data):
 	global cnt
 	global xPose , yPose , zPose 
+	global zoffset
 
 	# print( xPose , yPose , zPose)
 
@@ -43,35 +47,30 @@ def path_cb(path_data):
 	xval = -path_data.poses[-1].pose.position.y
 	zval = path_data.poses[-1].pose.position.z 
 
-	print( xval, yval, zval  )
 
 
-	EnvInfo = client.getMultirotorState()
-	current_position = EnvInfo.kinematics_estimated.position
+	# EnvInfo = client.getMultirotorState()
+	# current_position = EnvInfo.kinematics_estimated.position
 
 
-	print( " xval, yval, zval  " + str( ( xval, yval, zval)  ))
 
 
-	# if( cnt == 0 or cnt == 1 ):
+	# if( cnt == 1 ):
 
-	xoffset = current_position.x_val  - yPose
-	yoffset = current_position.y_val - xPose 
-	zoffset = current_position.z_val  - zPose
-
-
-	print( "xoffset , yoffset , zoffset " + str( (xoffset , yoffset , zoffset) ))
-	print( " Init Pose " + str( (xPose , yPose , zPose ) ) )
-
-	print(" Current Pose " + str( (current_position.x_val , current_position.y_val ,current_position.z_val) ))
-
-	print( " result " + str(  (xval +xoffset , yval + yoffset , zval  ) ))
-
-	# print( xval +xoffset , yval + yoffset , zval + zoffset ) 
-	print(" ++++++++++++" + str( way_point_len) +" ++++++++ ")
+	# # 	xoffset = current_position.x_val  - yPose
+	# # 	yoffset = current_position.y_val - xPose 
+	# 	zoffset = current_position.z_val  #- zPose
 
 
-	client.moveToPositionAsync(  xval  , yval   , - (zval - (-2) ) , 0.5, np.inf, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(True, 0.5)).join()
+
+	print(" ++++++++++++  "   + str(zval + zoffset) +"  ++++++++ ")
+
+	R = np.array( [ [ 0.707 , -0.707  ] , [ 0.707 , 0.707] ] )
+	X = np.array( [ [ xval] , [yval] ])
+	xval , yval =  (R@X).flatten() 
+
+
+	client.moveToPositionAsync(  xval  , yval   , - (zval +zoffset) , 0.5, np.inf, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(True, 0 )) #.join()
 
 
 
@@ -82,17 +81,26 @@ def VinsState_cb( VinsPose):
 	global cnt 
 
 	global xPose , yPose , zPose
+	global zoffset
+	global zcur_airsim
+	global zcur_world
+
+	EnvInfo = client.getMultirotorState()
+	current_position = EnvInfo.kinematics_estimated.position
 
 	# print(" In VINS ")
 
 
-	# if( cnt == 0 ):
+	if( cnt == 0 ):
 
-	xPose = VinsPose.pose.pose.position.x
-	yPose = VinsPose.pose.pose.position.y 
-	zPose = VinsPose.pose.pose.position.z  
+		xPose = VinsPose.pose.pose.position.x
+		yPose = VinsPose.pose.pose.position.y 
+		zPose = VinsPose.pose.pose.position.z  
+		zcur_airsim = current_position.z_val 
+		zcur_world = zPose 
+		zoffset = zcur_airsim + zcur_world
 
-	cnt +=1 
+		cnt +=1 
 
 	
 	

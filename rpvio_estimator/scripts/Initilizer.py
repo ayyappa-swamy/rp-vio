@@ -55,22 +55,22 @@ client.moveOnPathAsync(path, 0.25, np.inf, airsim.DrivetrainType.MaxDegreeOfFree
 
 # client.enableApiControl(False)
 '''
-pt1 = [ 0.0, 0.0, -5 ]
+pt1 = [ 0.0, 0.0, -10 ]
 pt2 = [0.0, 0.0, -1  ]
 pt3= [ 0, 0.0 , -3  ]
 # pt3 = [0,0,0 ]
 pt4 = [  0, -5 , -5 ]
 pt5= [  0, -5 , -5]
 
-client.moveToPositionAsync( pt1[0] , pt1[1] , pt1[2] , 0.25, np.inf, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(True, 0.0)).join()
-client.moveToPositionAsync( pt2[0] , pt2[1] , pt2[2] , 0.25, np.inf, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(True, 0.0)).join()
-client.moveToPositionAsync( pt1[0] , pt1[1] , pt1[2] , 0.6, np.inf, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(True, 0.0)).join()
-client.moveToPositionAsync( pt2[0] , pt2[1] , pt2[2] , 0.6, np.inf, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(True, 0.0)).join()
-client.moveToPositionAsync( pt1[0] , pt1[1] , pt1[2] , 0.8, np.inf, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(True, 0.0)).join()
-client.moveToPositionAsync( pt2[0] , pt2[1] , pt2[2] , 0.8, np.inf, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(True, 0.0)).join()
-client.moveToPositionAsync( pt3[0] , pt3[1] , pt3[2] , 0.8, np.inf, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(True, 0.0)).join()
-client.rotateByYawRateAsync( -0.5 , 3 )
-client.rotateByYawRateAsync( 0.5 , 3)
+client.moveToPositionAsync( pt1[0] , pt1[1] , pt1[2] , 0.75, np.inf, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(True, 0.0)).join()
+# client.moveToPositionAsync( pt2[0] , pt2[1] , pt2[2] , 0.25, np.inf, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(True, 0.0)).join()
+# client.moveToPositionAsync( pt1[0] , pt1[1] , pt1[2] , 0.4, np.inf, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(True, 0.0)).join()
+# client.moveToPositionAsync( pt2[0] , pt2[1] , pt2[2] , 0.4, np.inf, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(True, 0.0)).join()
+# client.moveToPositionAsync( pt1[0] , pt1[1] , pt1[2] , 0.5, np.inf, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(True, 0.0)).join()
+# client.moveToPositionAsync( pt2[0] , pt2[1] , pt2[2] , 0.5, np.inf, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(True, 0.0)).join()
+# client.moveToPositionAsync( pt3[0] , pt3[1] , pt3[2] , 0.5, np.inf, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(True, 0.0)).join()
+# client.rotateByYawRateAsync( -0.5 , 3 )
+# client.rotateByYawRateAsync( 0.5 , 3)
 # client.moveToPositionAsync( pt4[0] , pt4[1] , pt4[2] , 0.25, np.inf, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(True, 0.0)).join()
 # client.moveToPositionAsync( pt5[0] , pt5[1] , pt5[2] , 0.25, np.inf, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(True, 0.0)).join()
 
