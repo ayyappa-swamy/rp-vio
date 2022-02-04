@@ -2,11 +2,12 @@ from __future__ import division
 import os
 import time
 import math
-from data_loader import DataLoader
+from data_loader_new import DataLoader
 from net import *
 from utils import *
 import scipy.misc
 import random
+import math
 
 seed = 8964
 tf.set_random_seed(seed)

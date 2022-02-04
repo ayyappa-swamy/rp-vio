@@ -2,3 +2,4 @@
 cmake-build-*
 output/
 __pycache__
+output*
