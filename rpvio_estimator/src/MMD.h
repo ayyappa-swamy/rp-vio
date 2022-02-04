@@ -20,6 +20,7 @@ namespace MMDFunctions{
         float MMD_transformed_features( Eigen::MatrixXf actual_distribution );
         float MMD_transformed_features_RBF( Eigen::MatrixXf actual_distribution );
         float RBF_kernel( float val1 , float val2);
+
 	};
 }
 

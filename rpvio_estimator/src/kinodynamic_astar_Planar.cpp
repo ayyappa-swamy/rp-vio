@@ -79,10 +79,29 @@ std::vector<double> radius_vector , double GroundLocation  )
 }
 
 
+double DeterminePlaneCollisionDistance( std::vector<CuboidObject> cuboids , Eigen::Vector3d Qpt )
+{
+
+  std::vector<double> DistMeasurments ; 
+  double dist ; 
+
+  for( int i =0 ; i < cuboids.size() ; i++){
+
+    dist = cuboids[i].getDistanceToPoint(Qpt); 
+    DistMeasurments.push_back(dist);
+  }
+
+  double minDist;
+  minDist= *min_element(DistMeasurments.begin(), DistMeasurments.end()) ;
+
+  return minDist;
+}
+
+
 int fast_planner::KinodynamicAstar::search(Eigen::Vector3d start_pt, Eigen::Vector3d start_v, Eigen::Vector3d start_a,
                              Eigen::Vector3d end_pt, Eigen::Vector3d end_v, bool init, bool dynamic,
                              double time_start , std::vector<Eigen::Vector3d> Centers ,
-                             std::vector<double> radius_vector , double GroundLocation  ) {
+                             std::vector<double> radius_vector , double GroundLocation , std::vector<CuboidObject> cuboids  ) {
 
   
   start_vel_ = start_v;
@@ -156,7 +175,7 @@ int fast_planner::KinodynamicAstar::search(Eigen::Vector3d start_pt, Eigen::Vect
 
         /* one shot trajectory */
         estimateHeuristic(cur_node->state, end_state, time_to_goal);
-        computeShotTraj(cur_node->state, end_state, time_to_goal , Centers, radius_vector , GroundLocation);
+        computeShotTraj(cur_node->state, end_state, time_to_goal , Centers, radius_vector , GroundLocation , cuboids);
 
         if (terminate_node->parent == NULL && !is_shot_succ_)
           return NO_PATH;
@@ -317,7 +336,12 @@ int fast_planner::KinodynamicAstar::search(Eigen::Vector3d start_pt, Eigen::Vect
           // octomap::point3d closestObstacle;
           // OctoEDT->getDistanceAndClosestObstacle(point,dist, closestObstacle);
 
-          dist = GetCollisionDistance(pos ,  Centers , radius_vector , GroundLocation  );
+          // dist = GetCollisionDistance(pos ,  Centers , radius_vector , GroundLocation  );
+
+          dist = DeterminePlaneCollisionDistance( cuboids , pos);
+
+
+
           dist_cost = dist ;
           // std::cout<<"Distances are: "<<dist<<std::endl;
           if (dist < margin_) {
@@ -420,7 +444,7 @@ void fast_planner::KinodynamicAstar::setParam(ros::NodeHandle& nh) {
   nh.param("search/resolution_astar", resolution_, 0.05);
   nh.param("search/time_resolution", time_resolution_, 0.8);
   nh.param("search/lambda_heu", lambda_heu_, 5.0);
-  nh.param("search/margin", margin_, 0.5);
+  nh.param("search/margin", margin_, 1.5);
   nh.param("search/allocate_num", allocate_num_, 100000);
   nh.param("search/check_num", check_num_, 5);
 
@@ -476,7 +500,7 @@ double fast_planner::KinodynamicAstar::estimateHeuristic(Eigen::VectorXd x1, Eig
 
 bool fast_planner::KinodynamicAstar::computeShotTraj(Eigen::VectorXd state1, Eigen::VectorXd state2,
                                        double time_to_goal , std::vector<Eigen::Vector3d> Centers , 
-                                       std::vector<double> radius_vector , double GroundLocation ) {
+                                       std::vector<double> radius_vector , double GroundLocation , std::vector<CuboidObject> cuboids ) {
   /* ---------- get coefficient ---------- */
   const Vector3d p0  = state1.head(3);
   const Vector3d dp  = state2.head(3) - p0;
@@ -539,7 +563,8 @@ bool fast_planner::KinodynamicAstar::computeShotTraj(Eigen::VectorXd state1, Eig
 
     // OctoEDT->getDistanceAndClosestObstacle(coord_,distance, closestObst);
 
-    distance = GetCollisionDistance(coord ,  Centers , radius_vector , GroundLocation );
+    // distance = GetCollisionDistance(coord ,  Centers , radius_vector , GroundLocation );
+    distance = DeterminePlaneCollisionDistance( cuboids , coord);
 
 
     if(distance <= margin_)

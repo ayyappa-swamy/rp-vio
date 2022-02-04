@@ -11,7 +11,7 @@
 #include <string>
 #include <chrono>
 #include <thread>
-
+#include "planner.h"
 std::string ip ; 
 // ip.push_back( '10.2.36.227' ) ; 
 // extern /;
@@ -170,7 +170,7 @@ void current_state_callback2( const sensor_msgs::PointCloudConstPtr &frames_msg,
     
     In = true ; 
 
-	Eigen::Vector3d goal( 24.0, -5, -1 );
+	Eigen::Vector3d goal( 24.0, 0, -4 );
 
     double DistToGoal = (CurState - goal).norm() ; 
     bool Done = false ;
@@ -237,6 +237,7 @@ void current_state_callback2( const sensor_msgs::PointCloudConstPtr &frames_msg,
 
     double GroundLocation ;
     double ground_dist = 100 ;  
+    std::vector<CuboidObject> cuboids;
 
     for (unsigned int i = 0; i < frames_msg->points.size(); i += 8)
     {
@@ -252,7 +253,7 @@ void current_state_callback2( const sensor_msgs::PointCloudConstPtr &frames_msg,
         {
             geometry_msgs::Point32 gpt =  frames_msg->points[i + vid];
             Point pt(gpt.x, gpt.y, gpt.z);
-            vertices.push_back(pt);
+            vertices.push_back( (Ti*Tic)*pt);
             refVertex << gpt.x, gpt.y, gpt.z ;
 
             center += pt;
@@ -281,6 +282,21 @@ void current_state_callback2( const sensor_msgs::PointCloudConstPtr &frames_msg,
 
         GroundLocation = Ground.z() ;
 
+        CuboidObject cuboid = CuboidObject(center, vertices, Color::Gray(), p_id);
+
+        cuboids.push_back(cuboid);
+
+    }
+
+    for( int i=0 ; i < cuboids.size(); i ++ ){
+
+        Eigen::Vector4d PlaneParam; 
+
+        PlaneParam = cuboids[i].front_plane_;
+
+        std::cout << PlaneParam <<  "  " << "PlaneParam " <<  std::endl ;
+
+
     }
 
 
@@ -293,12 +309,12 @@ void current_state_callback2( const sensor_msgs::PointCloudConstPtr &frames_msg,
 
 
     status  = kAstar.search( StartPose ,startVel ,  startAcc , goal  , goalVel , true /*true original */, false , 0.0 ,  Centers, radius_vector 
-        , GroundLocation );
+        , GroundLocation , cuboids );
     }
     else{
 
     status  = kAstar.search( StartPose ,startVel ,  startAcc , goal  , goalVel , false, false , 0.0 ,  Centers, radius_vector, 
-    GroundLocation );
+    GroundLocation  , cuboids);
 
     }
 
@@ -368,7 +384,7 @@ void current_state_callback2( const sensor_msgs::PointCloudConstPtr &frames_msg,
 
     std::vector<Eigen::MatrixXd> CEMOptimizedTraj; 
 
-    CEMOptimizedTraj = CEMOptim.CrossEntropyOptimize(xPts ,yPts , zPts , numIters ,   Centers ,CEMOptimTraj , PubSTOMP );
+    CEMOptimizedTraj = CEMOptim.CrossEntropyOptimize(xPts ,yPts , zPts , numIters ,   Centers ,CEMOptimTraj , PubSTOMP , cuboids );
 
     Eigen::MatrixXd X;
     Eigen::MatrixXd Y ; 
@@ -397,7 +413,7 @@ void current_state_callback2( const sensor_msgs::PointCloudConstPtr &frames_msg,
         CEMOptimTrajectory.header.frame_id = "world";
     }
 
-    std::this_thread::sleep_for(std::chrono::seconds(5));
+    // std::this_thread::sleep_for(std::chrono::seconds(5));
 
     CEMOptimPath.publish(CEMOptimTrajectory);
 

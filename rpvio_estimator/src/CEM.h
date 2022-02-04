@@ -20,7 +20,7 @@ namespace Optimization
 		ros::Publisher OptimTraj , ros::Publisher SampleTraj );
 
 		std::vector<Eigen::MatrixXd> CrossEntropyOptimize(  Eigen::MatrixXd x_samples ,  Eigen::MatrixXd y_samples  , Eigen::MatrixXd z_samples , int num_iterations , std::vector<Eigen::Vector3d>  Centers,  
-		ros::Publisher OptimTraj , ros::Publisher SampleTraj );
+		ros::Publisher OptimTraj , ros::Publisher SampleTraj , std::vector<CuboidObject> cuboids );
 
 
 
@@ -118,6 +118,14 @@ double MMDCost( double  distance , int num_samples_distance   )
     return MMD_cost ;
 
 }
+
+// double MMDwithNormalUncertainity( std::vector<CuboidObject> cuboids ,  )
+// {
+
+
+
+// }
+
 
 Eigen::MatrixXd GetIndex( std::vector<double>  Cost , int num_top_samples)
 {
@@ -573,10 +581,29 @@ double MeasureSphericalDistance( std::vector<Eigen::Vector3d> Centers , Eigen::V
 }
 
 
+double GetPlaneCollisionDistance( std::vector<CuboidObject> cuboids , Eigen::Vector3d Qpt )
+{
+
+  std::vector<double> DistMeasurments ; 
+  double dist ; 
+
+  for( int i =0 ; i < cuboids.size() ; i++){
+
+    dist = cuboids[i].getDistanceToPoint(Qpt); 
+    DistMeasurments.push_back(dist);
+  }
+
+  double minDist;
+  minDist= *min_element(DistMeasurments.begin(), DistMeasurments.end()) ;
+
+  return minDist;
+
+}
+
 
 
 std::vector<Eigen::MatrixXd> Optimization::TrajectoryOptimization::CrossEntropyOptimize( Eigen::MatrixXd x_samples ,  Eigen::MatrixXd y_samples  , Eigen::MatrixXd z_samples , int num_iterations , 
-	std::vector<Eigen::Vector3d> Centers,   ros::Publisher OptimTraj , ros::Publisher SampleTraj )
+	std::vector<Eigen::Vector3d> Centers,   ros::Publisher OptimTraj , ros::Publisher SampleTraj , std::vector<CuboidObject> cuboids )
 {
 
 	// x_samples shape is ( num_trajs , num_pts_per_traj )
@@ -625,7 +652,9 @@ std::vector<Eigen::MatrixXd> Optimization::TrajectoryOptimization::CrossEntropyO
 			for(int k =0; k<numPts_perTraj ; k +=5  ){
 
 				Qpt << x_samples( j , k ) , y_samples( j , k ) , z_samples(j , k); 
-				distance  = MeasureSphericalDistance( Centers ,  Qpt); 
+				// distance  = MeasureSphericalDistance( Centers ,  Qpt); 
+
+				distance = GetPlaneCollisionDistance( cuboids , Qpt );
 
 
 				if(k ==0 ){
@@ -639,7 +668,7 @@ std::vector<Eigen::MatrixXd> Optimization::TrajectoryOptimization::CrossEntropyO
 
 
 				if( distance < 2.0 ){
-					mmd_cost = MMDCost(distance , numDistanceSamples );
+					mmd_cost = MMDCost( distance , numDistanceSamples );
 					costPerTraj += mmd_cost ;
 
 				}
