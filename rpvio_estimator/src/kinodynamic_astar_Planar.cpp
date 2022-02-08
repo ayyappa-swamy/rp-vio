@@ -79,7 +79,7 @@ std::vector<double> radius_vector , double GroundLocation  )
 }
 
 
-double DeterminePlaneCollisionDistance( std::vector<CuboidObject> cuboids , Eigen::Vector3d Qpt )
+double DeterminePlaneCollisionDistance( std::vector<CuboidObject> cuboids , Eigen::Vector3d Qpt  ,double  GroundLocation)
 {
 
   std::vector<double> DistMeasurments ; 
@@ -90,6 +90,8 @@ double DeterminePlaneCollisionDistance( std::vector<CuboidObject> cuboids , Eige
     dist = cuboids[i].getDistanceToPoint(Qpt); 
     DistMeasurments.push_back(dist);
   }
+
+  DistMeasurments.push_back(  Qpt.z() + GroundLocation   ) ;
 
   double minDist;
   minDist= *min_element(DistMeasurments.begin(), DistMeasurments.end()) ;
@@ -338,7 +340,7 @@ int fast_planner::KinodynamicAstar::search(Eigen::Vector3d start_pt, Eigen::Vect
 
           // dist = GetCollisionDistance(pos ,  Centers , radius_vector , GroundLocation  );
 
-          dist = DeterminePlaneCollisionDistance( cuboids , pos);
+          dist = DeterminePlaneCollisionDistance( cuboids , pos , GroundLocation);
 
 
 
@@ -564,7 +566,7 @@ bool fast_planner::KinodynamicAstar::computeShotTraj(Eigen::VectorXd state1, Eig
     // OctoEDT->getDistanceAndClosestObstacle(coord_,distance, closestObst);
 
     // distance = GetCollisionDistance(coord ,  Centers , radius_vector , GroundLocation );
-    distance = DeterminePlaneCollisionDistance( cuboids , coord);
+    distance = DeterminePlaneCollisionDistance( cuboids , coord , GroundLocation);
 
 
     if(distance <= margin_)

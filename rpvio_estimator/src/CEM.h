@@ -1,6 +1,8 @@
 #include <random>
 #include<algorithm>
 #include"MMD.h"
+#include <math.h>
+#include <bits/stdc++.h>
 
 
 MMDFunctions::MMD_variants MMDF;
@@ -111,7 +113,8 @@ double MMDCost( double  distance , int num_samples_distance   )
     	noise_distribution(0 ,i) = radius(0 ,i) - temp_noise_val - distance ;
     	noise_distribution2(0 ,i) = temp_noise_val;
     }
-    actual_distribution = zero_matrix.cwiseMax( noise_distribution2 );
+
+    actual_distribution = zero_matrix.cwiseMax( noise_distribution );
 
     MMD_cost = MMDF.MMD_transformed_features(actual_distribution) ;
 
@@ -119,12 +122,175 @@ double MMDCost( double  distance , int num_samples_distance   )
 
 }
 
-// double MMDwithNormalUncertainity( std::vector<CuboidObject> cuboids ,  )
-// {
+Eigen::Vector3d  DetermineCenter( std::vector<Eigen::Vector3d> vertices){
+
+	Eigen::Vector3d Center; 
+	Center = Eigen::Vector3d::Zero() ; 
+
+	for(int i=0 ;i < vertices.size() ; i++){
+
+		Center += vertices.at(i); 
+	}
+
+	return  Center / vertices.size() ;
+}
+
+double MeasureSDFCollision( Eigen::Vector3d R , Eigen::Vector3d Q   )
+{
+
+	double distance ; 
+
+	Eigen::Vector3d Z;
+	Z = Eigen::Vector3d::Zero() ;
+
+	Eigen::Vector3d T ; 
+	T =  Q.cwiseAbs() -  R ;
+	distance = T.cwiseMax(Z ).norm() ;  
+	return  distance ; 
+}
+
+Eigen::Vector3d TransformQpt( Eigen::Vector3d Qpt , double epsilon , double theta , Eigen::Vector3d CubeOrigin )
+{
+
+	Eigen::Matrix3d R ;
+
+	double angle = theta + epsilon*3.14/180 ; 
+
+	R << cos( angle ) , -sin(angle) , 0 , 
+		 sin(angle) , cos(angle) , 0 , 
+		 0 ,  0 , 1 ;
+
+	Eigen::MatrixXd T ; 
+	T = -R*Qpt ;
+
+	Eigen::Vector3d Q ;
+	Q = R*Qpt + T;
+
+	return Q ; 
+}
 
 
 
-// }
+double MMDwithNormalUncertainity( std::vector<CuboidObject> cuboids , Eigen::Vector3d Qpt , int numSamples_normal_uncertainity )
+{
+
+	std::vector<Eigen::Vector3d> vertices_per_cuboid ; 
+	double MMD_cost =0 ; 
+	Eigen::Vector3d Center_per_cuboid ; 
+	double Q_Center_distance ; 
+	double theta = 0 ; // theta is 0 comes from the manhatten assumption it has to be updated 
+	int numDegreeSamples = numSamples_normal_uncertainity ;
+	int numDistanceSamples = numSamples_normal_uncertainity ;
+
+	Eigen::MatrixXf actual_distribution( 1, numSamples_normal_uncertainity);
+	Eigen::MatrixXf zero_matrix( 1, numSamples_normal_uncertainity);
+
+	zero_matrix.setZero();
+
+	Eigen::MatrixXf radius(1, numSamples_normal_uncertainity);  
+
+	radius = Eigen::MatrixXf::Constant( 1, numSamples_normal_uncertainity, 1.75); 
+
+
+	std::random_device rd{};
+	std::mt19937 gen{rd()};
+
+    using normal_dist   = std::normal_distribution<>;
+    using discrete_dist = std::discrete_distribution<std::size_t>;
+
+    auto G = std::array<normal_dist, 4>{
+        normal_dist{-0.592234, 5.845}, // mean, stddev of G[0]
+        normal_dist{49.1803, 25.243}, // mean, stddev of G[1]
+        normal_dist{ -28.4073, 29.4073} , // mean, stddev of G[2]
+         normal_dist{7.798, 11.472}  // mean, stddev of G[3]
+    };
+
+    auto w = discrete_dist{
+        0.7198, // weight of G[0]
+        0.0473, // weight of G[1]
+        0.102,  // weight of G[2]
+        0.1308  // weight of G[2]
+    };
+
+    Eigen::MatrixXd NormalDistribution( 1 ,numDegreeSamples  ) ;
+
+    for (int i=0 ; i<numDegreeSamples; i++){
+
+    	auto index = w(gen);
+    	auto temp_noise_val = G[index](gen);
+    	NormalDistribution(0 ,i) =  temp_noise_val ;
+    }
+
+    using normal_dist_   = std::normal_distribution<>;
+    using discrete_dist_ = std::discrete_distribution<std::size_t>;
+
+    auto G_distance = std::array<normal_dist_, 4>{
+        normal_dist_{0, 1.2}, // mean, stddev of G[0]
+        normal_dist_{3.7749, 8.5}, // mean, stddev of G[1]
+        normal_dist_{0,0.5 } , // mean, stddev of G[2]
+         normal_dist_{-7.798, 7.8}  // mean, stddev of G[3]
+    };
+
+    auto w_distance = discrete_dist_{
+        0.278, // weight of G[0]
+        0.02, // weight of G[1]
+        0.69,  // weight of G[2]
+        0.01  // weight of G[2]
+    };
+
+    Eigen::MatrixXd DistanceDistribution(  numDistanceSamples , 3  ) ;
+
+    for (int i=0 ; i<numDistanceSamples; i++){
+
+    	auto index_ = w_distance(gen);
+    	auto temp_noise_val_0 = G[index_](gen);
+    	auto temp_noise_val_1 = G[index_](gen);
+    	auto temp_noise_val_2 = G[index_](gen);
+
+    	DistanceDistribution( i , 0 ) =  temp_noise_val_0 ;
+    	DistanceDistribution( i , 1 ) =  temp_noise_val_1 ;
+    	DistanceDistribution( i , 2 ) =  temp_noise_val_2 ;
+    }
+
+    Eigen:Vector3d Qpt_transformed ;
+    float distance_ ;
+
+    Eigen::MatrixXf Distance_Measurments( 1 , numSamples_normal_uncertainity )  ;
+
+    std::vector<Eigen::Vector3d> vertices_cuboid ;
+    double val ; 
+
+	for( int i=0 ; i < cuboids.size() ; i++){
+
+		vertices_cuboid = cuboids[i].vertices_ ; 
+		Center_per_cuboid = DetermineCenter( vertices_cuboid ) ;
+		Q_Center_distance =  ( Center_per_cuboid - Qpt ).norm() ;
+
+		if( Q_Center_distance > 5){
+			continue ;
+		}
+
+		for( int i =0 ; i < numSamples_normal_uncertainity ; i++ ){
+
+			Qpt_transformed = TransformQpt(  Qpt , NormalDistribution( 0, i) , theta , Center_per_cuboid );
+			distance_ =  float ( MeasureSDFCollision( Qpt_transformed , DistanceDistribution.row(i)  ) );
+			Distance_Measurments( 0 , i ) = radius( 0, i) - distance_ ;
+		}
+
+		actual_distribution = zero_matrix.cwiseMax( Distance_Measurments ) ;
+		val = MMDF.MMD_transformed_features(actual_distribution) ;
+		// std::cout << actual_distribution << std::endl ;
+		MMD_cost += val ; 
+
+	}
+
+	// std::cout << MMD_cost <<  "  MMd within the function" << std::endl ;
+
+
+	return MMD_cost ;
+
+
+}
 
 
 Eigen::MatrixXd GetIndex( std::vector<double>  Cost , int num_top_samples)
@@ -446,10 +612,10 @@ std::vector<Eigen::MatrixXd> PerturbTraj( Eigen::MatrixXd x_samples_iter , Eigen
 
 	R = A_mat.transpose() *A_mat; 
 	if( iterNum > 0 ){
-	cov = (0.00005/iterNum)*R.inverse(); 
+	cov = (0.005/iterNum)*R.inverse(); 
 	}
 	else{
-		cov = 0.0005*R.inverse(); 
+		cov = 0.005*R.inverse(); 
 
 	}
 
@@ -460,7 +626,7 @@ std::vector<Eigen::MatrixXd> PerturbTraj( Eigen::MatrixXd x_samples_iter , Eigen
 
 
     Eigen::EigenMultivariateNormal<double> *normX_solver = new Eigen::EigenMultivariateNormal<double>(mu, 0.5*cov, true, dis(gen));
-    Eigen::EigenMultivariateNormal<double> *normY_solver = new Eigen::EigenMultivariateNormal<double>(mu, 0.5*cov, true, dis(gen));
+    Eigen::EigenMultivariateNormal<double> *normY_solver = new Eigen::EigenMultivariateNormal<double>(mu, 3*cov, true, dis(gen));
     Eigen::EigenMultivariateNormal<double> *normZ_solver = new Eigen::EigenMultivariateNormal<double>(mu, 0.5*cov, true, dis(gen));
 
 
@@ -635,7 +801,8 @@ std::vector<Eigen::MatrixXd> Optimization::TrajectoryOptimization::CrossEntropyO
 	Eigen::MatrixXd temp_y_samples;
 	Eigen::MatrixXd temp_z_samples; 
 
-	Eigen::Vector3d PrevPt; 	
+	Eigen::Vector3d PrevPt; 
+	int numSamples_normal_uncertainity = 100 ; 	
 
 
 	for(int i =0 ; i< num_iterations ; i++ ){
@@ -668,7 +835,8 @@ std::vector<Eigen::MatrixXd> Optimization::TrajectoryOptimization::CrossEntropyO
 
 
 				if( distance < 2.0 ){
-					mmd_cost = MMDCost( distance , numDistanceSamples );
+					mmd_cost =   MMDwithNormalUncertainity( cuboids , Qpt , numSamples_normal_uncertainity ) ;  // MMDCost( distance , numDistanceSamples );
+					
 					costPerTraj += mmd_cost ;
 
 				}
@@ -692,9 +860,32 @@ std::vector<Eigen::MatrixXd> Optimization::TrajectoryOptimization::CrossEntropyO
 
 		MeanTraj = UpdateMeanTraj( TopIndices , x_samples  ,  y_samples , z_samples , num_top_samples , numPts_perTraj );
 
+		
+
+		Eigen::Vector3d Q_mean; 
+		double mean_mmd= 0 ; 
+		double val =0;
+
+
+
+
+
+
 		temp_x_samples = MeanTraj.at(0); 
 		temp_y_samples = MeanTraj.at(1);
-		temp_z_samples = MeanTraj.at(2); 
+		temp_z_samples = MeanTraj.at(2);
+		int numPts_mean_traj = temp_z_samples.cols() ;  
+
+		for( int i =0 ; i<numPts_mean_traj ; i++ ){
+
+			Q_mean  <<  temp_x_samples( 0 , i ) , temp_y_samples(0, i) ,temp_z_samples(0, i)  ;
+			mean_mmd  += MMDwithNormalUncertainity( cuboids , Q_mean , numSamples_normal_uncertainity ) ; 
+			// std::cout<< val << std::endl ;
+
+		}
+
+		std::cout << mean_mmd <<  "  iter number " <<  i << std::endl ;
+
 
 				std::cout << " Got Mean " << std::endl;
 

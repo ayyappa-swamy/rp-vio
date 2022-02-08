@@ -170,7 +170,7 @@ void current_state_callback2( const sensor_msgs::PointCloudConstPtr &frames_msg,
     
     In = true ; 
 
-	Eigen::Vector3d goal( 24.0, 0, -4 );
+	Eigen::Vector3d goal( 13.0, 0 , 1 );
 
     double DistToGoal = (CurState - goal).norm() ; 
     bool Done = false ;
