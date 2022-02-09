@@ -72,12 +72,15 @@ add_executable(rpvio_estimator
     src/initial/initial_ex_rotation.cpp
     )
 
+add_executable(rpvio_preprocessor src/preprocessor_node.cpp src/OpticalFlowPropagator.cpp)
 
-target_link_libraries(rpvio_estimator ${catkin_LIBRARIES} ${OpenCV_LIBS} ${CERES_LIBRARIES}) 
-target_link_libraries(rpvio_mapper ${catkin_LIBRARIES} ${OpenCV_LIBS} ${CERES_LIBRARIES} ${PCL_LIBRARIES}) 
-target_link_libraries(rpvio_planner ${catkin_LIBRARIES} ${OpenCV_LIBS} ${CERES_LIBRARIES}) 
 
-catkin_install_python(PROGRAMS 
+
+target_link_libraries(rpvio_estimator ${catkin_LIBRARIES} ${OpenCV_LIBS} ${CERES_LIBRARIES})
+target_link_libraries(rpvio_mapper ${catkin_LIBRARIES} ${OpenCV_LIBS} ${CERES_LIBRARIES} ${PCL_LIBRARIES})
+target_link_libraries(rpvio_planner ${catkin_LIBRARIES} ${OpenCV_LIBS} ${CERES_LIBRARIES})
+
+catkin_install_python(PROGRAMS
   scripts/planner_node.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )

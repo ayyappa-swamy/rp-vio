@@ -214,7 +214,7 @@ void mask_cloud_callback(const sensor_msgs::PointCloudConstPtr &points_msg)
 }
 
 // thread: visual-inertial odometry
-void process()
+[[noreturn]] void process()
 {
     while (true)
     {
@@ -235,7 +235,7 @@ void process()
                 double t = imu_msg->header.stamp.toSec();
                 double img_t = img_msg->header.stamp.toSec() + estimator.td;
                 if (t <= img_t)
-                { 
+                {
                     if (current_time < 0)
                         current_time = t;
                     double dt = t - current_time;
