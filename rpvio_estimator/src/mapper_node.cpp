@@ -61,7 +61,7 @@ void mapping_callback(
     Ti.translation() = trans;
 
     cv::Mat mask_img = processMaskSegments(raw_mask_img);
-    cluster_plane_features(features_msg, mask_img, Tic.inverse() * Ti.inverse());
+    update_global_point_cloud(features_msg, mask_img, Tic.inverse() * Ti.inverse());
 
     ROS_INFO("Clustered the feature points based on %d planes", (int)mPlaneFeatureIds.size());
 
@@ -134,12 +134,12 @@ void mapping_callback(
             Vector3d c_pt = Tic.inverse() * (Ti.inverse() * w_pt);
             
             Vector3d t_pt(c_pt[0], 0.0, c_pt[2]);
-            if (mFeatures[feature_id].measurement_count > 5)
+            if (mFeatures[feature_id].measurement_count > 1)
             {
-                unsigned long hex = id2color(plane_id);
-                int r = ((hex >> 16) & 0xFF);
-                int g = ((hex >> 8) & 0xFF);
-                int b = ((hex) & 0xFF);
+                // unsigned long hex = id2color(plane_id);
+                int r = 255;//((hex >> 16) & 0xFF);
+                int g = 255;//((hex >> 8) & 0xFF);
+                int b = 0;//((hex) & 0xFF);
 
                 pcl::PointXYZRGB pt;
                 pt.x = w_pt.x();
@@ -155,9 +155,9 @@ void mapping_callback(
         // Create the filtering object
         pcl::RadiusOutlierRemoval<pcl::PointXYZRGB> ror;
         ror.setInputCloud (plane_pcd.makeShared());
-        ror.setRadiusSearch (0.75);
-        ror.setMinNeighborsInRadius (3);
-        ror.setKeepOrganized (true);
+        ror.setRadiusSearch (2);
+        ror.setMinNeighborsInRadius (5);
+        // ror.setKeepOrganized (true);
         ror.filter (plane_pcd);
         
         if (plane_pcd.points.size() < 10)
