@@ -20,7 +20,7 @@ std::mutex m_frame_buf;
 std::mutex m_propagator;
 std::mutex m_sent_frame_id;
 std::queue<Frame> frame_buf;
-int current_frame_id = 0;
+int current_frame_id = -1;
 int sent_frame_id = -2;
 
 
@@ -46,15 +46,16 @@ void publish_processed(const ProcessedFrame &f) {
                 frame_buf.pop();
             }
 
-            bool ok = propagator.source_frame.frame_id != -1 and !frame_buf.empty() and
-                      sent_frame_id > frame_buf.front().frame_id;
+            bool ok = propagator.source_frame.frame_id != -1 and !frame_buf.empty();
+
+            ok &= ((propagator.source_frame.frame_id == sent_frame_id) or (frame_buf.front().frame_id < sent_frame_id));
             if (ok) {
                 f = frame_buf.front();
                 frame_buf.pop();
             }
 
-            m_frame_buf.unlock();
             m_sent_frame_id.unlock();
+            m_frame_buf.unlock();
             return ok;
         });
 
@@ -89,6 +90,7 @@ void publish_processed(const ProcessedFrame &f) {
         m_sent_frame_id.lock();
         sent_frame_id = f.frame_id;
         m_sent_frame_id.unlock();
+        con_propagator.notify_one();
 
         ProcessedFrame processed_f;
         // TODO: run plannercnn on f and save it to processed_f
