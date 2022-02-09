@@ -116,7 +116,7 @@ cv::Mat run_plannercnn(const Frame &f) {
             ROS_DEBUG("Intitiating process for frame %d", f.frame_id);
 
             ProcessedFrame processed_f(f);
-            processed_f.plane_mask = run_plannercnn(f.img, f.frame_id);
+            processed_f.plane_mask = run_plannercnn(f);
 
 
             m_propagator.lock();

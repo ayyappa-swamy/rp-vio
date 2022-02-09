@@ -22,6 +22,18 @@ find_package(catkin REQUIRED COMPONENTS
 
 find_package(OpenCV REQUIRED)
 
+add_service_files(
+        FILES
+        PlaneSegmentation.srv
+)
+
+generate_messages(
+        DEPENDENCIES
+        sensor_msgs
+        std_msgs
+)
+
+
 # message(WARNING "OpenCV_VERSION: ${OpenCV_VERSION}")
 
 find_package(Ceres REQUIRED)
@@ -41,16 +53,6 @@ include_directories(
   ${EIGEN3_INCLUDE_DIR}
 )
 
-add_service_files(
-        FILES
-        PlaneSegmentation.srv
-)
-
-generate_messages(
-        DEPENDENCIES
-        sensor_msgs
-        std_msgs
-)
 
 
 catkin_package()
@@ -85,16 +87,17 @@ add_executable(rpvio_estimator
     )
 
 add_executable(rpvio_preprocessor src/preprocessor_node.cpp src/OpticalFlowPropagator.cpp)
-
+target_link_libraries(rpvio_preprocessor ${catkin_LIBRARIES} ${OpenCV_LIBS} ${CERES_LIBRARIES})
+add_dependencies(rpvio_preprocessor rpvio_estimator_gencpp)
 
 
 target_link_libraries(rpvio_estimator ${catkin_LIBRARIES} ${OpenCV_LIBS} ${CERES_LIBRARIES})
 target_link_libraries(rpvio_mapper ${catkin_LIBRARIES} ${OpenCV_LIBS} ${CERES_LIBRARIES} ${PCL_LIBRARIES})
 target_link_libraries(rpvio_planner ${catkin_LIBRARIES} ${OpenCV_LIBS} ${CERES_LIBRARIES})
-target_link_libraries(rpvio_preprocessor ${catkin_LIBRARIES} ${OpenCV_LIBS} ${CERES_LIBRARIES})
 
 catkin_install_python(PROGRAMS
   scripts/planner_node.py
+        scripts/plane_segmentation_server.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
