@@ -18,8 +18,10 @@ std::condition_variable con_propagator;
 
 std::mutex m_frame_buf;
 std::mutex m_propagator;
-std::queue <Frame> frame_buf;
+std::mutex m_sent_frame_id;
+std::queue<Frame> frame_buf;
 int current_frame_id = 0;
+int sent_frame_id = -2;
 
 
 int processing_frame_id;
@@ -33,23 +35,29 @@ void publish_processed(const ProcessedFrame &f) {
 [[noreturn]] void propagate_and_publish() {
     Frame f;
     while (true) {
-        m_frame_buf.lock();
-        std::unique_lock <std::mutex> lk(m_propagator);
-        con_propagator.wait(lk, [] { return propagator.source_frame.frame_id != -1 and !frame_buf.empty(); });
 
-        while (!frame_buf.empty() and frame_buf.front().frame_id < propagator.source_frame.frame_id) {
-            frame_buf.pop();
-        }
+        std::unique_lock<std::mutex> lk(m_propagator);
+        con_propagator.wait(lk, [&] {
 
-        if (!frame_buf.empty()) {
-            f = frame_buf.front();
-            frame_buf.pop();
+            m_frame_buf.lock();
+            m_sent_frame_id.lock();
+
+            while (!frame_buf.empty() and frame_buf.front().frame_id < propagator.source_frame.frame_id) {
+                frame_buf.pop();
+            }
+
+            bool ok = propagator.source_frame.frame_id != -1 and !frame_buf.empty() and
+                      sent_frame_id > frame_buf.front().frame_id;
+            if (ok) {
+                f = frame_buf.front();
+                frame_buf.pop();
+            }
+
             m_frame_buf.unlock();
-        } else {
-            lk.unlock();
-            m_frame_buf.unlock();
-            continue;
-        }
+            m_sent_frame_id.unlock();
+            return ok;
+        });
+
 
         ProcessedFrame processed_f;
         if (f.frame_id == propagator.source_frame.frame_id) {
@@ -61,8 +69,8 @@ void publish_processed(const ProcessedFrame &f) {
             processed_f.pcd = f.pcd;
             processed_f.plane_mask = propagator.propagate_farneback(f.img);
         }
-        lk.unlock();
 
+        lk.unlock();
         publish_processed(processed_f);
     }
 
@@ -73,10 +81,14 @@ void publish_processed(const ProcessedFrame &f) {
 [[noreturn]] void process() {
     while (true) {
         Frame f;
-        std::unique_lock <std::mutex> lk(m_frame_buf);
+        std::unique_lock<std::mutex> lk(m_frame_buf);
         con_frame_buf.wait(lk, [] { return !frame_buf.empty(); });
         f = frame_buf.front();
         lk.unlock();
+
+        m_sent_frame_id.lock();
+        sent_frame_id = f.frame_id;
+        m_sent_frame_id.unlock();
 
         ProcessedFrame processed_f;
         // TODO: run plannercnn on f and save it to processed_f
