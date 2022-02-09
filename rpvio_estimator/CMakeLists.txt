@@ -41,6 +41,18 @@ include_directories(
   ${EIGEN3_INCLUDE_DIR}
 )
 
+add_service_files(
+        FILES
+        PlaneSegmentation.srv
+)
+
+generate_messages(
+        DEPENDENCIES
+        sensor_msgs
+        std_msgs
+)
+
+
 catkin_package()
 
 add_executable(rpvio_mapper

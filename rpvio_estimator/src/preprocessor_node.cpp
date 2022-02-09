@@ -12,20 +12,25 @@
 #include <ros/ros.h>
 #include <cv_bridge/cv_bridge.h>
 
+#include "rpvio_estimator/PlaneSegmentation.h"
+
 #include "OpticalFlowPropagator.h"
 
 OpticalFlowPropagator propagator;
 
 
+// thread sync stuff
 std::condition_variable con_frame_buf;
 std::condition_variable con_propagator;
-
 std::mutex m_frame_buf;
 std::mutex m_propagator;
 std::mutex m_sent_frame_id;
 std::queue<Frame> frame_buf;
 int current_frame_id = -1;
 int sent_frame_id = -2;
+
+// ros stuff
+ros::ServiceClient client;
 
 Frame current_frame;
 
@@ -35,9 +40,25 @@ void publish_processed(const ProcessedFrame &f) {
     ROS_INFO("Publishing frame %d", f.frame_id);
 }
 
-cv::Mat run_plannercnn(const cv::Mat img) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(250));
-    return img;
+cv::Mat run_plannercnn(const Frame &f) {
+    sensor_msgs::ImagePtr img_msg = cv_bridge::CvImage(f.img_header, sensor_msgs::image_encodings::BGR8,
+                                                       f.img).toImageMsg();
+
+    rpvio_estimator::PlaneSegmentation plane_seg_srv;
+    plane_seg_srv.request.frame_id = f.frame_id;
+    plane_seg_srv.request.img = *img_msg;
+    ROS_DEBUG("Sending frame %d", f.frame_id);
+    cv::Mat plane_mask;
+    if (client.call(plane_seg_srv)) {
+        ROS_DEBUG("Got back frame %d", f.frame_id);
+        plane_mask = cv_bridge::toCvCopy(plane_seg_srv.response.img, sensor_msgs::image_encodings::BGR8)->image;
+    } else {
+        ROS_ERROR("Can't get response from plannercnn service, frame %ld", plane_seg_srv.request.frame_id);
+    }
+
+    return plane_mask;
+//    std::this_thread::sleep_for(std::chrono::milliseconds(250));
+//    return img;
 }
 
 
@@ -75,10 +96,7 @@ cv::Mat run_plannercnn(const cv::Mat img) {
         if (f.frame_id == propagator.source_frame.frame_id) {
             processed_f = propagator.source_frame;
         } else {
-            processed_f.frame_id = f.frame_id;
-            processed_f.img = f.img;
-            processed_f.odom = f.odom;
-            processed_f.pcd = f.pcd;
+            processed_f = ProcessedFrame(f);
             processed_f.plane_mask = propagator.propagate_farneback(f.img);
         }
 
@@ -95,15 +113,15 @@ cv::Mat run_plannercnn(const cv::Mat img) {
     Frame f;
     while (true) {
         if (f.frame_id != -1) {
-            ROS_INFO("Sending frame %d", f.frame_id);
+            ROS_DEBUG("Intitiating process for frame %d", f.frame_id);
 
             ProcessedFrame processed_f(f);
-            processed_f.plane_mask = run_plannercnn(f.img);
+            processed_f.plane_mask = run_plannercnn(f.img, f.frame_id);
 
-            ROS_INFO("Got frame %d", processed_f.frame_id);
 
             m_propagator.lock();
             propagator.reset(processed_f);
+            ROS_DEBUG("Saved frame %f", processed_f.frame_id);
             m_propagator.unlock();
             con_propagator.notify_one();
         }
@@ -121,8 +139,8 @@ cv::Mat run_plannercnn(const cv::Mat img) {
 }
 
 void preprocessing_callback(
-//        const sensor_msgs::PointCloudConstPtr &features_msg,
-//        const nav_msgs::OdometryConstPtr &odometry_msg,
+        const sensor_msgs::PointCloudConstPtr &features_msg,
+        const nav_msgs::OdometryConstPtr &odometry_msg,
         const sensor_msgs::ImageConstPtr &img_msg
 ) {
     Frame f;
@@ -130,6 +148,7 @@ void preprocessing_callback(
     f.pcd = nullptr;
     f.odom = nullptr;
     f.img = cv_bridge::toCvCopy(img_msg, sensor_msgs::image_encodings::BGR8)->image;
+    f.img_header = img_msg->header;
 
     m_frame_buf.lock();
     frame_buf.push(f);
@@ -144,11 +163,18 @@ int main(int argc, char **argv) {
     ros::init(argc, argv, "rpvio_preprocessor");
     ros::NodeHandle n;
 
-    ros::console::set_logger_level(ROSCONSOLE_DEFAULT_NAME, ros::console::levels::Info);
-//    message_filters::Subscriber<sensor_msgs::PointCloud> sub_point_cloud(n, "/point_cloud", 100);
-//    message_filters::Subscriber<nav_msgs::Odometry> sub_odometry(n, "/odometry", 100);
-    ros::Subscriber sub = n.subscribe("/image", 10, preprocessing_callback);
-//    message_filters::Subscriber<sensor_msgs::Image> sub_image(n, "/image", 10);
+    ros::console::set_logger_level(ROSCONSOLE_DEFAULT_NAME, ros::console::levels::Debug);
+    message_filters::Subscriber<sensor_msgs::PointCloud> sub_point_cloud(n, "/vins_estimator/point_cloud", 100);
+    message_filters::Subscriber<nav_msgs::Odometry> sub_odometry(n, "/vins_estimator/odometry", 100);
+//    ros::Subscriber sub = n.subscribe("/image", 10, preprocessing_callback);
+    message_filters::Subscriber<sensor_msgs::Image> sub_image(n, "/image", 10);
+    typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::PointCloud, nav_msgs::Odometry, sensor_msgs::Image> MySyncPolicy;
+
+    message_filters::Synchronizer<MySyncPolicy> sync(MySyncPolicy(10), sub_point_cloud, sub_odometry, sub_image);
+    sync.registerCallback(boost::bind(&preprocessing_callback, _1, _2, _3));
+
+    // declare service client
+    client = n.serviceClient<rpvio_estimator::PlaneSegmentation>("plane_segmentation");
 
     std::thread plannercnn_process(process), propagate_process(propagate_and_publish);
     ros::spin();

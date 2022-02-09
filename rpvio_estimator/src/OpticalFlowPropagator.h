@@ -9,12 +9,14 @@
 
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/PointCloud.h>
+#include <std_msgs/Header.h>
 #include <nav_msgs/Odometry.h>
 #include <thread>
 
 struct Frame {
     sensor_msgs::PointCloudConstPtr pcd = nullptr;
     nav_msgs::OdometryConstPtr odom = nullptr;
+    std_msgs::Header img_header;
     cv::Mat img;
     int frame_id = -1;
 
@@ -44,6 +46,8 @@ public:
     ~OpticalFlowPropagator();
 
     ProcessedFrame source_frame;
+    cv::Mat old_gray, old_plane_mask;
+    cv::Mat grid;
 
     void reset(const ProcessedFrame &f);
 
