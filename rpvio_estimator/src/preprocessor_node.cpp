@@ -31,6 +31,10 @@ int sent_frame_id = -2;
 
 // ros stuff
 ros::ServiceClient client;
+ros::Publisher rgb_image_pub;
+ros::Publisher pcd_pub;
+ros::Publisher odom_pub;
+ros::Publisher plane_mask_pub;
 
 Frame current_frame;
 
@@ -38,6 +42,18 @@ Frame current_frame;
 void publish_processed(const ProcessedFrame &f) {
     // TODO: publish
     ROS_INFO("Publishing frame %d", f.frame_id);
+    sensor_msgs::ImagePtr rgb_image_msg = cv_bridge::CvImage(f.img_header, sensor_msgs::image_encodings::BGR8,
+                                                             f.rgb_img).toImageMsg();
+
+    sensor_msgs::ImagePtr plane_mask_msg = cv_bridge::CvImage(f.img_header, sensor_msgs::image_encodings::BGR8,
+                                                              f.plane_mask).toImageMsg();
+
+    // publishing stuff
+    rgb_image_pub.publish(rgb_image_msg);
+    plane_mask_pub.publish(plane_mask_msg);
+    pcd_pub.publish(f.pcd);
+    odom_pub.publish(f.odom);
+
 }
 
 cv::Mat run_plannercnn(const Frame &f) {
@@ -183,6 +199,13 @@ int main(int argc, char **argv) {
 
     // declare service client
     client = n.serviceClient<rpvio_estimator::PlaneSegmentation>("plane_segmentation");
+
+    // publishers
+    rgb_image_pub = n.advertise<sensor_msgs::Image>("/preprocessor/image", 100);
+    plane_mask_pub = n.advertise<sensor_msgs::Image>("/preprocessor/plane_mask", 100);
+    pcd_pub = n.advertise<sensor_msgs::PointCloud>("/preprocessor/point_cloud", 100);
+    odom_pub = n.advertise<nav_msgs::Odometry>("/preprocessor/odometry", 100);
+
 
     std::thread plannercnn_process(process), propagate_process(propagate_and_publish);
     ros::spin();
