@@ -6,7 +6,7 @@
 
 void OpticalFlowPropagator::reset(const ProcessedFrame &f) {
     this->source_frame = f;
-    cv::cvtColor(f.img, this->old_gray, cv::COLOR_BGR2GRAY);
+    cv::cvtColor(f.rgb_img, this->old_gray, cv::COLOR_BGR2GRAY);
     this->old_plane_mask = f.plane_mask;
 }
 

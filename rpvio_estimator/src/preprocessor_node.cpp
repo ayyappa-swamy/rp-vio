@@ -42,11 +42,15 @@ void publish_processed(const ProcessedFrame &f) {
 
 cv::Mat run_plannercnn(const Frame &f) {
     sensor_msgs::ImagePtr img_msg = cv_bridge::CvImage(f.img_header, sensor_msgs::image_encodings::BGR8,
-                                                       f.img).toImageMsg();
+                                                       f.rgb_img).toImageMsg();
+
+    sensor_msgs::ImagePtr building_mask_msg = cv_bridge::CvImage(f.img_header, sensor_msgs::image_encodings::BGR8,
+                                                                 f.building_mask).toImageMsg();
 
     rpvio_estimator::PlaneSegmentation plane_seg_srv;
     plane_seg_srv.request.frame_id = f.frame_id;
-    plane_seg_srv.request.img = *img_msg;
+    plane_seg_srv.request.rgb_image = *img_msg;
+    plane_seg_srv.request.building_mask_image = *building_mask_msg;
     ROS_DEBUG("Sending frame %d", f.frame_id);
     cv::Mat plane_mask;
     if (client.call(plane_seg_srv)) {
@@ -97,7 +101,7 @@ cv::Mat run_plannercnn(const Frame &f) {
             processed_f = propagator.source_frame;
         } else {
             processed_f = ProcessedFrame(f);
-            processed_f.plane_mask = propagator.propagate_farneback(f.img);
+            processed_f.plane_mask = propagator.propagate_farneback(f.rgb_img);
         }
 
         lk.unlock();
@@ -141,13 +145,15 @@ cv::Mat run_plannercnn(const Frame &f) {
 void preprocessing_callback(
         const sensor_msgs::PointCloudConstPtr &features_msg,
         const nav_msgs::OdometryConstPtr &odometry_msg,
-        const sensor_msgs::ImageConstPtr &img_msg
+        const sensor_msgs::ImageConstPtr &img_msg,
+        const sensor_msgs::ImageConstPtr &building_mask
 ) {
     Frame f;
     f.frame_id = ++current_frame_id;
     f.pcd = nullptr;
     f.odom = nullptr;
-    f.img = cv_bridge::toCvCopy(img_msg, sensor_msgs::image_encodings::BGR8)->image;
+    f.rgb_img = cv_bridge::toCvCopy(img_msg, sensor_msgs::image_encodings::BGR8)->image;
+    f.building_mask = cv_bridge::toCvCopy(building_mask, sensor_msgs::image_encodings::BGR8)->image;
     f.img_header = img_msg->header;
 
     m_frame_buf.lock();
@@ -168,10 +174,12 @@ int main(int argc, char **argv) {
     message_filters::Subscriber<nav_msgs::Odometry> sub_odometry(n, "/vins_estimator/odometry", 100);
 //    ros::Subscriber sub = n.subscribe("/image", 10, preprocessing_callback);
     message_filters::Subscriber<sensor_msgs::Image> sub_image(n, "/image", 10);
-    typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::PointCloud, nav_msgs::Odometry, sensor_msgs::Image> MySyncPolicy;
+    message_filters::Subscriber<sensor_msgs::Image> sub_building_mask(n, "/building_mask_image", 10);
+    typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::PointCloud, nav_msgs::Odometry, sensor_msgs::Image, sensor_msgs::Image> MySyncPolicy;
 
-    message_filters::Synchronizer<MySyncPolicy> sync(MySyncPolicy(10), sub_point_cloud, sub_odometry, sub_image);
-    sync.registerCallback(boost::bind(&preprocessing_callback, _1, _2, _3));
+    message_filters::Synchronizer<MySyncPolicy> sync(MySyncPolicy(10), sub_point_cloud, sub_odometry, sub_image,
+                                                     sub_building_mask);
+    sync.registerCallback(boost::bind(&preprocessing_callback, _1, _2, _3, _4));
 
     // declare service client
     client = n.serviceClient<rpvio_estimator::PlaneSegmentation>("plane_segmentation");

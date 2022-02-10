@@ -17,7 +17,7 @@ struct Frame {
     sensor_msgs::PointCloudConstPtr pcd = nullptr;
     nav_msgs::OdometryConstPtr odom = nullptr;
     std_msgs::Header img_header;
-    cv::Mat img;
+    cv::Mat rgb_img, building_mask;
     int frame_id = -1;
 
     Frame() {
@@ -31,7 +31,8 @@ struct ProcessedFrame : Frame {
     ProcessedFrame(const Frame &f) {
         this->pcd = f.pcd;
         this->odom = f.odom;
-        this->img = f.img;
+        this->rgb_img = f.rgb_img;
+        this->building_mask = f.building_mask;
         this->frame_id = f.frame_id;
     }
 
