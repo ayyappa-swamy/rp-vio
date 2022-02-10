@@ -10,11 +10,12 @@ import sensor_msgs.msg
 import std_msgs.msg
 
 class PlaneSegmentationRequest(genpy.Message):
-  _md5sum = "df03c279a0be080909b285ca39340667"
+  _md5sum = "a4f473c666eba000be6355dfebb2fad7"
   _type = "rpvio_estimator/PlaneSegmentationRequest"
   _has_header = False  # flag to mark the presence of a Header object
   _full_text = """int64 frame_id
-sensor_msgs/Image img
+sensor_msgs/Image rgb_image
+sensor_msgs/Image building_mask_image
 
 ================================================================================
 MSG: sensor_msgs/Image
@@ -64,8 +65,8 @@ time stamp
 # 1: global frame
 string frame_id
 """
-  __slots__ = ['frame_id','img']
-  _slot_types = ['int64','sensor_msgs/Image']
+  __slots__ = ['frame_id','rgb_image','building_mask_image']
+  _slot_types = ['int64','sensor_msgs/Image','sensor_msgs/Image']
 
   def __init__(self, *args, **kwds):
     """
@@ -75,7 +76,7 @@ string frame_id
     changes.  You cannot mix in-order arguments and keyword arguments.
 
     The available fields are:
-       frame_id,img
+       frame_id,rgb_image,building_mask_image
 
     :param args: complete set of field values, in .msg order
     :param kwds: use keyword arguments corresponding to message field names
@@ -86,11 +87,14 @@ string frame_id
       # message fields cannot be None, assign default values for those that are
       if self.frame_id is None:
         self.frame_id = 0
-      if self.img is None:
-        self.img = sensor_msgs.msg.Image()
+      if self.rgb_image is None:
+        self.rgb_image = sensor_msgs.msg.Image()
+      if self.building_mask_image is None:
+        self.building_mask_image = sensor_msgs.msg.Image()
     else:
       self.frame_id = 0
-      self.img = sensor_msgs.msg.Image()
+      self.rgb_image = sensor_msgs.msg.Image()
+      self.building_mask_image = sensor_msgs.msg.Image()
 
   def _get_types(self):
     """
@@ -105,24 +109,49 @@ string frame_id
     """
     try:
       _x = self
-      buff.write(_get_struct_q3I().pack(_x.frame_id, _x.img.header.seq, _x.img.header.stamp.secs, _x.img.header.stamp.nsecs))
-      _x = self.img.header.frame_id
+      buff.write(_get_struct_q3I().pack(_x.frame_id, _x.rgb_image.header.seq, _x.rgb_image.header.stamp.secs, _x.rgb_image.header.stamp.nsecs))
+      _x = self.rgb_image.header.frame_id
       length = len(_x)
       if python3 or type(_x) == unicode:
         _x = _x.encode('utf-8')
         length = len(_x)
       buff.write(struct.Struct('<I%ss'%length).pack(length, _x))
       _x = self
-      buff.write(_get_struct_2I().pack(_x.img.height, _x.img.width))
-      _x = self.img.encoding
+      buff.write(_get_struct_2I().pack(_x.rgb_image.height, _x.rgb_image.width))
+      _x = self.rgb_image.encoding
       length = len(_x)
       if python3 or type(_x) == unicode:
         _x = _x.encode('utf-8')
         length = len(_x)
       buff.write(struct.Struct('<I%ss'%length).pack(length, _x))
       _x = self
-      buff.write(_get_struct_BI().pack(_x.img.is_bigendian, _x.img.step))
-      _x = self.img.data
+      buff.write(_get_struct_BI().pack(_x.rgb_image.is_bigendian, _x.rgb_image.step))
+      _x = self.rgb_image.data
+      length = len(_x)
+      # - if encoded as a list instead, serialize as bytes instead of string
+      if type(_x) in [list, tuple]:
+        buff.write(struct.Struct('<I%sB'%length).pack(length, *_x))
+      else:
+        buff.write(struct.Struct('<I%ss'%length).pack(length, _x))
+      _x = self
+      buff.write(_get_struct_3I().pack(_x.building_mask_image.header.seq, _x.building_mask_image.header.stamp.secs, _x.building_mask_image.header.stamp.nsecs))
+      _x = self.building_mask_image.header.frame_id
+      length = len(_x)
+      if python3 or type(_x) == unicode:
+        _x = _x.encode('utf-8')
+        length = len(_x)
+      buff.write(struct.Struct('<I%ss'%length).pack(length, _x))
+      _x = self
+      buff.write(_get_struct_2I().pack(_x.building_mask_image.height, _x.building_mask_image.width))
+      _x = self.building_mask_image.encoding
+      length = len(_x)
+      if python3 or type(_x) == unicode:
+        _x = _x.encode('utf-8')
+        length = len(_x)
+      buff.write(struct.Struct('<I%ss'%length).pack(length, _x))
+      _x = self
+      buff.write(_get_struct_BI().pack(_x.building_mask_image.is_bigendian, _x.building_mask_image.step))
+      _x = self.building_mask_image.data
       length = len(_x)
       # - if encoded as a list instead, serialize as bytes instead of string
       if type(_x) in [list, tuple]:
@@ -139,45 +168,83 @@ string frame_id
     """
     codecs.lookup_error("rosmsg").msg_type = self._type
     try:
-      if self.img is None:
-        self.img = sensor_msgs.msg.Image()
+      if self.rgb_image is None:
+        self.rgb_image = sensor_msgs.msg.Image()
+      if self.building_mask_image is None:
+        self.building_mask_image = sensor_msgs.msg.Image()
       end = 0
       _x = self
       start = end
       end += 20
-      (_x.frame_id, _x.img.header.seq, _x.img.header.stamp.secs, _x.img.header.stamp.nsecs,) = _get_struct_q3I().unpack(str[start:end])
+      (_x.frame_id, _x.rgb_image.header.seq, _x.rgb_image.header.stamp.secs, _x.rgb_image.header.stamp.nsecs,) = _get_struct_q3I().unpack(str[start:end])
       start = end
       end += 4
       (length,) = _struct_I.unpack(str[start:end])
       start = end
       end += length
       if python3:
-        self.img.header.frame_id = str[start:end].decode('utf-8', 'rosmsg')
+        self.rgb_image.header.frame_id = str[start:end].decode('utf-8', 'rosmsg')
       else:
-        self.img.header.frame_id = str[start:end]
+        self.rgb_image.header.frame_id = str[start:end]
       _x = self
       start = end
       end += 8
-      (_x.img.height, _x.img.width,) = _get_struct_2I().unpack(str[start:end])
+      (_x.rgb_image.height, _x.rgb_image.width,) = _get_struct_2I().unpack(str[start:end])
       start = end
       end += 4
       (length,) = _struct_I.unpack(str[start:end])
       start = end
       end += length
       if python3:
-        self.img.encoding = str[start:end].decode('utf-8', 'rosmsg')
+        self.rgb_image.encoding = str[start:end].decode('utf-8', 'rosmsg')
       else:
-        self.img.encoding = str[start:end]
+        self.rgb_image.encoding = str[start:end]
       _x = self
       start = end
       end += 5
-      (_x.img.is_bigendian, _x.img.step,) = _get_struct_BI().unpack(str[start:end])
+      (_x.rgb_image.is_bigendian, _x.rgb_image.step,) = _get_struct_BI().unpack(str[start:end])
       start = end
       end += 4
       (length,) = _struct_I.unpack(str[start:end])
       start = end
       end += length
-      self.img.data = str[start:end]
+      self.rgb_image.data = str[start:end]
+      _x = self
+      start = end
+      end += 12
+      (_x.building_mask_image.header.seq, _x.building_mask_image.header.stamp.secs, _x.building_mask_image.header.stamp.nsecs,) = _get_struct_3I().unpack(str[start:end])
+      start = end
+      end += 4
+      (length,) = _struct_I.unpack(str[start:end])
+      start = end
+      end += length
+      if python3:
+        self.building_mask_image.header.frame_id = str[start:end].decode('utf-8', 'rosmsg')
+      else:
+        self.building_mask_image.header.frame_id = str[start:end]
+      _x = self
+      start = end
+      end += 8
+      (_x.building_mask_image.height, _x.building_mask_image.width,) = _get_struct_2I().unpack(str[start:end])
+      start = end
+      end += 4
+      (length,) = _struct_I.unpack(str[start:end])
+      start = end
+      end += length
+      if python3:
+        self.building_mask_image.encoding = str[start:end].decode('utf-8', 'rosmsg')
+      else:
+        self.building_mask_image.encoding = str[start:end]
+      _x = self
+      start = end
+      end += 5
+      (_x.building_mask_image.is_bigendian, _x.building_mask_image.step,) = _get_struct_BI().unpack(str[start:end])
+      start = end
+      end += 4
+      (length,) = _struct_I.unpack(str[start:end])
+      start = end
+      end += length
+      self.building_mask_image.data = str[start:end]
       return self
     except struct.error as e:
       raise genpy.DeserializationError(e)  # most likely buffer underfill
@@ -191,24 +258,49 @@ string frame_id
     """
     try:
       _x = self
-      buff.write(_get_struct_q3I().pack(_x.frame_id, _x.img.header.seq, _x.img.header.stamp.secs, _x.img.header.stamp.nsecs))
-      _x = self.img.header.frame_id
+      buff.write(_get_struct_q3I().pack(_x.frame_id, _x.rgb_image.header.seq, _x.rgb_image.header.stamp.secs, _x.rgb_image.header.stamp.nsecs))
+      _x = self.rgb_image.header.frame_id
       length = len(_x)
       if python3 or type(_x) == unicode:
         _x = _x.encode('utf-8')
         length = len(_x)
       buff.write(struct.Struct('<I%ss'%length).pack(length, _x))
       _x = self
-      buff.write(_get_struct_2I().pack(_x.img.height, _x.img.width))
-      _x = self.img.encoding
+      buff.write(_get_struct_2I().pack(_x.rgb_image.height, _x.rgb_image.width))
+      _x = self.rgb_image.encoding
       length = len(_x)
       if python3 or type(_x) == unicode:
         _x = _x.encode('utf-8')
         length = len(_x)
       buff.write(struct.Struct('<I%ss'%length).pack(length, _x))
       _x = self
-      buff.write(_get_struct_BI().pack(_x.img.is_bigendian, _x.img.step))
-      _x = self.img.data
+      buff.write(_get_struct_BI().pack(_x.rgb_image.is_bigendian, _x.rgb_image.step))
+      _x = self.rgb_image.data
+      length = len(_x)
+      # - if encoded as a list instead, serialize as bytes instead of string
+      if type(_x) in [list, tuple]:
+        buff.write(struct.Struct('<I%sB'%length).pack(length, *_x))
+      else:
+        buff.write(struct.Struct('<I%ss'%length).pack(length, _x))
+      _x = self
+      buff.write(_get_struct_3I().pack(_x.building_mask_image.header.seq, _x.building_mask_image.header.stamp.secs, _x.building_mask_image.header.stamp.nsecs))
+      _x = self.building_mask_image.header.frame_id
+      length = len(_x)
+      if python3 or type(_x) == unicode:
+        _x = _x.encode('utf-8')
+        length = len(_x)
+      buff.write(struct.Struct('<I%ss'%length).pack(length, _x))
+      _x = self
+      buff.write(_get_struct_2I().pack(_x.building_mask_image.height, _x.building_mask_image.width))
+      _x = self.building_mask_image.encoding
+      length = len(_x)
+      if python3 or type(_x) == unicode:
+        _x = _x.encode('utf-8')
+        length = len(_x)
+      buff.write(struct.Struct('<I%ss'%length).pack(length, _x))
+      _x = self
+      buff.write(_get_struct_BI().pack(_x.building_mask_image.is_bigendian, _x.building_mask_image.step))
+      _x = self.building_mask_image.data
       length = len(_x)
       # - if encoded as a list instead, serialize as bytes instead of string
       if type(_x) in [list, tuple]:
@@ -226,45 +318,83 @@ string frame_id
     """
     codecs.lookup_error("rosmsg").msg_type = self._type
     try:
-      if self.img is None:
-        self.img = sensor_msgs.msg.Image()
+      if self.rgb_image is None:
+        self.rgb_image = sensor_msgs.msg.Image()
+      if self.building_mask_image is None:
+        self.building_mask_image = sensor_msgs.msg.Image()
       end = 0
       _x = self
       start = end
       end += 20
-      (_x.frame_id, _x.img.header.seq, _x.img.header.stamp.secs, _x.img.header.stamp.nsecs,) = _get_struct_q3I().unpack(str[start:end])
+      (_x.frame_id, _x.rgb_image.header.seq, _x.rgb_image.header.stamp.secs, _x.rgb_image.header.stamp.nsecs,) = _get_struct_q3I().unpack(str[start:end])
       start = end
       end += 4
       (length,) = _struct_I.unpack(str[start:end])
       start = end
       end += length
       if python3:
-        self.img.header.frame_id = str[start:end].decode('utf-8', 'rosmsg')
+        self.rgb_image.header.frame_id = str[start:end].decode('utf-8', 'rosmsg')
       else:
-        self.img.header.frame_id = str[start:end]
+        self.rgb_image.header.frame_id = str[start:end]
       _x = self
       start = end
       end += 8
-      (_x.img.height, _x.img.width,) = _get_struct_2I().unpack(str[start:end])
+      (_x.rgb_image.height, _x.rgb_image.width,) = _get_struct_2I().unpack(str[start:end])
       start = end
       end += 4
       (length,) = _struct_I.unpack(str[start:end])
       start = end
       end += length
       if python3:
-        self.img.encoding = str[start:end].decode('utf-8', 'rosmsg')
+        self.rgb_image.encoding = str[start:end].decode('utf-8', 'rosmsg')
       else:
-        self.img.encoding = str[start:end]
+        self.rgb_image.encoding = str[start:end]
       _x = self
       start = end
       end += 5
-      (_x.img.is_bigendian, _x.img.step,) = _get_struct_BI().unpack(str[start:end])
+      (_x.rgb_image.is_bigendian, _x.rgb_image.step,) = _get_struct_BI().unpack(str[start:end])
       start = end
       end += 4
       (length,) = _struct_I.unpack(str[start:end])
       start = end
       end += length
-      self.img.data = str[start:end]
+      self.rgb_image.data = str[start:end]
+      _x = self
+      start = end
+      end += 12
+      (_x.building_mask_image.header.seq, _x.building_mask_image.header.stamp.secs, _x.building_mask_image.header.stamp.nsecs,) = _get_struct_3I().unpack(str[start:end])
+      start = end
+      end += 4
+      (length,) = _struct_I.unpack(str[start:end])
+      start = end
+      end += length
+      if python3:
+        self.building_mask_image.header.frame_id = str[start:end].decode('utf-8', 'rosmsg')
+      else:
+        self.building_mask_image.header.frame_id = str[start:end]
+      _x = self
+      start = end
+      end += 8
+      (_x.building_mask_image.height, _x.building_mask_image.width,) = _get_struct_2I().unpack(str[start:end])
+      start = end
+      end += 4
+      (length,) = _struct_I.unpack(str[start:end])
+      start = end
+      end += length
+      if python3:
+        self.building_mask_image.encoding = str[start:end].decode('utf-8', 'rosmsg')
+      else:
+        self.building_mask_image.encoding = str[start:end]
+      _x = self
+      start = end
+      end += 5
+      (_x.building_mask_image.is_bigendian, _x.building_mask_image.step,) = _get_struct_BI().unpack(str[start:end])
+      start = end
+      end += 4
+      (length,) = _struct_I.unpack(str[start:end])
+      start = end
+      end += length
+      self.building_mask_image.data = str[start:end]
       return self
     except struct.error as e:
       raise genpy.DeserializationError(e)  # most likely buffer underfill
@@ -279,6 +409,12 @@ def _get_struct_2I():
     if _struct_2I is None:
         _struct_2I = struct.Struct("<2I")
     return _struct_2I
+_struct_3I = None
+def _get_struct_3I():
+    global _struct_3I
+    if _struct_3I is None:
+        _struct_3I = struct.Struct("<3I")
+    return _struct_3I
 _struct_BI = None
 def _get_struct_BI():
     global _struct_BI
@@ -587,6 +723,6 @@ def _get_struct_q3I():
     return _struct_q3I
 class PlaneSegmentation(object):
   _type          = 'rpvio_estimator/PlaneSegmentation'
-  _md5sum = '15778974d9141d3e7187a165fe04979b'
+  _md5sum = '17551309d1d0b6931270fe369d0166ea'
   _request_class  = PlaneSegmentationRequest
   _response_class = PlaneSegmentationResponse
