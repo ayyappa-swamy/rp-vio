@@ -3,7 +3,8 @@
 #include"MMD.h"
 #include <math.h>
 #include <bits/stdc++.h>
-
+#include <iostream>
+#include <fstream>
 
 MMDFunctions::MMD_variants MMDF;
 
@@ -22,8 +23,21 @@ namespace Optimization
 		ros::Publisher OptimTraj , ros::Publisher SampleTraj );
 
 		std::vector<Eigen::MatrixXd> CrossEntropyOptimize(  Eigen::MatrixXd x_samples ,  Eigen::MatrixXd y_samples  , Eigen::MatrixXd z_samples , int num_iterations , std::vector<Eigen::Vector3d>  Centers,  
-		ros::Publisher OptimTraj , ros::Publisher SampleTraj , std::vector<CuboidObject> cuboids );
+		ros::Publisher OptimTraj , ros::Publisher SampleTraj , std::vector<CuboidObject> cuboids , ros::Publisher  CEM_MeanTrajectory  );
+		double MMDwithNormalUncertainity( std::vector<CuboidObject> cuboids , Eigen::Vector3d Qpt , int numSamples_normal_uncertainity , bool Ismean );
 
+		void SetUncertainityMeasurments();
+
+
+	protected:
+
+
+
+		int numDegreeSamples  = 100 ; 
+		int  numDistanceSamples  = 100;
+		Eigen::MatrixXd NormalDistribution ; 
+		Eigen::MatrixXd DistanceDistribution ;
+		int iter_cnt = 0 ; 
 
 
 	};
@@ -66,7 +80,7 @@ return Dist;
 }
 
 
-
+/*
 double MMDCost( double  distance , int num_samples_distance   )
 {
 	double MMD_cost; 
@@ -80,7 +94,7 @@ double MMDCost( double  distance , int num_samples_distance   )
 	Eigen::MatrixXf noise_distribution2(1, num_samples_of_distance_distribution);
 	Eigen::MatrixXf radius(1, num_samples_of_distance_distribution);  
      // radius.setOnes();
-	radius = Eigen::MatrixXf::Constant( 1, num_samples_of_distance_distribution, 0.75); 
+	radius = Eigen::MatrixXf::Constant( 1, num_samples_of_distance_distribution, 0.5); 
 	Eigen::MatrixXf actual_distance( 1, num_samples_of_distance_distribution);
 	Eigen::MatrixXf actual_distribution( 1, num_samples_of_distance_distribution);
 	Eigen::MatrixXf zero_matrix( 1, num_samples_of_distance_distribution);
@@ -121,6 +135,7 @@ double MMDCost( double  distance , int num_samples_distance   )
     return MMD_cost ;
 
 }
+*/
 
 Eigen::Vector3d  DetermineCenter( std::vector<Eigen::Vector3d> vertices){
 
@@ -145,7 +160,8 @@ double MeasureSDFCollision( Eigen::Vector3d R , Eigen::Vector3d Q   )
 
 	Eigen::Vector3d T ; 
 	T =  Q.cwiseAbs() -  R ;
-	distance = T.cwiseMax(Z ).norm() ;  
+	distance = T.cwiseMax(Z ).norm() ; 
+
 	return  distance ; 
 }
 
@@ -161,7 +177,7 @@ Eigen::Vector3d TransformQpt( Eigen::Vector3d Qpt , double epsilon , double thet
 		 0 ,  0 , 1 ;
 
 	Eigen::MatrixXd T ; 
-	T = -R*Qpt ;
+	T = -R*CubeOrigin ;
 
 	Eigen::Vector3d Q ;
 	Q = R*Qpt + T;
@@ -170,17 +186,92 @@ Eigen::Vector3d TransformQpt( Eigen::Vector3d Qpt , double epsilon , double thet
 }
 
 
-
-double MMDwithNormalUncertainity( std::vector<CuboidObject> cuboids , Eigen::Vector3d Qpt , int numSamples_normal_uncertainity )
+void Optimization::TrajectoryOptimization::SetUncertainityMeasurments()
 {
+
+	NormalDistribution = Eigen::MatrixXd::Constant( 1, numDegreeSamples, 0); 
+	DistanceDistribution = Eigen::MatrixXd::Constant(  numDistanceSamples , 3 ,  0); 
+    // std::cout<< " Saved the values 0  " <<  NormalDistribution.cols()   << std::endl ;
+
+	std::random_device rd{};
+	std::mt19937 gen{rd()};
+
+    using normal_dist   = std::normal_distribution<>;
+    using discrete_dist = std::discrete_distribution<std::size_t>;
+
+    auto G = std::array<normal_dist, 4>{
+        normal_dist{-0.592234, 5.845}, // mean, stddev of G[0]
+        normal_dist{49.1803, 25.243}, // mean, stddev of G[1]
+        normal_dist{ -28.4073, 29.4073} , // mean, stddev of G[2]
+         normal_dist{7.798, 11.472}  // mean, stddev of G[3]
+    };
+
+    auto w = discrete_dist{
+        0.7198, // weight of G[0]
+        0.0473, // weight of G[1]
+        0.102,  // weight of G[2]
+        0.1308  // weight of G[2]
+    };
+
+    // Eigen::MatrixXd NormalDistribution( 1 ,numDegreeSamples  ) ;
+
+    for (int i=0 ; i<numDegreeSamples; i++){
+
+    	auto index = w(gen);
+    	auto temp_noise_val = G[index](gen);
+    	NormalDistribution(0 ,i) =  temp_noise_val ;
+    }
+
+    using normal_dist_   = std::normal_distribution<>;
+    using discrete_dist_ = std::discrete_distribution<std::size_t>;
+
+    auto G_distance = std::array<normal_dist_, 4>{
+        normal_dist_{0, 1.2}, // mean, stddev of G[0]
+        normal_dist_{3.7749, 8.5}, // mean, stddev of G[1]
+        normal_dist_{0,0.5 } , // mean, stddev of G[2]
+         normal_dist_{-7.798, 7.8}  // mean, stddev of G[3]
+    };
+
+    auto w_distance = discrete_dist_{
+        0.278, // weight of G[0]
+        0.02, // weight of G[1]
+        0.9,  // weight of G[2] 0.68
+        0.01  // weight of G[2]
+    };
+
+    // Eigen::MatrixXd DistanceDistribution(  numDistanceSamples , 3  ) ;
+
+    for (int i=0 ; i<numDistanceSamples; i++){
+
+    	auto index_ = w_distance(gen);
+    	auto temp_noise_val_0 = G[index_](gen);
+    	auto temp_noise_val_1 = G[index_](gen);
+    	auto temp_noise_val_2 = G[index_](gen);
+
+    	DistanceDistribution( i , 0 ) =  temp_noise_val_0 ;
+    	DistanceDistribution( i , 1 ) =  temp_noise_val_1 ;
+    	DistanceDistribution( i , 2 ) =  temp_noise_val_2 ;
+    }
+
+    // std::cout<< " Saved the values  " << std::endl ;
+    // std::cout << DistanceDistribution( 0 , 0 ) << "   SEE here **********" << std::endl ;
+
+
+
+}
+
+double Optimization::TrajectoryOptimization::MMDwithNormalUncertainity( std::vector<CuboidObject> cuboids , Eigen::Vector3d Qpt , int numSamples_normal_uncertainity  ,
+	bool Ismean)
+{
+	iter_cnt += 1 ; 
 
 	std::vector<Eigen::Vector3d> vertices_per_cuboid ; 
 	double MMD_cost =0 ; 
 	Eigen::Vector3d Center_per_cuboid ; 
 	double Q_Center_distance ; 
 	double theta = 0 ; // theta is 0 comes from the manhatten assumption it has to be updated 
-	int numDegreeSamples = numSamples_normal_uncertainity ;
-	int numDistanceSamples = numSamples_normal_uncertainity ;
+	numDegreeSamples = numSamples_normal_uncertainity ;
+	numDistanceSamples = numSamples_normal_uncertainity ;
 
 	Eigen::MatrixXf actual_distribution( 1, numSamples_normal_uncertainity);
 	Eigen::MatrixXf zero_matrix( 1, numSamples_normal_uncertainity);
@@ -189,9 +280,9 @@ double MMDwithNormalUncertainity( std::vector<CuboidObject> cuboids , Eigen::Vec
 
 	Eigen::MatrixXf radius(1, numSamples_normal_uncertainity);  
 
-	radius = Eigen::MatrixXf::Constant( 1, numSamples_normal_uncertainity, 1.75); 
+	radius = Eigen::MatrixXf::Constant( 1, numSamples_normal_uncertainity, 0.9); 
 
-
+/*
 	std::random_device rd{};
 	std::mt19937 gen{rd()};
 
@@ -252,8 +343,11 @@ double MMDwithNormalUncertainity( std::vector<CuboidObject> cuboids , Eigen::Vec
     	DistanceDistribution( i , 2 ) =  temp_noise_val_2 ;
     }
 
+*/
     Eigen:Vector3d Qpt_transformed ;
     float distance_ ;
+
+
 
     Eigen::MatrixXf Distance_Measurments( 1 , numSamples_normal_uncertainity )  ;
 
@@ -278,14 +372,23 @@ double MMDwithNormalUncertainity( std::vector<CuboidObject> cuboids , Eigen::Vec
 		}
 
 		actual_distribution = zero_matrix.cwiseMax( Distance_Measurments ) ;
-		val = MMDF.MMD_transformed_features(actual_distribution) ;
-		// std::cout << actual_distribution << std::endl ;
+		val = MMDF.MMD_transformed_features_RBF(actual_distribution) ;
 		MMD_cost += val ; 
 
 	}
+/*
+	if( Ismean){
+	int zero_cnt =0 ;
 
-	// std::cout << MMD_cost <<  "  MMd within the function" << std::endl ;
+	for( int i =0 ; i<actual_distribution.cols() ; i++  ){
 
+		if( actual_distribution( 0, i ) != 0  ){
+			zero_cnt += 1; 
+		}
+	}
+	std::cout << zero_cnt <<   "  " <<  actual_distribution.cols() << std::endl ;
+	}
+*/
 
 	return MMD_cost ;
 
@@ -354,7 +457,7 @@ std::vector<Eigen::MatrixXd> UpdateMeanTraj(  Eigen::MatrixXd  TopIndices , Eige
 }
 
 
-int VisOptimTraj( Eigen::MatrixXd x_samples ,  Eigen::MatrixXd y_samples  , Eigen::MatrixXd z_samples  , ros::Publisher OptimTraj)
+int VisOptimTraj( Eigen::MatrixXd x_samples ,  Eigen::MatrixXd y_samples  , Eigen::MatrixXd z_samples  , ros::Publisher OptimTraj , ros::Publisher CEM_MeanTrajectory )
 {
 
 	int numPts_perTraj = x_samples.cols();
@@ -423,9 +526,24 @@ int VisOptimTraj( Eigen::MatrixXd x_samples ,  Eigen::MatrixXd y_samples  , Eige
 	marker.pose.orientation.w = 1.0;
 
 	}
+	nav_msgs::Path CEM_mean_path ; 
 
 
+	for( int i =0 ; i < numPts_perTraj ; i ++){
 
+		geometry_msgs::PoseStamped p2;
+
+		p2.pose.position.x = x_samples(0,  i) ;
+		p2.pose.position.y = y_samples(0, i) ;
+		p2.pose.position.z = z_samples( 0 , i );
+		p2.pose.orientation.w = 1.0 ; 
+
+		CEM_mean_path.poses.push_back(p2);
+		CEM_mean_path.header.stamp =ros::Time::now() ;
+		CEM_mean_path.header.frame_id = "world";
+	}
+
+	CEM_MeanTrajectory.publish(CEM_mean_path);
 
 
 	OptimTraj.publish(marker);
@@ -612,7 +730,7 @@ std::vector<Eigen::MatrixXd> PerturbTraj( Eigen::MatrixXd x_samples_iter , Eigen
 
 	R = A_mat.transpose() *A_mat; 
 	if( iterNum > 0 ){
-	cov = (0.005/iterNum)*R.inverse(); 
+	cov = (0.005/iterNum )*R.inverse(); 
 	}
 	else{
 		cov = 0.005*R.inverse(); 
@@ -625,9 +743,9 @@ std::vector<Eigen::MatrixXd> PerturbTraj( Eigen::MatrixXd x_samples_iter , Eigen
 	Eigen::MatrixXd mu = Eigen::MatrixXd::Zero(num_samples, 1);
 
 
-    Eigen::EigenMultivariateNormal<double> *normX_solver = new Eigen::EigenMultivariateNormal<double>(mu, 0.5*cov, true, dis(gen));
+    Eigen::EigenMultivariateNormal<double> *normX_solver = new Eigen::EigenMultivariateNormal<double>(mu, 3*cov, true, dis(gen));
     Eigen::EigenMultivariateNormal<double> *normY_solver = new Eigen::EigenMultivariateNormal<double>(mu, 3*cov, true, dis(gen));
-    Eigen::EigenMultivariateNormal<double> *normZ_solver = new Eigen::EigenMultivariateNormal<double>(mu, 0.5*cov, true, dis(gen));
+    Eigen::EigenMultivariateNormal<double> *normZ_solver = new Eigen::EigenMultivariateNormal<double>(mu, 3*cov, true, dis(gen));
 
 
     Eigen::MatrixXd eps_kx = normX_solver->samples(NumTrajSamples).transpose();
@@ -769,7 +887,7 @@ double GetPlaneCollisionDistance( std::vector<CuboidObject> cuboids , Eigen::Vec
 
 
 std::vector<Eigen::MatrixXd> Optimization::TrajectoryOptimization::CrossEntropyOptimize( Eigen::MatrixXd x_samples ,  Eigen::MatrixXd y_samples  , Eigen::MatrixXd z_samples , int num_iterations , 
-	std::vector<Eigen::Vector3d> Centers,   ros::Publisher OptimTraj , ros::Publisher SampleTraj , std::vector<CuboidObject> cuboids )
+	std::vector<Eigen::Vector3d> Centers,   ros::Publisher OptimTraj , ros::Publisher SampleTraj , std::vector<CuboidObject> cuboids , ros::Publisher CEM_MeanTrajectory )
 {
 
 	// x_samples shape is ( num_trajs , num_pts_per_traj )
@@ -778,15 +896,20 @@ std::vector<Eigen::MatrixXd> Optimization::TrajectoryOptimization::CrossEntropyO
 
 
 	std::vector<Eigen::MatrixXd> MeanTraj; 
+
+	SetUncertainityMeasurments();
+
+
+
 	int numTrajs = x_samples.rows();
-	int num_top_samples = int(0.25*numTrajs) ;
+	int num_top_samples = int(0.4*numTrajs) ;
 	int numPts_perTraj = x_samples.cols();
 	Eigen::Vector3d Qpt; 
 	 
 	double distance ;
 	std::string path_to_weights = "/home/sudarshan/Planner_ws/src/rp-vio/rpvio_estimator/src/weight.csv";
 
-	std::cout << " Here " << std::endl;	
+	// std::cout << " Here " << std::endl;	
 
 	MMDF.assign_weights(path_to_weights); 
 	double mmd_cost;
@@ -804,6 +927,8 @@ std::vector<Eigen::MatrixXd> Optimization::TrajectoryOptimization::CrossEntropyO
 	Eigen::Vector3d PrevPt; 
 	int numSamples_normal_uncertainity = 100 ; 	
 
+	numDegreeSamples =  numSamples_normal_uncertainity ; 
+	numDistanceSamples =  numSamples_normal_uncertainity ;
 
 	for(int i =0 ; i< num_iterations ; i++ ){
 
@@ -835,7 +960,7 @@ std::vector<Eigen::MatrixXd> Optimization::TrajectoryOptimization::CrossEntropyO
 
 
 				if( distance < 2.0 ){
-					mmd_cost =   MMDwithNormalUncertainity( cuboids , Qpt , numSamples_normal_uncertainity ) ;  // MMDCost( distance , numDistanceSamples );
+					mmd_cost =   MMDwithNormalUncertainity( cuboids , Qpt , numSamples_normal_uncertainity , false) ;  // MMDCost( distance , numDistanceSamples );
 					
 					costPerTraj += mmd_cost ;
 
@@ -876,15 +1001,30 @@ std::vector<Eigen::MatrixXd> Optimization::TrajectoryOptimization::CrossEntropyO
 		temp_z_samples = MeanTraj.at(2);
 		int numPts_mean_traj = temp_z_samples.cols() ;  
 
+		std::vector<double> MMD_cost_vector ; 
+		double mmd_point =0 ;
+
 		for( int i =0 ; i<numPts_mean_traj ; i++ ){
 
 			Q_mean  <<  temp_x_samples( 0 , i ) , temp_y_samples(0, i) ,temp_z_samples(0, i)  ;
-			mean_mmd  += MMDwithNormalUncertainity( cuboids , Q_mean , numSamples_normal_uncertainity ) ; 
+			mmd_point = MMDwithNormalUncertainity( cuboids , Q_mean , numSamples_normal_uncertainity , true ) ; 
+			MMD_cost_vector.push_back(mmd_point);
+			mean_mmd += mmd_point;
+
 			// std::cout<< val << std::endl ;
 
 		}
 
 		std::cout << mean_mmd <<  "  iter number " <<  i << std::endl ;
+
+		std::sort(MMD_cost_vector.begin(), MMD_cost_vector.end());
+		double top_cost =0 ; 
+
+		for( int i=int(0.5*MMD_cost_vector.size() ) ; i < int(0.8*MMD_cost_vector.size() ) ; i++ ){
+			top_cost += MMD_cost_vector.at(i);
+		}
+		std::cout << top_cost <<  "  top cost  iter number " <<  i << std::endl ;
+
 
 
 				std::cout << " Got Mean " << std::endl;
@@ -900,7 +1040,7 @@ std::vector<Eigen::MatrixXd> Optimization::TrajectoryOptimization::CrossEntropyO
 		temp_z_samples(0, numPts_perTraj -1 ) = z_samples(0, numPts_perTraj -1) ;
 */
 
-		VisOptimTraj( temp_x_samples ,  temp_y_samples  , temp_z_samples  ,  OptimTraj);
+		VisOptimTraj( temp_x_samples ,  temp_y_samples  , temp_z_samples  ,  OptimTraj , CEM_MeanTrajectory);
 				// std::cout << " Got vis " << std::endl;
 
 

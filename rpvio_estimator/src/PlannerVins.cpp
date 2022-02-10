@@ -36,11 +36,12 @@ ros::Publisher PubSTOMP;
 ros::Publisher CEMOptimTraj;
 
 nav_msgs::Path CEMOptimTrajectory ; 
+ros::Publisher CEM_MeanTrajectory ; 
 
 bool status ;
 double deltaT = 0.1;  
 nav_msgs::Path AstarTrajectory;
-int numIters = 8;
+int numIters = 10;
 
 ros::Publisher AstarTraj ; 
 ros::Publisher CEMOptimPath;
@@ -53,7 +54,7 @@ Eigen::Vector3d CurState;
 Eigen::Vector3d PrevState ;
 
 int cnt =0 ;
-int NumTraj_perturb = 500;
+int NumTraj_perturb = 500; // 500
 int NumPts_perTraj ; 
 bool Remap = false ;
 
@@ -384,7 +385,7 @@ void current_state_callback2( const sensor_msgs::PointCloudConstPtr &frames_msg,
 
     std::vector<Eigen::MatrixXd> CEMOptimizedTraj; 
 
-    CEMOptimizedTraj = CEMOptim.CrossEntropyOptimize(xPts ,yPts , zPts , numIters ,   Centers ,CEMOptimTraj , PubSTOMP , cuboids );
+    CEMOptimizedTraj = CEMOptim.CrossEntropyOptimize(xPts ,yPts , zPts , numIters ,   Centers ,CEMOptimTraj , PubSTOMP , cuboids  , CEM_MeanTrajectory);
 
     Eigen::MatrixXd X;
     Eigen::MatrixXd Y ; 
@@ -456,6 +457,9 @@ int main(int argc, char **argv)
     PubSTOMP = n.advertise<visualization_msgs::Marker>( "/STOMP_vis", 0 );
     CEMOptimTraj = n.advertise<visualization_msgs::Marker>( "/OptimizedTraj", 0 );
     CEMOptimPath = n.advertise<nav_msgs::Path>("/CEMPath" , 0 ); 
+    CEM_MeanTrajectory = n.advertise<nav_msgs::Path>("/CEM_mean_Path" , 0 );
+
+
 
     Centervis = n.advertise<visualization_msgs::Marker>("/CenterObs" , 0 );
 
