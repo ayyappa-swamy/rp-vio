@@ -57,28 +57,28 @@ void publish_processed(const ProcessedFrame &f) {
 }
 
 cv::Mat run_plannercnn(const Frame &f) {
-//    sensor_msgs::ImagePtr img_msg = cv_bridge::CvImage(f.img_header, sensor_msgs::image_encodings::BGR8,
-//                                                       f.rgb_img).toImageMsg();
-//
-//    sensor_msgs::ImagePtr building_mask_msg = cv_bridge::CvImage(f.img_header, sensor_msgs::image_encodings::BGR8,
-//                                                                 f.building_mask).toImageMsg();
-//
-//    rpvio_estimator::PlaneSegmentation plane_seg_srv;
-//    plane_seg_srv.request.frame_id = f.frame_id;
-//    plane_seg_srv.request.rgb_image = *img_msg;
-//    plane_seg_srv.request.building_mask_image = *building_mask_msg;
-//    ROS_DEBUG("Sending frame %d", f.frame_id);
-//    cv::Mat plane_mask;
-//    if (client.call(plane_seg_srv)) {
-//        ROS_DEBUG("Got back frame %d", f.frame_id);
-//        plane_mask = cv_bridge::toCvCopy(plane_seg_srv.response.img, sensor_msgs::image_encodings::BGR8)->image;
-//    } else {
-//        ROS_ERROR("Can't get response from plannercnn service, frame %ld", plane_seg_srv.request.frame_id);
-//    }
+    sensor_msgs::ImagePtr img_msg = cv_bridge::CvImage(f.img_header, sensor_msgs::image_encodings::BGR8,
+                                                       f.rgb_img).toImageMsg();
 
-//    return plane_mask;
-    std::this_thread::sleep_for(std::chrono::milliseconds(250));
-    return f.rgb_img;
+    sensor_msgs::ImagePtr building_mask_msg = cv_bridge::CvImage(f.img_header, sensor_msgs::image_encodings::BGR8,
+                                                                 f.building_mask).toImageMsg();
+
+    rpvio_estimator::PlaneSegmentation plane_seg_srv;
+    plane_seg_srv.request.frame_id = f.frame_id;
+    plane_seg_srv.request.rgb_image = *img_msg;
+    plane_seg_srv.request.building_mask_image = *building_mask_msg;
+    ROS_DEBUG("Sending frame %d", f.frame_id);
+    cv::Mat plane_mask;
+    if (client.call(plane_seg_srv)) {
+        ROS_DEBUG("Got back frame %d", f.frame_id);
+        plane_mask = cv_bridge::toCvCopy(plane_seg_srv.response.img, sensor_msgs::image_encodings::BGR8)->image;
+    } else {
+        ROS_ERROR("Can't get response from plannercnn service, frame %ld", plane_seg_srv.request.frame_id);
+    }
+
+    return plane_mask;
+//    std::this_thread::sleep_for(std::chrono::milliseconds(250));
+//    return f.rgb_img;
 }
 
 
