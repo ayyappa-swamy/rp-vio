@@ -57,28 +57,28 @@ void publish_processed(const ProcessedFrame &f) {
 }
 
 cv::Mat run_plannercnn(const Frame &f) {
-    sensor_msgs::ImagePtr img_msg = cv_bridge::CvImage(f.img_header, sensor_msgs::image_encodings::BGR8,
-                                                       f.rgb_img).toImageMsg();
+//    sensor_msgs::ImagePtr img_msg = cv_bridge::CvImage(f.img_header, sensor_msgs::image_encodings::BGR8,
+//                                                       f.rgb_img).toImageMsg();
+//
+//    sensor_msgs::ImagePtr building_mask_msg = cv_bridge::CvImage(f.img_header, sensor_msgs::image_encodings::BGR8,
+//                                                                 f.building_mask).toImageMsg();
+//
+//    rpvio_estimator::PlaneSegmentation plane_seg_srv;
+//    plane_seg_srv.request.frame_id = f.frame_id;
+//    plane_seg_srv.request.rgb_image = *img_msg;
+//    plane_seg_srv.request.building_mask_image = *building_mask_msg;
+//    ROS_DEBUG("Sending frame %d", f.frame_id);
+//    cv::Mat plane_mask;
+//    if (client.call(plane_seg_srv)) {
+//        ROS_DEBUG("Got back frame %d", f.frame_id);
+//        plane_mask = cv_bridge::toCvCopy(plane_seg_srv.response.img, sensor_msgs::image_encodings::BGR8)->image;
+//    } else {
+//        ROS_ERROR("Can't get response from plannercnn service, frame %ld", plane_seg_srv.request.frame_id);
+//    }
 
-    sensor_msgs::ImagePtr building_mask_msg = cv_bridge::CvImage(f.img_header, sensor_msgs::image_encodings::BGR8,
-                                                                 f.building_mask).toImageMsg();
-
-    rpvio_estimator::PlaneSegmentation plane_seg_srv;
-    plane_seg_srv.request.frame_id = f.frame_id;
-    plane_seg_srv.request.rgb_image = *img_msg;
-    plane_seg_srv.request.building_mask_image = *building_mask_msg;
-    ROS_DEBUG("Sending frame %d", f.frame_id);
-    cv::Mat plane_mask;
-    if (client.call(plane_seg_srv)) {
-        ROS_DEBUG("Got back frame %d", f.frame_id);
-        plane_mask = cv_bridge::toCvCopy(plane_seg_srv.response.img, sensor_msgs::image_encodings::BGR8)->image;
-    } else {
-        ROS_ERROR("Can't get response from plannercnn service, frame %ld", plane_seg_srv.request.frame_id);
-    }
-
-    return plane_mask;
-//    std::this_thread::sleep_for(std::chrono::milliseconds(250));
-//    return img;
+//    return plane_mask;
+    std::this_thread::sleep_for(std::chrono::milliseconds(250));
+    return f.rgb_img;
 }
 
 
@@ -133,7 +133,7 @@ cv::Mat run_plannercnn(const Frame &f) {
     Frame f;
     while (true) {
         if (f.frame_id != -1) {
-            ROS_DEBUG("Intitiating process for frame %d", f.frame_id);
+            ROS_INFO("Intitiating process for frame %d", f.frame_id);
 
             ProcessedFrame processed_f(f);
             processed_f.plane_mask = run_plannercnn(f);
@@ -141,7 +141,7 @@ cv::Mat run_plannercnn(const Frame &f) {
 
             m_propagator.lock();
             propagator.reset(processed_f);
-            ROS_DEBUG("Saved frame %f", processed_f.frame_id);
+            ROS_INFO("Saved frame %d", processed_f.frame_id);
             m_propagator.unlock();
             con_propagator.notify_one();
         }
@@ -166,8 +166,8 @@ void preprocessing_callback(
 ) {
     Frame f;
     f.frame_id = ++current_frame_id;
-    f.pcd = nullptr;
-    f.odom = nullptr;
+    f.pcd = features_msg;
+    f.odom = odometry_msg;
     f.rgb_img = cv_bridge::toCvCopy(img_msg, sensor_msgs::image_encodings::BGR8)->image;
     f.building_mask = cv_bridge::toCvCopy(building_mask, sensor_msgs::image_encodings::BGR8)->image;
     f.img_header = img_msg->header;
@@ -190,7 +190,7 @@ int main(int argc, char **argv) {
     message_filters::Subscriber<nav_msgs::Odometry> sub_odometry(n, "/vins_estimator/odometry", 100);
 //    ros::Subscriber sub = n.subscribe("/image", 10, preprocessing_callback);
     message_filters::Subscriber<sensor_msgs::Image> sub_image(n, "/image", 10);
-    message_filters::Subscriber<sensor_msgs::Image> sub_building_mask(n, "/building_mask_image", 10);
+    message_filters::Subscriber<sensor_msgs::Image> sub_building_mask(n, "/mask", 10);
     typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::PointCloud, nav_msgs::Odometry, sensor_msgs::Image, sensor_msgs::Image> MySyncPolicy;
 
     message_filters::Synchronizer<MySyncPolicy> sync(MySyncPolicy(10), sub_point_cloud, sub_odometry, sub_image,
