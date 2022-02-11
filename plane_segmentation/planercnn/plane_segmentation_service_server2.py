@@ -1,19 +1,11 @@
 import numpy as np
-import sys
-
 
 import rospy
-import sensor_msgs.msg
-
-sys.path.remove('')
 from cv_bridge import CvBridge
-import sensor_msgs
-from sensor_msgs.msg import Image
 
 #from options import parse_args
 #from config import InferenceConfig
 #from plane_segmentor import PlaneSegmentor
-
 
 from rpvio_estimator.srv import PlaneSegmentation, PlaneSegmentationResponse, PlaneSegmentationRequest
 
@@ -54,9 +46,7 @@ class Node:
         building_mask = self.bridge.imgmsg_to_cv2(req.building_mask_image)
        # plane_mask = self.segmentor.segment(image, building_mask)
         plane_mask = image.copy()
-        print(plane_mask.shape)
-        plane_mask = plane_mask.astype(np.uint8)
-        msg = self.bridge.cv2_to_imgmsg(plane_mask,"bgr8")
+        msg = self.bridge.cv2_to_imgmsg(plane_mask)
         msg.header = req.rgb_image.header
         rospy.loginfo(f"Sending back req {req.frame_id}")
         return PlaneSegmentationResponse(req.frame_id, msg)
