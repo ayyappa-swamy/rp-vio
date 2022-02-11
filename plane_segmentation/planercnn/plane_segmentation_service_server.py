@@ -10,9 +10,9 @@ from cv_bridge import CvBridge
 import sensor_msgs
 from sensor_msgs.msg import Image
 
-#from options import parse_args
-#from config import InferenceConfig
-#from plane_segmentor import PlaneSegmentor
+from options import parse_args
+from config import InferenceConfig
+from plane_segmentor import PlaneSegmentor
 
 
 from rpvio_estimator.srv import PlaneSegmentation, PlaneSegmentationResponse, PlaneSegmentationRequest
@@ -40,7 +40,7 @@ def run_server(options, config, camera):
 
 class Node:
     def __init__(self, options, config, camera):
-#        self.segmentor = PlaneSegmentor(options, config, camera)
+        self.segmentor = PlaneSegmentor(options, config, camera)
         self.bridge = CvBridge()
         pass
 
@@ -52,8 +52,7 @@ class Node:
 
         image = self.bridge.imgmsg_to_cv2(req.rgb_image)
         building_mask = self.bridge.imgmsg_to_cv2(req.building_mask_image)
-       # plane_mask = self.segmentor.segment(image, building_mask)
-        plane_mask = image.copy()
+        plane_mask = self.segmentor.segment(image, building_mask)
         print(plane_mask.shape)
         plane_mask = plane_mask.astype(np.uint8)
         msg = self.bridge.cv2_to_imgmsg(plane_mask,"bgr8")
@@ -69,8 +68,24 @@ class Node:
 
 
 def main():
-    options = None
-    config = None
+    args = parse_args()
+
+    if args.dataset == '':
+        args.keyname = 'evaluate'
+    else:
+        args.keyname = args.dataset
+        pass
+    args.test_dir = 'test/' + args.keyname
+
+    if args.testingIndex >= 0:
+        args.debug = True
+        pass
+    if args.debug:
+        args.test_dir += '_debug'
+        args.printInfo = True
+        pass
+    options = args
+    config = InferenceConfig(options)
     camera = np.array([320, 320, 320, 240, 640, 480])
     node = Node(options, config, camera)
     node.start()
