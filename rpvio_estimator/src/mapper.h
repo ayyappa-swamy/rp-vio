@@ -49,6 +49,7 @@
 #include <string>
 #include <sstream>
 #include <random>
+#include <chrono>
 
 #include <stdio.h>
 #include <queue>
@@ -61,6 +62,8 @@
 #include <pcl/point_types.h>
 #include <pcl/visualization/pcl_visualizer.h>
 #include <pcl_conversions/pcl_conversions.h>
+#include <pcl/filters/statistical_outlier_removal.h>
+#include <pcl/filters/radius_outlier_removal.h>
 
 #include <message_filters/subscriber.h>
 #include <message_filters/synchronizer.h>
@@ -101,7 +104,40 @@ ros::Publisher masked_im_pub;
 ros::Publisher lgoal_pub;
 ros::Publisher dense_pub;
 
+struct Plane
+{
+    Vector4d plane;
+    int plane_id;
+    bool is_initialized = false;
+    set<int> feature_ids;
+    double best_fit_error = 100000.0;
+    int best_num_of_inliers = 4;
+};
+
+struct PlaneFeature
+{
+    Vector3d point;
+    int measurement_count = 0;
+    int plane_id;
+    bool is_outlier;
+};
+
 map<double, vector<Vector4d>> plane_measurements;
+map<int, Plane> mPlaneFeatureIds;
+map<int, PlaneFeature> mFeatures;
+int plane_id_counter = 1000;
+
+// for ros message sync
+struct SubMessages
+{
+    sensor_msgs::PointCloudConstPtr features_msg;
+    nav_msgs::OdometryConstPtr odometry_msg;
+    sensor_msgs::ImageConstPtr img_msg;
+    sensor_msgs::ImageConstPtr mask_msg;
+};
+queue<SubMessages> sm_queue;
+condition_variable sm_cond;
+mutex sm_mutex;
 
 /**
  * Implements vector1.dot(vector2) == 0 constraint
@@ -623,6 +659,8 @@ cv::Mat processMaskSegments(cv::Mat input_mask)
 {
     std::vector<unsigned int> processed_colors;
 
+    auto tpcl_start = std::chrono::high_resolution_clock::now();
+
     for (int i = 0; i < input_mask.rows; i++) {
         for (int j = 0; j < input_mask.cols; j++) {
             cv::Vec3b colors = input_mask.at<cv::Vec3b>(i, j);
@@ -639,6 +677,10 @@ cv::Mat processMaskSegments(cv::Mat input_mask)
             input_mask = fillMaskHoles(input_mask, color);
         }
     }
+            
+    auto tpcl_end = std::chrono::high_resolution_clock::now();
+    double elapsed_timepcl_ms = std::chrono::duration<double, std::milli>(tpcl_end-tpcl_start).count();
+    ROS_INFO("time taken for mask processing  is %g ms", elapsed_timepcl_ms);
 
     return input_mask;
 }
@@ -816,6 +858,7 @@ Vector3d project_point_to_plane(Vector3d point, Vector4d plane)
 
 void compute_vertices_from_planes(Vector3d bound_point, vector<Vector4d> bound_planes, vector<Vector3d> &vertices)
 {
+    auto t_start = std::chrono::high_resolution_clock::now();
     // Assuming planes are in this order: left, right, front back
 
     // There are four bound planes assuming they are vertical
@@ -838,10 +881,16 @@ void compute_vertices_from_planes(Vector3d bound_point, vector<Vector4d> bound_p
     vertices.push_back(left_back);
     vertices.push_back(right_front);
     vertices.push_back(right_back);
+
+    auto t_end = std::chrono::high_resolution_clock::now();
+    double elapsed_time_ms = std::chrono::duration<double, std::milli>(t_end-t_start).count();
+    ROS_INFO("time taken for computing plane vertices is %g ms", elapsed_time_ms);
 }
 
 bool fit_cuboid_to_point_cloud(Vector4d plane_params, vector<Vector3d> points, vector<geometry_msgs::Point> &vertices, vector<Vector3d> &normal_vectors)
 {
+    auto t_start = std::chrono::high_resolution_clock::now();
+
     Vector3d normal = plane_params.head<3>(); 
     Vector3d vertical(0, 1, 0);
     Vector3d horizontal = normal.cross(vertical).normalized();
@@ -931,9 +980,13 @@ bool fit_cuboid_to_point_cloud(Vector4d plane_params, vector<Vector3d> points, v
         vertices.push_back(pt);
         
         Vector3d t_pt(pt.x, 0.0, pt.z);
-        if (t_pt.norm() > 75)
+        if (t_pt.norm() > 300)
             return false;
     }
+
+    auto t_end = std::chrono::high_resolution_clock::now();
+    double elapsed_time_ms = std::chrono::duration<double, std::milli>(t_end-t_start).count();
+    ROS_INFO("time taken for cuboid fitting is %g ms", elapsed_time_ms);
 
     return true;
 }
@@ -1002,14 +1055,12 @@ void create_cuboid_frame(vector<geometry_msgs::Point> &local_vertices, visualiza
     line_list.points.push_back(vertices[7]);
 }
 
-map<int, vector<Vector3d>> cluster_plane_features(
+void cluster_plane_features(
     const sensor_msgs::PointCloudConstPtr &features_msg,
     cv::Mat &mask_img,
     Isometry3d world2local
 )
 {
-    map<int, vector<Vector3d>> mPlaneFeatures;
-    bool should_compute_id = (features_msg->channels.size() == 2);
     ROS_INFO("Point cloud has %d channels", (int)features_msg->channels.size());
 
     // Loop through all feature points
@@ -1017,16 +1068,12 @@ map<int, vector<Vector3d>> cluster_plane_features(
         Vector3d fpoint;
         geometry_msgs::Point32 p = features_msg->points[fi];
         fpoint << p.x, p.y, p.z;
-        
-        int plane_id = 0;
-        if (!should_compute_id) {      
-            // to support point clouds from old bag files
-            plane_id = (int)features_msg->channels[0].values[fi];
-        }
-        else {
+
+        int feature_id = (int)features_msg->channels[2].values[fi];
+
+        if (mFeatures.find(feature_id) == mFeatures.end()) {
             int u = (int)features_msg->channels[0].values[fi];
             int v = (int)features_msg->channels[1].values[fi];
-            // ROS_INFO("Querying at point (%d, %d)", u, v);
 
             Vector3d lpoint = world2local * fpoint;
             Eigen::Matrix3d K;
@@ -1040,20 +1087,33 @@ map<int, vector<Vector3d>> cluster_plane_features(
             u = (int)pt.x();
             v = (int)pt.y();
             
-            // ROS_INFO("Querying at new point (%d, %d)", u, v);
-            plane_id = get_plane_id(u, v, mask_img);
-            // ROS_INFO("Found color id is %d", (int)plane_id);
+            int plane_id = get_plane_id(u, v, mask_img);
+
+            if ((plane_id != 0) && (plane_id != 39))// Ignore sky and ground points
+            {
+                if (! mPlaneFeatureIds.count(plane_id))
+                {
+                    Plane new_plane;
+                    new_plane.plane_id = plane_id;
+                    
+                    mPlaneFeatureIds[plane_id] = new_plane;
+                }
+                mPlaneFeatureIds[plane_id].feature_ids.insert(feature_id);
+
+                PlaneFeature new_plane_feature;
+                new_plane_feature.plane_id = plane_id;
+                mFeatures[feature_id] = new_plane_feature;
+            }
         }
 
-        if ((plane_id != 0) && (plane_id != 39))// Ignore sky and ground points
-            mPlaneFeatures[plane_id].push_back(fpoint);
+        mFeatures[feature_id].point = fpoint;
+        mFeatures[feature_id].measurement_count++;
     }
-
-    return mPlaneFeatures;
 }
 
 map<int, Vector3d> draw_vp_lines(cv::Mat &gray_img, cv::Mat &mask, vector<Vector3d> &evps, vector<Vector3d> &normal_vectors)
 {   
+    auto t_start = std::chrono::high_resolution_clock::now();
     Eigen::Matrix3d K;
     K << FOCAL_LENGTH, 0, COL/2,
         0, FOCAL_LENGTH, ROW/2,
@@ -1107,6 +1167,10 @@ map<int, Vector3d> draw_vp_lines(cv::Mat &gray_img, cv::Mat &mask, vector<Vector
 		
         plane_normals[normal_id.first] = normal_vectors[normal_id.second].normalized();
 	}
+
+    auto t_end = std::chrono::high_resolution_clock::now();
+    double elapsed_time_ms = std::chrono::duration<double, std::milli>(t_end-t_start).count();
+    ROS_INFO("time taken for vanishing point computation is %g ms", elapsed_time_ms);
 
     return plane_normals;
 }
@@ -1176,6 +1240,18 @@ void write_estimated_normal_error(Vector3d estimated_normal, vector<Vector3d> gt
     file.close();
 }
 
+void write_normal_and_distance_errors(Vector4d est_params, Vector4d gt_params, int plane_id, int est_num_of_points, int gt_num_of_points)
+{
+    ofstream file("plane_error.txt", std::ios_base::app);
+
+    double normal_error = fabs(est_params.head<3>().normalized().dot(gt_params.head<3>().normalized()));
+    double offset_error = fabs(fabs(est_params[3]) - fabs(gt_params[3]));
+
+    file << plane_id << " " << normal_error << " " << offset_error << " " << fabs(gt_params[3]) << " " << est_num_of_points << " " << gt_num_of_points << std::endl;
+
+    file.close();
+}
+
 vector<int> get_s_random_indices_within_n(int n /*range (1, n)*/, int s /*required number of samples*/)
 {
     std::random_device rd; // obtain a random number from hardware
@@ -1192,7 +1268,7 @@ vector<int> get_s_random_indices_within_n(int n /*range (1, n)*/, int s /*requir
     return rand_ints;
 }
 
-Vector4d fit_vertical_plane(vector<Vector3d> plane_points)
+Vector4d fit_vertical_plane(vector<Vector3d> &plane_points)
 {
     MatrixXd pts_mat(plane_points.size(), 3);
     Vector4d plane_params;
@@ -1253,8 +1329,9 @@ Vector4d fit_vertical_plane_to_indices(vector<int> &indices, vector<Vector3d> &p
  * @param plane_points 
  * @param plane_params 
  */
-Vector4d fit_vertical_plane_ransac(vector<Vector3d> &plane_points)
+Vector4d fit_vertical_plane_ransac(vector<Vector3d> &plane_points, int plane_id)
 {
+    auto t_start = std::chrono::high_resolution_clock::now();
     // Implement ransac for vertical planes
     // For each iteration:
     //      choose two random indices (as the plane is vertical, we just need two points)
@@ -1267,11 +1344,11 @@ Vector4d fit_vertical_plane_ransac(vector<Vector3d> &plane_points)
     // Loop for 'n' iterations
     double p = 0.99; // p = desired probability that we get a good sample
     double s = 3; // s = number of points in a sample
-    double e = 0.33; // e = probability that a point is outlier
+    double e = 0.2; // e = probability that a point is outlier
     int N = (int)(log(1 - p) / log(1 - pow(1 - e, s)));
     N++;
 
-    double plane_distance_threshold = 1.25;
+    double plane_distance_threshold = 1.5;
 
     int bestNumOfInliers = 4;
     Vector4d bestFit;
@@ -1304,15 +1381,19 @@ Vector4d fit_vertical_plane_ransac(vector<Vector3d> &plane_points)
             {
                 bestFit = betterModel;
                 bestError = currentError;
-                bestNumOfInliers = alsoInliers.size();
+                bestNumOfInliers = maybeInliers.size();
             }
         // }
     }
 
+    auto t_end = std::chrono::high_resolution_clock::now();
+    double elapsed_time_ms = std::chrono::duration<double, std::milli>(t_end-t_start).count();
+    ROS_INFO("time taken for RANSAC is %g ms", elapsed_time_ms);
+
     return bestFit;
 }
 
-void get_depth_cloud(cv_bridge::CvImagePtr depth_ptr, cv_bridge::CvImagePtr mask_ptr, pcl::PointCloud<pcl::PointXYZRGB> &test_pcd, Isometry3d Ti, Isometry3d Tic)
+map<int, vector<Vector3d>> cluster_depth_cloud(cv_bridge::CvImagePtr depth_ptr, cv_bridge::CvImagePtr mask_ptr, pcl::PointCloud<pcl::PointXYZRGB> &test_pcd, Isometry3d Ti, Isometry3d Tic)
 {
     Eigen::Matrix3d K;
     K << FOCAL_LENGTH, 0, COL/2,
@@ -1321,10 +1402,11 @@ void get_depth_cloud(cv_bridge::CvImagePtr depth_ptr, cv_bridge::CvImagePtr mask
     
     cv::Mat raw_mask_img = mask_ptr->image;
     // cv::Mat mask_img = processMaskSegments(raw_mask_img);
+    map<int, vector<Vector3d>> mDenseClusters;
     
-    for (int i = 0; i < depth_ptr->image.rows; i++)
+    for (int i = 0; i < depth_ptr->image.rows; i=i+5)
     {
-        for (int j = 0; j < depth_ptr->image.cols; j++)
+        for (int j = 0; j < depth_ptr->image.cols; j=j+5)
         {
             Vector3d cpt;
             Vector2d ipt(j, i);
@@ -1340,6 +1422,8 @@ void get_depth_cloud(cv_bridge::CvImagePtr depth_ptr, cv_bridge::CvImagePtr mask
             w_pt = Ti * (Tic * cpt);
             
             cv::Vec3b colors = raw_mask_img.at<cv::Vec3b>(i, j);
+
+            int plane_id = color2id(colors[0], colors[1], colors[2]);
             
             pcl::PointXYZRGB pt;
             pt.x = w_pt.x();
@@ -1349,6 +1433,137 @@ void get_depth_cloud(cv_bridge::CvImagePtr depth_ptr, cv_bridge::CvImagePtr mask
             pt.g = colors[1];
             pt.b = colors[0];
             test_pcd.points.push_back(pt);
+
+            if ((plane_id != 0) && (plane_id != 39))// Ignore sky and ground points
+                mDenseClusters[plane_id].push_back(cpt);
+        }
+    }
+
+    return mDenseClusters;
+}
+
+void update_global_point_cloud(
+    const sensor_msgs::PointCloudConstPtr &features_msg,
+    cv::Mat &mask_img,
+    Isometry3d world2local
+)
+{
+    ROS_INFO("Point cloud has %d channels", (int)features_msg->channels.size());
+
+    map<int, vector<int>> mCurrentPlaneFeatures;
+    map<int, int> mCurrentIdToPrevId;
+
+    map<int, Vector3d> current_features;
+
+    std::map<unsigned long, int> color_index;
+
+    for (int fid = 0; fid < features_msg->points.size(); fid++)
+    {
+        int feature_id = (int)features_msg->channels[2].values[fid];
+
+        // Compute current id first
+        Vector3d fpoint;
+        geometry_msgs::Point32 p = features_msg->points[fid];
+        fpoint << p.x, p.y, p.z;
+
+        int u = (int)features_msg->channels[0].values[fid];
+        int v = (int)features_msg->channels[1].values[fid];
+
+        Vector3d lpoint = world2local * fpoint;
+        Eigen::Matrix3d K;
+        K << FOCAL_LENGTH, 0, COL/2,
+            0, FOCAL_LENGTH, ROW/2,
+            0, 0, 1;
+
+        Vector3d pt = K * lpoint;
+        pt /= pt[2];
+
+        u = (int)pt.x();
+        v = (int)pt.y();
+        
+        int current_plane_id = get_plane_id(u, v, mask_img);
+        if ((current_plane_id == 0) || (current_plane_id == 39))
+            continue;
+            
+        if (mCurrentPlaneFeatures.find(current_plane_id) == mCurrentPlaneFeatures.end())
+        {
+            std::vector<int> curr_plane_feature_ids;
+            mCurrentPlaneFeatures[current_plane_id] = curr_plane_feature_ids;
+        }
+
+        if (mFeatures.find(feature_id) != mFeatures.end()) 
+        {
+            mCurrentIdToPrevId[current_plane_id] = mFeatures[feature_id].plane_id;
+        }
+        
+        mCurrentPlaneFeatures[current_plane_id].push_back(feature_id);
+        current_features[feature_id] = fpoint;
+    }
+
+    /**
+     * feature id is not there in the current map
+     * there are three cases for this feature point
+     * case 1: it belongs to already mapped planes
+     * case 2: it belongs to a new plane
+     * case 3: it is invalid (not inside any mask)
+     * 
+     * feature belongs to a existing plane
+     * this should be used to map current plane id with existing plane id
+     */
+    for(auto mCPF: mCurrentPlaneFeatures) {
+        int current_plane_id = mCPF.first;
+
+        // one of the features in current cloud belongs to existing planes
+        if (mCurrentIdToPrevId.find(current_plane_id) != mCurrentIdToPrevId.end())
+        {
+            int previous_plane_id = mCurrentIdToPrevId[current_plane_id];
+            if ((previous_plane_id == 0) || (previous_plane_id == 39))
+                continue;
+
+            for (int cfid = 0; cfid < mCurrentPlaneFeatures[current_plane_id].size(); cfid++) 
+            {   
+                int feature_id = mCurrentPlaneFeatures[current_plane_id][cfid];
+
+                // add this feature to existing plane
+                if (mFeatures.find(feature_id) == mFeatures.end()) 
+                {
+                    mPlaneFeatureIds[previous_plane_id].feature_ids.insert(feature_id);
+
+                    PlaneFeature new_plane_feature;
+                    new_plane_feature.plane_id = previous_plane_id;
+                    mFeatures[feature_id] = new_plane_feature;
+                }
+
+                mFeatures[feature_id].point = current_features[feature_id];
+                mFeatures[feature_id].measurement_count++;
+            }
+        }
+        else // these cluster of features in current frame belong to a new plane
+        {
+            int new_plane_id = plane_id_counter;
+            plane_id_counter++;
+            for (int cfid = 0; cfid < mCurrentPlaneFeatures[current_plane_id].size(); cfid++) 
+            {   
+                int feature_id = mCurrentPlaneFeatures[current_plane_id][cfid];
+
+                Plane new_plane;
+                new_plane.plane_id = new_plane_id;
+                    
+                mPlaneFeatureIds[new_plane_id] = new_plane;
+
+                // add this feature to existing plane
+                if (mFeatures.find(feature_id) == mFeatures.end())
+                {
+                    mPlaneFeatureIds[new_plane_id].feature_ids.insert(feature_id);
+
+                    PlaneFeature new_plane_feature;
+                    new_plane_feature.plane_id = new_plane_id;
+                    mFeatures[feature_id] = new_plane_feature;
+                }
+
+                mFeatures[feature_id].point = current_features[feature_id];
+                mFeatures[feature_id].measurement_count++;
+            }
         }
     }
 }

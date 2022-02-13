@@ -42,13 +42,17 @@ Frame current_frame;
 void publish_processed(const ProcessedFrame &f) {
     // TODO: publish
     ROS_INFO("Publishing frame %d", f.frame_id);
-    sensor_msgs::ImagePtr rgb_image_msg = cv_bridge::CvImage(f.img_header, sensor_msgs::image_encodings::BGR8,
+    sensor_msgs::ImagePtr rgb_image_msg = cv_bridge::CvImage(f.pcd->header, sensor_msgs::image_encodings::BGR8,
                                                              f.rgb_img).toImageMsg();
 
-    sensor_msgs::ImagePtr plane_mask_msg = cv_bridge::CvImage(f.img_header, sensor_msgs::image_encodings::BGR8,
+    sensor_msgs::ImagePtr plane_mask_msg = cv_bridge::CvImage(f.pcd->header, sensor_msgs::image_encodings::BGR8,
                                                               f.plane_mask).toImageMsg();
 
     // publishing stuff
+    ROS_INFO("RGB image ts: %f", rgb_image_msg->header.stamp.toSec());
+    ROS_INFO("Plane mask ts: %f", plane_mask_msg->header.stamp.toSec());
+    ROS_INFO("Point cloud ts: %f", f.pcd->header.stamp.toSec());
+    ROS_INFO("Odometry ts: %f", f.odom->header.stamp.toSec());
     rgb_image_pub.publish(rgb_image_msg);
     plane_mask_pub.publish(plane_mask_msg);
     pcd_pub.publish(f.pcd);
@@ -186,8 +190,8 @@ int main(int argc, char **argv) {
     ros::NodeHandle n;
 
     ros::console::set_logger_level(ROSCONSOLE_DEFAULT_NAME, ros::console::levels::Debug);
-    message_filters::Subscriber<sensor_msgs::PointCloud> sub_point_cloud(n, "/vins_estimator/point_cloud", 100);
-    message_filters::Subscriber<nav_msgs::Odometry> sub_odometry(n, "/vins_estimator/odometry", 100);
+    message_filters::Subscriber<sensor_msgs::PointCloud> sub_point_cloud(n, "/vins_estimator/point_cloud", 10);
+    message_filters::Subscriber<nav_msgs::Odometry> sub_odometry(n, "/vins_estimator/odometry", 10);
 //    ros::Subscriber sub = n.subscribe("/image", 10, preprocessing_callback);
     message_filters::Subscriber<sensor_msgs::Image> sub_image(n, "/image", 10);
     message_filters::Subscriber<sensor_msgs::Image> sub_building_mask(n, "/mask", 10);
@@ -201,10 +205,10 @@ int main(int argc, char **argv) {
     client = n.serviceClient<rpvio_estimator::PlaneSegmentation>("plane_segmentation");
 
     // publishers
-    rgb_image_pub = n.advertise<sensor_msgs::Image>("/preprocessor/image", 100);
-    plane_mask_pub = n.advertise<sensor_msgs::Image>("/preprocessor/plane_mask", 100);
-    pcd_pub = n.advertise<sensor_msgs::PointCloud>("/preprocessor/point_cloud", 100);
-    odom_pub = n.advertise<nav_msgs::Odometry>("/preprocessor/odometry", 100);
+    rgb_image_pub = n.advertise<sensor_msgs::Image>("/image_processed", 10);
+    plane_mask_pub = n.advertise<sensor_msgs::Image>("/plane_mask_processed", 10);
+    pcd_pub = n.advertise<sensor_msgs::PointCloud>("/point_cloud_processed", 10);
+    odom_pub = n.advertise<nav_msgs::Odometry>("/odometry_processed", 10);
 
 
     std::thread plannercnn_process(process), propagate_process(propagate_and_publish);
