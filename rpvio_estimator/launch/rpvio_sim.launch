@@ -23,8 +23,19 @@
     <param name="data_name" type="string" value="$(find benchmark_publisher)/config/$(arg sequence_name)/data.csv" />
   </node> -->
 
-  <remap from="/point_cloud" to="/vins_estimator/point_cloud" />
+
+
+
+
+<!-- 
+     <node pkg="rpvio_estimator" type="pcNoise" name="pcNoise">
+        <param name="noise" value="0.05"/>
+        <remap from="output" to="/point_cloud_noisy"/>
+    </node> -->
+
+  <remap from="/point_cloud" to="vins_estimator/point_cloud" />
   <remap from="/odometry" to="/vins_estimator/odometry" />
+
 
   <node name="rpvio_mapper" pkg="rpvio_estimator" type="rpvio_mapper" output="screen">
     <param name="config_file" type="string" value="$(arg config_path)" />

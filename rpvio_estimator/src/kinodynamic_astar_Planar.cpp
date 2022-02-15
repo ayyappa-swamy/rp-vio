@@ -442,11 +442,11 @@ void fast_planner::KinodynamicAstar::setParam(ros::NodeHandle& nh) {
   nh.param("search/max_vel", max_vel_, 2.0);
   nh.param("search/max_acc", max_acc_, 2.5); //3 
   nh.param("search/w_time", w_time_, 10.0);
-  nh.param("search/horizon", horizon_, 7.0);
+  nh.param("search/horizon", horizon_, 4.0);
   nh.param("search/resolution_astar", resolution_, 0.05);
   nh.param("search/time_resolution", time_resolution_, 0.8);
   nh.param("search/lambda_heu", lambda_heu_, 5.0);
-  nh.param("search/margin", margin_, 0.5);
+  nh.param("search/margin", margin_, 1.0);
   nh.param("search/allocate_num", allocate_num_, 100000);
   nh.param("search/check_num", check_num_, 5);
 

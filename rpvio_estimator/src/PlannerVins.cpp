@@ -5,24 +5,22 @@
 #include"kinodynamic_astar2.h"
 #include "planner.h"
 #include"STOMP.h"
-#include"CEM.h"
+// #include"CEM.h"
 #include <iostream>
 #include "vehicles/multirotor/api/MultirotorRpcLibClient.hpp"
 #include <string>
-#include <chrono>
 #include <thread>
 #include "planner.h"
-std::string ip ; 
-// ip.push_back( '10.2.36.227' ) ; 
-// extern /;
+#include "CEM_Polynomial.h"
 
+std::string ip ; 
 
 fast_planner::KinodynamicAstar kAstar;
 Initilizer::STOMP STOMPTrajectories ; 
 
 ros::Publisher Centervis; 
  
-Optimization::TrajectoryOptimization CEMOptim; 
+// Optimization::TrajectoryOptimization CEMOptim; 
 
 Eigen::Vector3d startVel;
 Eigen::Vector3d startAcc; 
@@ -41,7 +39,7 @@ ros::Publisher CEM_MeanTrajectory ;
 bool status ;
 double deltaT = 0.1;  
 nav_msgs::Path AstarTrajectory;
-int numIters = 10;
+int numIters = 3;
 
 ros::Publisher AstarTraj ; 
 ros::Publisher CEMOptimPath;
@@ -54,10 +52,13 @@ Eigen::Vector3d CurState;
 Eigen::Vector3d PrevState ;
 
 int cnt =0 ;
-int NumTraj_perturb = 500; // 500
+int NumTraj_perturb = 100; // 500
 int NumPts_perTraj ; 
 bool Remap = false ;
 
+PolynomialFormulation::CEMPolynomialFormulation CEM_polynomial; 
+Bernstein::BernsteinPath  BernsteinTraj(10);
+using namespace std::chrono ;
 
 
 void VisulizeCenters( std::vector<Eigen::Vector3d> Centers )
@@ -138,6 +139,36 @@ void VisulizeCenters( std::vector<Eigen::Vector3d> Centers )
 }
 
 
+void GetSmoothnessCost(     Eigen::MatrixXd X , Eigen::MatrixXd Y ,   Eigen::MatrixXd Z  )
+{
+
+    int numPts = X.cols();
+
+    Eigen::Vector3d Pt; 
+    Eigen::Vector3d PrevPt ;
+    double dt = 0.6; 
+    double dist ; 
+    double cost = 0 ;
+
+
+    for( int i =0 ; i < numPts ; i++ ){
+        if( i == 0){
+            PrevPt << X( 0 , i ) , Y(0 , i ) , Z(0 , i) ; 
+            continue; 
+        }
+        Pt <<  X( 0 , i ) , Y(0 , i ) , Z(0 , i) ; 
+
+        dist = ( Pt - PrevPt ).norm() ;
+        cost += (dist*dist)/ (dt*dt*dt*dt*dt);
+        PrevPt = Pt ;
+    }
+
+    std::cout << "  Smoothness Cost =  "  <<  cost << std::endl ;
+
+
+}
+
+
 
 
 void current_state_callback2( const sensor_msgs::PointCloudConstPtr &frames_msg, const nav_msgs::OdometryConstPtr &odometry_msg )
@@ -171,7 +202,7 @@ void current_state_callback2( const sensor_msgs::PointCloudConstPtr &frames_msg,
     
     In = true ; 
 
-	Eigen::Vector3d goal( 13.0, 0 , 1 );
+	Eigen::Vector3d goal( 16.0, 0 , 1 );
 
     double DistToGoal = (CurState - goal).norm() ; 
     bool Done = false ;
@@ -384,8 +415,17 @@ void current_state_callback2( const sensor_msgs::PointCloudConstPtr &frames_msg,
     std::cout << "Here " << std::endl;
 
     std::vector<Eigen::MatrixXd> CEMOptimizedTraj; 
+    // auto start = high_resolution_clock::now();
 
-    CEMOptimizedTraj = CEMOptim.CrossEntropyOptimize(xPts ,yPts , zPts , numIters ,   Centers ,CEMOptimTraj , PubSTOMP , cuboids  , CEM_MeanTrajectory);
+    // CEMOptimizedTraj = CEMOptim.CrossEntropyOptimize(xPts ,yPts , zPts , numIters ,   Centers ,CEMOptimTraj , PubSTOMP , cuboids  , CEM_MeanTrajectory);
+    auto start = high_resolution_clock::now();
+
+   CEMOptimizedTraj = CEM_polynomial.CrossEntropyOptimize_Polynomial( BernsteinTraj , x_samples ,y_samples , z_samples , numIters ,Centers , CEMOptimTraj , PubSTOMP , cuboids , CEM_MeanTrajectory );
+    auto stop = high_resolution_clock::now();
+    auto duration = duration_cast<milliseconds>(stop - start);
+
+    std::cout<< duration.count() << " COmputation Time " << std::endl;
+
 
     Eigen::MatrixXd X;
     Eigen::MatrixXd Y ; 
@@ -395,7 +435,11 @@ void current_state_callback2( const sensor_msgs::PointCloudConstPtr &frames_msg,
     Y = CEMOptimizedTraj.at(1);
     Z = CEMOptimizedTraj.at(2);
 
+    GetSmoothnessCost( X, Y , Z);
+
     int num = X.cols(); 
+
+    std::cout << num << " Number  of Points "  << X.rows() << std::endl ;
 
     for(int i =0 ; i< num ; i++)
     {

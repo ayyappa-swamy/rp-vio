@@ -6,6 +6,10 @@
 #include <iostream>
 #include <fstream>
 
+
+#include <chrono>
+using namespace std::chrono;
+
 MMDFunctions::MMD_variants MMDF;
 
 
@@ -280,7 +284,7 @@ double Optimization::TrajectoryOptimization::MMDwithNormalUncertainity( std::vec
 
 	Eigen::MatrixXf radius(1, numSamples_normal_uncertainity);  
 
-	radius = Eigen::MatrixXf::Constant( 1, numSamples_normal_uncertainity, 0.9); 
+	radius = Eigen::MatrixXf::Constant( 1, numSamples_normal_uncertainity,  0.75 ); 
 
 /*
 	std::random_device rd{};
@@ -360,7 +364,7 @@ double Optimization::TrajectoryOptimization::MMDwithNormalUncertainity( std::vec
 		Center_per_cuboid = DetermineCenter( vertices_cuboid ) ;
 		Q_Center_distance =  ( Center_per_cuboid - Qpt ).norm() ;
 
-		if( Q_Center_distance > 5){
+		if( Q_Center_distance > 3){
 			continue ;
 		}
 
@@ -733,7 +737,7 @@ std::vector<Eigen::MatrixXd> PerturbTraj( Eigen::MatrixXd x_samples_iter , Eigen
 	cov = (0.005/iterNum )*R.inverse(); 
 	}
 	else{
-		cov = 0.005*R.inverse(); 
+		cov = 0.0005*R.inverse(); 
 
 	}
 
@@ -743,9 +747,9 @@ std::vector<Eigen::MatrixXd> PerturbTraj( Eigen::MatrixXd x_samples_iter , Eigen
 	Eigen::MatrixXd mu = Eigen::MatrixXd::Zero(num_samples, 1);
 
 
-    Eigen::EigenMultivariateNormal<double> *normX_solver = new Eigen::EigenMultivariateNormal<double>(mu, 3*cov, true, dis(gen));
-    Eigen::EigenMultivariateNormal<double> *normY_solver = new Eigen::EigenMultivariateNormal<double>(mu, 3*cov, true, dis(gen));
-    Eigen::EigenMultivariateNormal<double> *normZ_solver = new Eigen::EigenMultivariateNormal<double>(mu, 3*cov, true, dis(gen));
+    Eigen::EigenMultivariateNormal<double> *normX_solver = new Eigen::EigenMultivariateNormal<double>(mu, 0.5*cov, true, dis(gen));
+    Eigen::EigenMultivariateNormal<double> *normY_solver = new Eigen::EigenMultivariateNormal<double>(mu, 0.5*cov, true, dis(gen));
+    Eigen::EigenMultivariateNormal<double> *normZ_solver = new Eigen::EigenMultivariateNormal<double>(mu, 0.5*cov, true, dis(gen));
 
 
     Eigen::MatrixXd eps_kx = normX_solver->samples(NumTrajSamples).transpose();
