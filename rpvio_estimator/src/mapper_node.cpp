@@ -179,7 +179,7 @@ void process_messages()
             ror.filter (plane_pcd);
             
 
-            if (plane_pcd.points.size() < 10)
+            if (plane_pcd.points.size() < 5)
                 continue;
 
             for (int pid = 0; pid < plane_pcd.points.size(); pid++)

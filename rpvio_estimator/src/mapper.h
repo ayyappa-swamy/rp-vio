@@ -1070,7 +1070,7 @@ void cluster_plane_features(
         fpoint << p.x, p.y, p.z;
         Vector3d lpoint = world2local * fpoint;
 
-        if (lpoint.norm() > 75)
+        if (lpoint.norm() > 100)
             continue;
 
         int feature_id = (int)features_msg->channels[2].values[fi];
