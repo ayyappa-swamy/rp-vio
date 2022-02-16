@@ -132,7 +132,7 @@ struct SubMessages
 {
     sensor_msgs::PointCloudConstPtr features_msg;
     nav_msgs::OdometryConstPtr odometry_msg;
-    sensor_msgs::ImageConstPtr img_msg;
+    // sensor_msgs::ImageConstPtr img_msg;
     sensor_msgs::ImageConstPtr mask_msg;
 };
 queue<SubMessages> sm_queue;
@@ -627,8 +627,8 @@ cv::Mat fillMaskHoles(cv::Mat input_mask, cv::Scalar color)
     cv::bitwise_xor(input_mask, color, result_mask);
 
     cv::morphologyEx(binary_segment, binary_segment, cv::MORPH_CLOSE, cv::Mat());
-    cv::morphologyEx(binary_segment, binary_segment, cv::MORPH_OPEN, cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(5, 5)));
-    cv::erode(binary_segment, binary_segment, cv::Mat::ones(5, 5, CV_8U), cv::Point(-1, -1), 2);
+    cv::morphologyEx(binary_segment, binary_segment, cv::MORPH_OPEN, cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(3, 3)));
+    cv::erode(binary_segment, binary_segment, cv::Mat::ones(3, 3, CV_8U), cv::Point(-1, -1), 2);
 
     cv::Mat color_segment(input_mask.rows, input_mask.cols, CV_8UC3, color);
 
@@ -980,7 +980,7 @@ bool fit_cuboid_to_point_cloud(Vector4d plane_params, vector<Vector3d> points, v
         vertices.push_back(pt);
         
         Vector3d t_pt(pt.x, 0.0, pt.z);
-        if (t_pt.norm() > 300)
+        if (t_pt.norm() > 100)
             return false;
     }
 
@@ -1068,6 +1068,10 @@ void cluster_plane_features(
         Vector3d fpoint;
         geometry_msgs::Point32 p = features_msg->points[fi];
         fpoint << p.x, p.y, p.z;
+        Vector3d lpoint = world2local * fpoint;
+
+        if (lpoint.norm() > 75)
+            continue;
 
         int feature_id = (int)features_msg->channels[2].values[fi];
 
@@ -1075,7 +1079,6 @@ void cluster_plane_features(
             int u = (int)features_msg->channels[0].values[fi];
             int v = (int)features_msg->channels[1].values[fi];
 
-            Vector3d lpoint = world2local * fpoint;
             Eigen::Matrix3d K;
             K << FOCAL_LENGTH, 0, COL/2,
                 0, FOCAL_LENGTH, ROW/2,
@@ -1342,13 +1345,13 @@ Vector4d fit_vertical_plane_ransac(vector<Vector3d> &plane_points, int plane_id)
 
     // Compute the number of iterations based on the outlier probability
     // Loop for 'n' iterations
-    double p = 0.99; // p = desired probability that we get a good sample
+    double p = 0.95; // p = desired probability that we get a good sample
     double s = 3; // s = number of points in a sample
-    double e = 0.2; // e = probability that a point is outlier
+    double e = 0.1; // e = probability that a point is outlier
     int N = (int)(log(1 - p) / log(1 - pow(1 - e, s)));
     N++;
 
-    double plane_distance_threshold = 1.5;
+    double plane_distance_threshold = 1.25;
 
     int bestNumOfInliers = 4;
     Vector4d bestFit;

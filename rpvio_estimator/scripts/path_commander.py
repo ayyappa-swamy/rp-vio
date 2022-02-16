@@ -23,21 +23,23 @@ client = airsim.MultirotorClient(ip='10.2.36.227')
 client.confirmConnection()
 client.enableApiControl(True)
 client.armDisarm(True)
-client.takeoffAsync().join()
-client.landAsync().join()
+client.takeoffAsync()
+client.landAsync()
 print("Done 1")
 
-client.moveToZAsync(-3,.5).join()
-client.moveToZAsync(-1,.5).join()
-client.moveToZAsync(-3,.5).join()
+client.moveToZAsync(-5,1.0)
+client.moveToZAsync(-1,1.0)
+client.moveToZAsync(-5,1.0)
 
 path = []
 path.append(airsim.Vector3r(0.0, 0.0, -5))
-path.append(airsim.Vector3r(0.0, 0.0, -1))
+path.append(airsim.Vector3r(0.0, 0.0, 0))
 path.append(airsim.Vector3r(0.0, 0.0, -5))
-client.moveOnPathAsync(path, 2.25, np.inf, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(True, 0.5)).join()
+path.append(airsim.Vector3r(0.0, 0.0, 0))
+path.append(airsim.Vector3r(0.0, 0.0, -5))
+client.moveOnPathAsync(path, 1.0, np.inf,airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(True, 0.0))
 #path.append(airsim.Vector3r(0.0, 0.0, -3))
-#client.moveOnPathAsync(path, 0.5, np.inf, airsim.DrivetrainType.ForwardOnly).join()
+#client.moveOnPathAsync(path, 0.5, np.inf, airsim.DrivetrainType.ForwardOnly)
 #print("Done")
 #print("Done 2")
 
@@ -85,22 +87,26 @@ def path_update_callback(way_points):
     path.reverse()
 
 def control_update_callback(event):
-    goal = path[int(len(path)/2)]
-    current_state = client.getMultirotorState()
-    current_position = current_state.kinematics_estimated.position
+    # goal = path[int(len(path)/2)]
+    # current_state = client.getMultirotorState()
+    # current_position = current_state.kinematics_estimated.position
 
-    goal_distance = 3
-    if len(path) < 5:
-        goal_distance = 0.5
+    # goal_distance = 6
+    # if len(path) < 5:
+    #     goal_distance = 0.5
 
-    for way_point in path:
-        if (way_point - current_position).get_length() <= goal_distance:
-            goal = way_point
+    # for way_point in path:
+    #     if (way_point - current_position).get_length() <= goal_distance:
+    #         goal = way_point
 
-    displacement = goal - current_position
-    direction = displacement / displacement.get_length()
+    # displacement = goal - current_position
+    # direction = displacement / displacement.get_length()
 
-    client.moveByVelocityAsync(direction.x_val*0.3, direction.y_val*0.3, displacement.z_val*0.01, 5, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(True, 0.5))
+    # client.moveByVelocityAsync(direction.x_val*0.3, direction.y_val*0.3, displacement.z_val*0.01, 5, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(True, 0.5))
+    if len(path) < 1:
+        return
+    lgoal = path.pop(0)
+    client.moveToPositionAsync(lgoal.x_val, lgoal.y_val, -5, 0.5, np.inf, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(True, 0.0))
 
 def listener():
 

@@ -12,26 +12,26 @@ void process_messages()
 {
     while(true)
     {
-        // unique_lock<mutex> lck{sm_mutex};
-        // sm_cond.wait(lck, []{ return !sm_queue.empty();});
+        unique_lock<mutex> lck{sm_mutex};
+        sm_cond.wait(lck, []{ return !sm_queue.empty();});
 
         SubMessages sub_msg;
 
-        sm_mutex.lock();
+        // sm_mutex.lock();
         if (sm_queue.empty()){
-            sm_mutex.unlock();
+            // sm_mutex.unlock();
             continue;
         }
         else {
             sub_msg = sm_queue.front();
             sm_queue.pop();
-            sm_mutex.unlock();
+            // sm_mutex.unlock();
         }
-        // lck.unlock();
+        lck.unlock();
 
         sensor_msgs::PointCloudConstPtr features_msg = sub_msg.features_msg;
         nav_msgs::OdometryConstPtr odometry_msg = sub_msg.odometry_msg;
-        sensor_msgs::ImageConstPtr img_msg = sub_msg.img_msg;
+        // sensor_msgs::ImageConstPtr img_msg = sub_msg.img_msg;
         sensor_msgs::ImageConstPtr mask_msg = sub_msg.mask_msg;
 
          
@@ -45,8 +45,8 @@ void process_messages()
         cv_bridge::CvImagePtr mask_ptr = cv_bridge::toCvCopy(mask_msg, sensor_msgs::image_encodings::BGR8);
         cv::Mat raw_mask_img = mask_ptr->image;
         
-        cv_bridge::CvImagePtr img_ptr = cv_bridge::toCvCopy(img_msg, sensor_msgs::image_encodings::BGR8);
-        cv::Mat img = img_ptr->image;
+        // cv_bridge::CvImagePtr img_ptr = cv_bridge::toCvCopy(img_msg, sensor_msgs::image_encodings::BGR8);
+        // cv::Mat img = img_ptr->image;
         ROS_INFO("Received point cloud with %d points", (int)features_msg->points.size());
         //ROS_INFO("Received image with dimensions (%d, %d)", img.rows, img.cols);
 
@@ -80,7 +80,8 @@ void process_messages()
         Ti.linear() = quat.normalized().toRotationMatrix();
         Ti.translation() = trans;
 
-        cv::Mat mask_img = processMaskSegments(raw_mask_img);
+        // cv::Mat mask_img = processMaskSegments(raw_mask_img);
+        cv::Mat mask_img = raw_mask_img;
         update_global_point_cloud(features_msg, mask_img, Tic.inverse() * Ti.inverse());
 
         ROS_INFO("Clustered the feature points based on %d planes", (int)mPlaneFeatureIds.size());
@@ -151,7 +152,7 @@ void process_messages()
                 Vector3d c_pt = Tic.inverse() * (Ti.inverse() * w_pt);
                 
                 Vector3d t_pt(c_pt[0], 0.0, c_pt[2]);
-                if (mFeatures[feature_id].measurement_count > 2)
+                if (mFeatures[feature_id].measurement_count >= 2)
                 {
                     // unsigned long hex = id2color(plane_id);
                     int r = 255;//((hex >> 16) & 0xFF);
@@ -262,7 +263,7 @@ void process_messages()
 
         ROS_INFO("Publising marked image");
         std_msgs::Header img_header;
-        img_header = img_msg->header;
+        img_header = mask_msg->header;
         sensor_msgs::ImagePtr marked_image_msg = cv_bridge::CvImage(img_header, sensor_msgs::image_encodings::BGR8, mask_img).toImageMsg();
         
         // Publish raw images with marked quads
@@ -289,22 +290,22 @@ void process_messages()
 void mapping_callback(
     const sensor_msgs::PointCloudConstPtr &features_msg,
     const nav_msgs::OdometryConstPtr &odometry_msg,
-    const sensor_msgs::ImageConstPtr &img_msg,
+    // const sensor_msgs::ImageConstPtr &img_msg,
     const sensor_msgs::ImageConstPtr &mask_msg
 )
 {
     SubMessages sub_msgs;
     sub_msgs.features_msg = features_msg;
     sub_msgs.odometry_msg = odometry_msg;
-    sub_msgs.img_msg = img_msg;
+    // sub_msgs.img_msg = img_msg;
     sub_msgs.mask_msg = mask_msg;
 
-    // unique_lock<mutex> lck{sm_mutex};
-    sm_mutex.lock();
+    unique_lock<mutex> lck{sm_mutex};
+    // sm_mutex.lock();
     sm_queue.push(sub_msgs);
-    sm_mutex.unlock();
-    // lck.unlock();
-    // sm_cond.notify_one();
+    // sm_mutex.unlock();
+    lck.unlock();
+    sm_cond.notify_one();
 }
 
 int main(int argc, char **argv)
@@ -316,14 +317,14 @@ int main(int argc, char **argv)
     load_color_palette(COLOR_PALETTE_PATH);
 
     // Register all subscribers
-    message_filters::Subscriber<sensor_msgs::PointCloud> sub_point_cloud(n, "/point_cloud_processed", 10);
-    message_filters::Subscriber<nav_msgs::Odometry> sub_odometry(n, "/odometry_processed", 10);
-    message_filters::Subscriber<sensor_msgs::Image> sub_image(n, "/image_processed", 10);
-    message_filters::Subscriber<sensor_msgs::Image> sub_mask(n, "/plane_mask_processed", 10);
+    message_filters::Subscriber<sensor_msgs::PointCloud> sub_point_cloud(n, "/point_cloud_processed", 5);
+    message_filters::Subscriber<nav_msgs::Odometry> sub_odometry(n, "/odometry_processed", 5);
+    // message_filters::Subscriber<sensor_msgs::Image> sub_image(n, "/image_processed", 5);
+    message_filters::Subscriber<sensor_msgs::Image> sub_mask(n, "/plane_mask_processed", 5);
 
-    typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::PointCloud, nav_msgs::Odometry, sensor_msgs::Image, sensor_msgs::Image> MySyncPolicy;
+    typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::PointCloud, nav_msgs::Odometry, sensor_msgs::Image> MySyncPolicy;
     // ApproximateTime takes a queue size as its constructor argument, hence MySyncPolicy(10)
-    message_filters::Synchronizer<MySyncPolicy> sync(MySyncPolicy(10), sub_point_cloud, sub_odometry, sub_image, sub_mask);
+    message_filters::Synchronizer<MySyncPolicy> sync(MySyncPolicy(5), sub_point_cloud, sub_odometry, sub_mask);
 
     // message_filters::TimeSynchronizer<sensor_msgs::PointCloud, nav_msgs::Odometry, sensor_msgs::Image, sensor_msgs::Image> sync(
     //     sub_point_cloud,
@@ -332,18 +333,18 @@ int main(int argc, char **argv)
     //     sub_mask,
     //     2000
     // );
-    sync.registerCallback(boost::bind(&mapping_callback, _1, _2, _3, _4));
+    sync.registerCallback(boost::bind(&mapping_callback, _1, _2, _3));
 
     // Register all publishers
     // Publish coloured point cloud
     // Publish 3D plane segments (line list or marker array)
 
-    frame_pub = n.advertise<sensor_msgs::PointCloud>("frame_cloud", 10);
-    cent_pub = n.advertise<sensor_msgs::PointCloud>("centroid_cloud", 10);
-    lgoal_pub = n.advertise<sensor_msgs::PointCloud>("local_goal", 10);
-    frame_pub2 = n.advertise<sensor_msgs::PointCloud2>("frame_cloud2", 10);
-    masked_im_pub = n.advertise<sensor_msgs::Image>("masked_image", 10);
-    marker_pub = n.advertise<visualization_msgs::Marker>("cuboids", 10);
+    frame_pub = n.advertise<sensor_msgs::PointCloud>("frame_cloud", 5);
+    // cent_pub = n.advertise<sensor_msgs::PointCloud>("centroid_cloud", 5);
+    lgoal_pub = n.advertise<sensor_msgs::PointCloud>("local_goal", 5);
+    frame_pub2 = n.advertise<sensor_msgs::PointCloud2>("frame_cloud2", 5);
+    masked_im_pub = n.advertise<sensor_msgs::Image>("masked_image", 5);
+    marker_pub = n.advertise<visualization_msgs::Marker>("cuboids", 5);
     // ma_pub = n.advertise<visualization_msgs::MarkerArray>("centroid_segs", 100);
     
     thread processing_thread{process_messages};

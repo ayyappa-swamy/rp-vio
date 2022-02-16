@@ -34,9 +34,9 @@ def vertices_and_odom_callback(vertices_msg, odometry_msg):
 def register_pub_sub():
     rospy.init_node('pyplanner', anonymous=True)
 
-    vertices_sub = message_filters.Subscriber("/rpvio_mapper/frame_cloud", PointCloud, queue_size=20)
-    odometry_sub = message_filters.Subscriber("/vins_estimator/odometry", Odometry, queue_size=20)
-    ts = message_filters.ApproximateTimeSynchronizer([vertices_sub, odometry_sub], 20,5)
+    vertices_sub = message_filters.Subscriber("/rpvio_mapper/frame_cloud", PointCloud, queue_size=10)
+    odometry_sub = message_filters.Subscriber("/vins_estimator/odometry", Odometry, queue_size=10)
+    ts = message_filters.TimeSynchronizer([vertices_sub, odometry_sub], 20)
     ts.registerCallback(vertices_and_odom_callback)
 
     global local_goal_pub
