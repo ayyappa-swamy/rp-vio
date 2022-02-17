@@ -98,7 +98,7 @@ target_link_libraries(rpvio_planner ${catkin_LIBRARIES} ${OpenCV_LIBS} ${CERES_L
 
 catkin_install_python(PROGRAMS
   scripts/planner_node.py
-        scripts/plane_segmentation_server.py
+        scripts/planercnn/plane_segmentation_service_server.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
