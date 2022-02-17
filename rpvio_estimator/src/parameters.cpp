@@ -22,6 +22,9 @@ std::string RPVIO_RESULT_PATH;
 std::string RPVIO_GT_PATH;
 std::string IMU_TOPIC;
 std::string MASK_TOPIC;
+std::string MAPPER_MASK_TOPIC;
+std::string MAPPER_POINT_CLOUD_TOPIC;
+std::string MAPPER_ODOMETRY_TOPIC;
 double ROW, COL;
 double TD, TR;
 
@@ -55,6 +58,9 @@ void readParameters(ros::NodeHandle &n)
 
     fsSettings["imu_topic"] >> IMU_TOPIC;
     fsSettings["mask_topic"] >> MASK_TOPIC;
+    fsSettings["mapper_mask_topic"] >> MAPPER_MASK_TOPIC;
+    fsSettings["mapper_point_cloud_topic"] >> MAPPER_POINT_CLOUD_TOPIC;
+    fsSettings["mapper_odometry_topic"] >> MAPPER_ODOMETRY_TOPIC;
 
     SOLVER_TIME = fsSettings["max_solver_time"];
     NUM_ITERATIONS = fsSettings["max_num_iterations"];

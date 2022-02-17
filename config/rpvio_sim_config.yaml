@@ -7,9 +7,14 @@
 imu_topic: "/imu_throttled"
 image_topic: "/image_throttled"
 mask_topic: "/plane_mask_throttled"
-output_path: "/home/user/IIIT-Stuff/RRC/Projects/skyline/catkin_workspaces/catkin_ws_skyline/src/skyline/output/"
-gt_path: "/home/user/IIIT-Stuff/RRC/Projects/skyline/catkin_workspaces/catkin_ws_skyline/src/skyline/data/minihattan/"
-color_palette_path: "/home/user/IIIT-Stuff/RRC/Projects/skyline/catkin_workspaces/catkin_ws_skyline/src/skyline/config/seg_rgbs.txt"
+output_path: "/home/tvvsstas/rpvio_ws/src/rp-vio/output"
+gt_path: "/home/tvvsstas/rpvio_ws/src/rp-vio/output"
+color_palette_path: "/home/tvvsstas/rpvio_ws/src/rp-vio/config/seg_rgbs.txt"
+
+#mapper parameters
+mapper_mask_topic: "/plane_mask"
+mapper_point_cloud_topic: "/vins_estimator/point_cloud"
+mapper_odometry_topic: "/vins_estimator/odometry"
 
 #camera calibration 
 model_type: PINHOLE

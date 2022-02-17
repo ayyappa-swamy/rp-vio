@@ -112,6 +112,7 @@ struct Plane
     set<int> feature_ids;
     double best_fit_error = 100000.0;
     int best_num_of_inliers = 4;
+    bool should_update = false;
 };
 
 struct PlaneFeature
@@ -980,7 +981,7 @@ bool fit_cuboid_to_point_cloud(Vector4d plane_params, vector<Vector3d> points, v
         vertices.push_back(pt);
         
         Vector3d t_pt(pt.x, 0.0, pt.z);
-        if (t_pt.norm() > 100)
+        if (t_pt.norm() > 300)
             return false;
     }
 
@@ -1334,6 +1335,9 @@ Vector4d fit_vertical_plane_to_indices(vector<int> &indices, vector<Vector3d> &p
  */
 Vector4d fit_vertical_plane_ransac(vector<Vector3d> &plane_points, int plane_id)
 {
+    if (!mPlaneFeatureIds[plane_id].should_update)
+        return mPlaneFeatureIds[plane_id].plane;
+
     auto t_start = std::chrono::high_resolution_clock::now();
     // Implement ransac for vertical planes
     // For each iteration:
@@ -1345,9 +1349,9 @@ Vector4d fit_vertical_plane_ransac(vector<Vector3d> &plane_points, int plane_id)
 
     // Compute the number of iterations based on the outlier probability
     // Loop for 'n' iterations
-    double p = 0.95; // p = desired probability that we get a good sample
+    double p = 0.99; // p = desired probability that we get a good sample
     double s = 3; // s = number of points in a sample
-    double e = 0.1; // e = probability that a point is outlier
+    double e = 0.2; // e = probability that a point is outlier
     int N = (int)(log(1 - p) / log(1 - pow(1 - e, s)));
     N++;
 
@@ -1393,7 +1397,13 @@ Vector4d fit_vertical_plane_ransac(vector<Vector3d> &plane_points, int plane_id)
     double elapsed_time_ms = std::chrono::duration<double, std::milli>(t_end-t_start).count();
     ROS_INFO("time taken for RANSAC is %g ms", elapsed_time_ms);
 
-    return bestFit;
+    if (mPlaneFeatureIds[plane_id].best_num_of_inliers <= bestNumOfInliers){
+        mPlaneFeatureIds[plane_id].plane = bestFit;
+        mPlaneFeatureIds[plane_id].best_num_of_inliers = bestNumOfInliers;
+        mPlaneFeatureIds[plane_id].should_update = false;
+    }
+
+    return mPlaneFeatureIds[plane_id].plane;
 }
 
 map<int, vector<Vector3d>> cluster_depth_cloud(cv_bridge::CvImagePtr depth_ptr, cv_bridge::CvImagePtr mask_ptr, pcl::PointCloud<pcl::PointXYZRGB> &test_pcd, Isometry3d Ti, Isometry3d Tic)
@@ -1539,6 +1549,7 @@ void update_global_point_cloud(
 
                 mFeatures[feature_id].point = current_features[feature_id];
                 mFeatures[feature_id].measurement_count++;
+                mPlaneFeatureIds[mFeatures[feature_id].plane_id].should_update = true;
             }
         }
         else // these cluster of features in current frame belong to a new plane
@@ -1566,6 +1577,7 @@ void update_global_point_cloud(
 
                 mFeatures[feature_id].point = current_features[feature_id];
                 mFeatures[feature_id].measurement_count++;
+                mPlaneFeatureIds[mFeatures[feature_id].plane_id].should_update = true;
             }
         }
     }

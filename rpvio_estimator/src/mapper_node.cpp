@@ -18,15 +18,15 @@ void process_messages()
         SubMessages sub_msg;
 
         // sm_mutex.lock();
-        if (sm_queue.empty()){
+        // if (sm_queue.empty()){
             // sm_mutex.unlock();
-            continue;
-        }
-        else {
+            // continue;
+        // }
+        // else {
             sub_msg = sm_queue.front();
             sm_queue.pop();
             // sm_mutex.unlock();
-        }
+        // }
         lck.unlock();
 
         sensor_msgs::PointCloudConstPtr features_msg = sub_msg.features_msg;
@@ -137,8 +137,8 @@ void process_messages()
 
         auto tpcl_start = std::chrono::high_resolution_clock::now();
         // Print number of features per plane
-        for (auto const& sFeatureIds: mPlaneFeatureIds)
-        {
+        for (auto& sFeatureIds: mPlaneFeatureIds)
+        {   
             int plane_id = sFeatureIds.first;
             ROS_INFO("Number of features in plane id %d are %d", sFeatureIds.first, (int)sFeatureIds.second.feature_ids.size());
 
@@ -152,7 +152,7 @@ void process_messages()
                 Vector3d c_pt = Tic.inverse() * (Ti.inverse() * w_pt);
                 
                 Vector3d t_pt(c_pt[0], 0.0, c_pt[2]);
-                if (mFeatures[feature_id].measurement_count >= 2)
+                if (mFeatures[feature_id].measurement_count >= -1)
                 {
                     // unsigned long hex = id2color(plane_id);
                     int r = 255;//((hex >> 16) & 0xFF);
@@ -317,10 +317,9 @@ int main(int argc, char **argv)
     load_color_palette(COLOR_PALETTE_PATH);
 
     // Register all subscribers
-    message_filters::Subscriber<sensor_msgs::PointCloud> sub_point_cloud(n, "/point_cloud_processed", 5);
-    message_filters::Subscriber<nav_msgs::Odometry> sub_odometry(n, "/odometry_processed", 5);
-    // message_filters::Subscriber<sensor_msgs::Image> sub_image(n, "/image_processed", 5);
-    message_filters::Subscriber<sensor_msgs::Image> sub_mask(n, "/plane_mask_processed", 5);
+    message_filters::Subscriber<sensor_msgs::PointCloud> sub_point_cloud(n, MAPPER_POINT_CLOUD_TOPIC, 5);
+    message_filters::Subscriber<nav_msgs::Odometry> sub_odometry(n, MAPPER_ODOMETRY_TOPIC, 5);
+    message_filters::Subscriber<sensor_msgs::Image> sub_mask(n, MAPPER_MASK_TOPIC, 5);
 
     typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::PointCloud, nav_msgs::Odometry, sensor_msgs::Image> MySyncPolicy;
     // ApproximateTime takes a queue size as its constructor argument, hence MySyncPolicy(10)
