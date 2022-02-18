@@ -56,6 +56,8 @@
 #include <map>
 #include <thread>
 #include <mutex>
+#include <set>
+#include <algorithm>
 #include <condition_variable>
 #include <ros/ros.h>
 #include <pcl_ros/point_cloud.h>
@@ -120,7 +122,7 @@ struct PlaneFeature
     Vector3d point;
     int measurement_count = 0;
     int plane_id;
-    bool is_outlier;
+    bool is_outlier = false;
 };
 
 map<double, vector<Vector4d>> plane_measurements;
@@ -710,7 +712,7 @@ int get_plane_id(int u, int v, cv::Mat &mask)
 {
     int plane_id = 0;
 
-    if ((u > 0) && (v > 0) & (u < mask.cols) && (v < mask.rows)) {
+    if ((u > 0) && (v > 0) && (u < mask.cols) && (v < mask.rows)) {
         cv::Vec3b colors = mask.at<cv::Vec3b>(v, u);
         
         plane_id = color2id(colors[0], colors[1], colors[2]);
@@ -981,7 +983,7 @@ bool fit_cuboid_to_point_cloud(Vector4d plane_params, vector<Vector3d> points, v
         vertices.push_back(pt);
         
         Vector3d t_pt(pt.x, 0.0, pt.z);
-        if (t_pt.norm() > 300)
+        if (t_pt.norm() > 500)
             return false;
     }
 
@@ -1071,8 +1073,8 @@ void cluster_plane_features(
         fpoint << p.x, p.y, p.z;
         Vector3d lpoint = world2local * fpoint;
 
-        if (lpoint.norm() > 100)
-            continue;
+        // if (lpoint.norm() > 100)
+            // continue;
 
         int feature_id = (int)features_msg->channels[2].values[fi];
 
@@ -1397,7 +1399,7 @@ Vector4d fit_vertical_plane_ransac(vector<Vector3d> &plane_points, int plane_id)
     double elapsed_time_ms = std::chrono::duration<double, std::milli>(t_end-t_start).count();
     ROS_INFO("time taken for RANSAC is %g ms", elapsed_time_ms);
 
-    if (mPlaneFeatureIds[plane_id].best_num_of_inliers <= bestNumOfInliers){
+    if (mPlaneFeatureIds[plane_id].best_num_of_inliers < bestNumOfInliers){
         mPlaneFeatureIds[plane_id].plane = bestFit;
         mPlaneFeatureIds[plane_id].best_num_of_inliers = bestNumOfInliers;
         mPlaneFeatureIds[plane_id].should_update = false;
@@ -1463,10 +1465,11 @@ void update_global_point_cloud(
 {
     ROS_INFO("Point cloud has %d channels", (int)features_msg->channels.size());
 
-    map<int, vector<int>> mCurrentPlaneFeatures;
+    map<int, Plane> mCurrentPlanes;
     map<int, int> mCurrentIdToPrevId;
+    vector<int> common_plane_ids;
 
-    map<int, Vector3d> current_features;
+    map<int, PlaneFeature> mCurrentFeatures;
 
     std::map<unsigned long, int> color_index;
 
@@ -1495,22 +1498,57 @@ void update_global_point_cloud(
         v = (int)pt.y();
         
         int current_plane_id = get_plane_id(u, v, mask_img);
-        if ((current_plane_id == 0) || (current_plane_id == 39))
+        if (current_plane_id == 0)// || (current_plane_id == 39))
             continue;
             
-        if (mCurrentPlaneFeatures.find(current_plane_id) == mCurrentPlaneFeatures.end())
+        if (mCurrentPlanes.find(current_plane_id) == mCurrentPlanes.end())
         {
-            std::vector<int> curr_plane_feature_ids;
-            mCurrentPlaneFeatures[current_plane_id] = curr_plane_feature_ids;
+            Plane curr_plane;
+            mCurrentPlanes[current_plane_id] = curr_plane;
         }
 
-        if (mFeatures.find(feature_id) != mFeatures.end()) 
+        if (mFeatures.find(feature_id) != mFeatures.end())
         {
-            mCurrentIdToPrevId[current_plane_id] = mFeatures[feature_id].plane_id;
+            common_plane_ids.push_back(mFeatures[feature_id].plane_id);
         }
-        
-        mCurrentPlaneFeatures[current_plane_id].push_back(feature_id);
-        current_features[feature_id] = fpoint;
+
+        mCurrentPlanes[current_plane_id].feature_ids.insert(feature_id);
+        PlaneFeature new_feature;
+        new_feature.point = fpoint;
+        mCurrentFeatures[feature_id] = new_feature;
+    }
+
+    /**
+     * @brief Find common points and associate current planes with existing planes
+     * For each current plane:
+     *      find common feature ids
+     *      find an existing plane with maximum number of common features
+     *      consider that as the mapping for current to previous plane
+     */
+    for (int c = 0; c < common_plane_ids.size(); c++)
+    {
+        int max_count = 0;
+        int best_match_id = 0;
+
+        for (auto &mCurrentPlane: mCurrentPlanes)
+        {
+            std::vector<int> common_feature_ids;
+            Plane &commonPlane = mPlaneFeatureIds[common_plane_ids[c]];
+
+            std::set_intersection(
+                commonPlane.feature_ids.begin(), commonPlane.feature_ids.end(),
+                mCurrentPlane.second.feature_ids.begin(), mCurrentPlane.second.feature_ids.end(),
+                std::back_inserter(common_feature_ids)
+            );
+
+            if (common_feature_ids.size() > max_count){
+                max_count = common_feature_ids.size();
+                best_match_id = mCurrentPlane.first;
+            }
+        }
+
+        if (max_count > 0 && best_match_id != 0)
+            mCurrentIdToPrevId[best_match_id] = common_plane_ids[c];
     }
 
     /**
@@ -1523,7 +1561,7 @@ void update_global_point_cloud(
      * feature belongs to a existing plane
      * this should be used to map current plane id with existing plane id
      */
-    for(auto mCPF: mCurrentPlaneFeatures) {
+    for(auto mCPF: mCurrentPlanes) {
         int current_plane_id = mCPF.first;
 
         // one of the features in current cloud belongs to existing planes
@@ -1533,9 +1571,9 @@ void update_global_point_cloud(
             if ((previous_plane_id == 0) || (previous_plane_id == 39))
                 continue;
 
-            for (int cfid = 0; cfid < mCurrentPlaneFeatures[current_plane_id].size(); cfid++) 
+            for (auto &feature_id: mCPF.second.feature_ids) 
             {   
-                int feature_id = mCurrentPlaneFeatures[current_plane_id][cfid];
+                //int feature_id = mCPF.second.feature_ids[cfid];
 
                 // add this feature to existing plane
                 if (mFeatures.find(feature_id) == mFeatures.end()) 
@@ -1546,8 +1584,12 @@ void update_global_point_cloud(
                     new_plane_feature.plane_id = previous_plane_id;
                     mFeatures[feature_id] = new_plane_feature;
                 }
+                else if (mFeatures[feature_id].plane_id != previous_plane_id) {
+                    mFeatures[feature_id].is_outlier = true;
+                    continue;
+                }
 
-                mFeatures[feature_id].point = current_features[feature_id];
+                mFeatures[feature_id].point = mCurrentFeatures[feature_id].point;
                 mFeatures[feature_id].measurement_count++;
                 mPlaneFeatureIds[mFeatures[feature_id].plane_id].should_update = true;
             }
@@ -1556,9 +1598,10 @@ void update_global_point_cloud(
         {
             int new_plane_id = plane_id_counter;
             plane_id_counter++;
-            for (int cfid = 0; cfid < mCurrentPlaneFeatures[current_plane_id].size(); cfid++) 
+            //for (int cfid = 0; cfid < mCPF.second.feature_ids.size(); cfid++) 
+            for (auto &feature_id: mCPF.second.feature_ids) 
             {   
-                int feature_id = mCurrentPlaneFeatures[current_plane_id][cfid];
+                //int feature_id = mCPF.second.feature_ids[cfid];
 
                 Plane new_plane;
                 new_plane.plane_id = new_plane_id;
@@ -1575,7 +1618,7 @@ void update_global_point_cloud(
                     mFeatures[feature_id] = new_plane_feature;
                 }
 
-                mFeatures[feature_id].point = current_features[feature_id];
+                mFeatures[feature_id].point = mCurrentFeatures[feature_id].point;
                 mFeatures[feature_id].measurement_count++;
                 mPlaneFeatureIds[mFeatures[feature_id].plane_id].should_update = true;
             }

@@ -145,6 +145,7 @@ void process_messages()
             vector<Vector3d> plane_points;
             
             pcl::PointCloud<pcl::PointXYZRGB> plane_pcd;
+            pcl::PointCloud<pcl::PointXYZRGB> fplane_pcd;
             for (auto feature_id: sFeatureIds.second.feature_ids)
             {
                 Vector3d w_pt = mFeatures[feature_id].point;
@@ -152,7 +153,7 @@ void process_messages()
                 Vector3d c_pt = Tic.inverse() * (Ti.inverse() * w_pt);
                 
                 Vector3d t_pt(c_pt[0], 0.0, c_pt[2]);
-                if (mFeatures[feature_id].measurement_count >= -1)
+                if (mFeatures[feature_id].measurement_count >= 0)
                 {
                     // unsigned long hex = id2color(plane_id);
                     int r = 255;//((hex >> 16) & 0xFF);
@@ -176,8 +177,13 @@ void process_messages()
             ror.setRadiusSearch (2);
             ror.setMinNeighborsInRadius (5);
             ror.setKeepOrganized (true);
-            ror.filter (plane_pcd);
+            ror.filter (fplane_pcd);
             
+            std::cout << "Before filtering: " << std::endl;
+            std::cout << plane_pcd << endl;
+            ROS_INFO("Before filtering: %d; After filterig: %d", (int)plane_pcd.points.size(), (int)fplane_pcd.points.size());
+            std::cout << "After filtering: " << std::endl;
+            std::cout << fplane_pcd << endl;
 
             if (plane_pcd.points.size() < 5)
                 continue;
