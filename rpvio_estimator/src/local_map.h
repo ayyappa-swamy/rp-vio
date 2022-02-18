@@ -60,7 +60,7 @@ ros::Publisher cuboids_pub;
 
 struct Plane
 {
-    Vector4d plane;
+    Vector4d params;
     int plane_id;
     bool is_initialized = false;
     set<int> feature_ids;
@@ -167,7 +167,7 @@ void compute_vertices_from_planes(Vector3d bound_point, vector<Vector4d> bound_p
     ROS_INFO("time taken for computing plane vertices is %g ms", elapsed_time_ms);
 }
 
-bool fit_cuboid_to_point_cloud(Vector4d plane_params, vector<Vector3d> points, vector<geometry_msgs::Point> &vertices, vector<Vector3d> &normal_vectors)
+bool fit_cuboid_to_point_cloud(Vector4d plane_params, vector<Vector3d> points, vector<geometry_msgs::Point> &vertices)
 {
     auto t_start = std::chrono::high_resolution_clock::now();
 
@@ -710,6 +710,9 @@ public:
     // Clusters
     map<int, Plane> mPlanes;
     map<int, PlaneFeature> mPlaneFeatures;
+
+    // Cuboids
+    vector<geometry_msgs::Point> cuboid_vertices;
 
     // RViz markers
     pcl::PointCloud<pcl::PointXYZRGB> plane_pcd;

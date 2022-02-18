@@ -68,7 +68,7 @@ void LocalMap::cluster_points()
 
         if ((plane_id != 0) && (plane_id != 39))// Ignore sky and ground points
         {
-            if (! mPlaneFeatureIds.count(plane_id))
+            if (! mPlaneFeatures.count(plane_id))
             {
                 Plane new_plane;
                 new_plane.plane_id = plane_id;
@@ -84,4 +84,67 @@ void LocalMap::cluster_points()
     }
 
     ROS_INFO("Found %d planes", (int)mPlanes.size());
+}
+
+void LocalMap::fit_cuboids()
+{
+    for (auto& iter_plane: mPlanes)
+    {   
+        int plane_id = iter_plane.first;
+        ROS_INFO("Number of features in plane id %d are %d", iter_plane.first, (int)iter_plane.second.feature_ids.size());
+
+        vector<Vector3d> plane_points;
+        for (auto feature_id: iter_plane.second.feature_ids)
+        {
+            Vector3d w_pt = mPlaneFeatures[feature_id].point;
+            Vector3d c_pt = Tic.inverse() * (Ti.inverse() * w_pt);
+            
+            plane_points.push_back(c_pt);
+        }
+
+        Vector3d normal;
+        Vector4d params;
+        params = fit_vertical_plane_ransac(plane_points, plane_id);
+        normal = params.head<3>();
+
+        fit_cuboid_to_points(params, plane_points, cuboid_vertices);
+    }
+}
+
+void publish_clusters(ros::Publisher clusters_pub)
+{
+    pcl::PointCloud<pcl::PointXYZRGB> clusters_pcd;
+    
+    // For each segmented plane
+    for (auto& iter_plane: mPlanes)
+    {   
+        int plane_id = iter_plane.first;
+        ROS_INFO("Number of features in plane id %d are %d", iter_plane.first, (int)iter_plane.second.feature_ids.size());
+        
+        // Compute color of this plane cluster
+        unsigned long hex = id2color(plane_id);
+        int r = ((hex >> 16) & 0xFF);
+        int g = ((hex >> 8) & 0xFF);
+        int b = ((hex) & 0xFF);
+
+        // Create a coloured point cloud
+        for (auto feature_id: iter_plane.second.feature_ids)
+        {
+            Vector3d w_pt = mPlaneFeatures[feature_id].point;
+            pcl::PointXYZRGB pt;
+            pt.x = w_pt.x();
+            pt.y = w_pt.y();
+            pt.z = w_pt.z();
+            pt.r = b;
+            pt.g = g;
+            pt.b = r;
+            clusters_pcd.points.push_back(pt);
+        }
+    }
+
+    // Convert to ROS PointCloud2 and publish
+    sensor_msgs::PointCloud2 clusters_cloud;
+    pcl::toROSMsg(clusters_pcd, clusters_cloud);
+    clusters_cloud.header = features_msg->header;
+    clusters_pub.publish(clusters_cloud);
 }
