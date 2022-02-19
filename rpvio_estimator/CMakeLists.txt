@@ -60,6 +60,7 @@ catkin_package()
 add_executable(rpvio_mapper
     src/parameters.cpp
     src/VPDetection.cpp
+    src/local_map.cpp
     src/mapper_node.cpp
         )
 
