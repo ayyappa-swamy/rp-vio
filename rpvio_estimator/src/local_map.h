@@ -285,8 +285,8 @@ Vector4d fit_vertical_plane_ransac(vector<Vector3d> &plane_points)
             }
         }
 
-        // if ((alsoInliers.size() >= bestNumOfInliers))
-        // {
+        if ((alsoInliers.size() >= bestNumOfInliers))
+        {
             maybeInliers.insert(maybeInliers.end(), alsoInliers.begin(), alsoInliers.end());
             Vector4d betterModel = fit_vertical_plane_to_indices(maybeInliers, plane_points);
             double currentError = get_plane_inliers_error(maybeInliers, plane_points, betterModel);
@@ -297,7 +297,7 @@ Vector4d fit_vertical_plane_ransac(vector<Vector3d> &plane_points)
                 bestError = currentError;
                 bestNumOfInliers = maybeInliers.size();
             }
-        // }
+        }
     }
 
     auto t_end = std::chrono::high_resolution_clock::now();

@@ -167,7 +167,7 @@ void LocalMap::publish_cuboids(ros::Publisher cuboids_pub)
         std::cout << "After" << std::endl;
         std::cout << filtered_plane_pcd << std::endl;
 
-        if (filtered_plane_pcd.points.size() < 5)
+        if (filtered_plane_pcd.points.size() < 10)
             continue;
         
         vector<Vector3d> plane_points;
@@ -233,7 +233,7 @@ void LocalMap::publish_clusters(ros::Publisher clusters_pub)
         std::vector<int> indices;
         pcl::removeNaNFromPointCloud(plane_pcd, plane_pcd, indices);
         
-        if (plane_pcd.points.size() < 5)
+        if (plane_pcd.points.size() < 10)
             continue;
         clusters_pcd += plane_pcd;
     }
