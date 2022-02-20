@@ -123,6 +123,8 @@ private:
   double t_shot_;
   bool has_path_ = false;
 
+  
+
   /* ---------- parameter ---------- */
   /* search */
   double max_tau_ = 0.25;
@@ -165,6 +167,7 @@ private:
 public:
   KinodynamicAstar(){};
   ~KinodynamicAstar();
+  Eigen::Matrix< float , 100, 5> Weights;
 
   enum { REACH_HORIZON = 1, REACH_END = 2, NO_PATH = 3 };
 
@@ -188,6 +191,9 @@ public:
   
   float determine_mmd_threshold_value( Eigen::MatrixXf noise_distribution2 , int num_samples_of_distance_distribution);
   int SetPlanarWorld( Eigen::MatrixXd PlanarParams ); 
+  void assign_weights(std::string path_to_weights);
+
+  float MMD_transformed_features( Eigen::MatrixXf actual_distribution );
 
 
   typedef std::shared_ptr<KinodynamicAstar> Ptr;

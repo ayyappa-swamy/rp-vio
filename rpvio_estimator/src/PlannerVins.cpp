@@ -192,7 +192,7 @@ void current_state_callback2( const sensor_msgs::PointCloudConstPtr &frames_msg,
     double dist_since_last = (GoalState - CurState).norm();   // distance between current pose and local goal 
 
     
-    if(  ((cnt) == 0  ) || ( dist_since_last <  1.0 ) ){
+    if(  ((cnt) == 0  ) || ( dist_since_last <  2.5) ){
 
 
 
@@ -202,7 +202,7 @@ void current_state_callback2( const sensor_msgs::PointCloudConstPtr &frames_msg,
     
     In = true ; 
 
-	Eigen::Vector3d goal( 16.0, 0 , 1 );
+	Eigen::Vector3d goal( 16.0, -4 , 1 );
 
     double DistToGoal = (CurState - goal).norm() ; 
     bool Done = false ;
@@ -344,6 +344,7 @@ void current_state_callback2( const sensor_msgs::PointCloudConstPtr &frames_msg,
         , GroundLocation , cuboids );
     }
     else{
+        StartPose = GoalState ;
 
     status  = kAstar.search( StartPose ,startVel ,  startAcc , goal  , goalVel , false, false , 0.0 ,  Centers, radius_vector, 
     GroundLocation  , cuboids);

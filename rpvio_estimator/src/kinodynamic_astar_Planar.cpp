@@ -1,5 +1,8 @@
 #include "kinodynamic_astar2.h"
 #include <sstream>
+#include <random>
+#include<algorithm>
+
 // #include<dynamicEDT3D/dynamicEDTOctomap.h>
 
 using namespace std;
@@ -34,6 +37,112 @@ PlanarParams = PlanarParams;
 
 return 0;
 }
+
+void fast_planner::KinodynamicAstar::assign_weights(std::string path_to_weights)
+{
+int rows = 100;
+int cols =5;
+ std::string file = path_to_weights ;
+  std::ifstream in(file);
+  
+  std::string line;
+
+  int row = 0;
+  int col = 0;
+
+  Eigen::MatrixXf res = Eigen::MatrixXf(rows, cols);
+
+  if (in.is_open()) {
+
+    while (std::getline(in, line)) {
+
+      char *ptr = (char *) line.c_str();
+      int len = line.length();
+
+      col = 0;
+
+      char *start = ptr;
+      for (int i = 0; i < len; i++) {
+
+        if (ptr[i] == ',') {
+          res(row, col++) = atof(start);
+          start = ptr + i + 1;
+        }
+      }
+      res(row, col) = atof(start);
+
+      row++;
+    }
+
+    in.close();
+  }
+
+    Weights = res;
+
+  std::cout << Weights.rows() << " " << Weights.cols() << std::endl;
+
+}
+
+float fast_planner::KinodynamicAstar::MMD_transformed_features( Eigen::MatrixXf actual_distribution )
+{
+
+Eigen::MatrixXf transformed_features(1,  5);
+
+
+transformed_features = actual_distribution*Weights;
+
+// std::cout << transformed_features << std::endl;
+
+int num_samples_of_distance_distribution =transformed_features.cols() ;
+Eigen::MatrixXf squared_dist(1, num_samples_of_distance_distribution);
+Eigen::MatrixXf temp(1, num_samples_of_distance_distribution);
+Eigen::MatrixXf alpha_weights(1, num_samples_of_distance_distribution);
+
+alpha_weights.setOnes();
+
+
+// temp = actual_distribution.array();
+
+squared_dist = (transformed_features.array()).square();
+
+Eigen::MatrixXf kernel_matrix1(num_samples_of_distance_distribution, num_samples_of_distance_distribution);
+Eigen::MatrixXf temp_kernel_matrix1(num_samples_of_distance_distribution, num_samples_of_distance_distribution);
+Eigen::MatrixXf temp_kernel_matrix2(num_samples_of_distance_distribution, num_samples_of_distance_distribution);
+
+
+Eigen::MatrixXf One_matrix( num_samples_of_distance_distribution, num_samples_of_distance_distribution);
+One_matrix.setOnes();
+
+
+// std::cout << " Entered the main funciton /////////////" << std::endl;
+temp_kernel_matrix1 = transformed_features.transpose()*transformed_features;
+
+temp_kernel_matrix2 = squared_dist.transpose()*squared_dist;
+
+kernel_matrix1 = One_matrix + 2*temp_kernel_matrix1 + temp_kernel_matrix2;
+
+Eigen::Matrix<float, 1,1>  res; 
+Eigen::Matrix<float, 1,1>  res1; 
+Eigen::Matrix<float, 1,1>  res2; 
+Eigen::Matrix<float, 1,1>  res3; 
+
+float temp_value =0; 
+
+     
+
+double res_val;
+res1 = alpha_weights*kernel_matrix1*(alpha_weights.transpose()) ; 
+
+res2(0 , 0 ) = num_samples_of_distance_distribution;
+res3(0,0) = num_samples_of_distance_distribution ;
+
+res(0,0) = res1(0,0) - 2*res2(0,0) +res3(0,0) ;
+res_val = double( res(0,0) );
+
+return float(res_val); 
+
+} 
+
 
 
 
@@ -105,6 +214,11 @@ int fast_planner::KinodynamicAstar::search(Eigen::Vector3d start_pt, Eigen::Vect
                              double time_start , std::vector<Eigen::Vector3d> Centers ,
                              std::vector<double> radius_vector , double GroundLocation , std::vector<CuboidObject> cuboids  ) {
 
+
+  if( init){
+
+    assign_weights("/home/sudarshan/Planner_ws/src/rp-vio/rpvio_estimator/src/weight.csv");
+  }
   
   start_vel_ = start_v;
   start_acc_ = start_a;
@@ -137,9 +251,55 @@ int fast_planner::KinodynamicAstar::search(Eigen::Vector3d start_pt, Eigen::Vect
   bool        init_search    = init;
   const int   tolerance      = ceil(1 / resolution_);
 
-  std::cout << "here" <<std::endl ;
+  int num_samples_of_distance_distribution =100;
+  std::random_device rd{};
+  std::mt19937 gen{rd()};
 
- 
+  std::normal_distribution<> noise{0,2};    
+  Eigen::MatrixXf noise_distribution(1, num_samples_of_distance_distribution);
+  Eigen::MatrixXf noise_distribution2(1, num_samples_of_distance_distribution);
+  Eigen::MatrixXf radius(1, num_samples_of_distance_distribution);  
+     // radius.setOnes();
+  radius = Eigen::MatrixXf::Constant( 1, num_samples_of_distance_distribution, 0.75); 
+  Eigen::MatrixXf actual_distance( 1, num_samples_of_distance_distribution);
+  Eigen::MatrixXf actual_distribution( 1, num_samples_of_distance_distribution);
+  Eigen::MatrixXf zero_matrix( 1, num_samples_of_distance_distribution);
+  zero_matrix.setZero();
+  bool trigger_convergence= false;
+  float goal_radius = 3.0; 
+
+    using normal_dist   = std::normal_distribution<>;
+    using discrete_dist = std::discrete_distribution<std::size_t>;
+
+
+    auto G = std::array<normal_dist, 4>{
+        normal_dist{0, 1}, // mean, stddev of G[0]
+        normal_dist{0, 0.75}, // mean, stddev of G[1]
+        normal_dist{0, 1.75} , // mean, stddev of G[2]
+         normal_dist{0, 2.25}  // mean, stddev of G[3]
+    };
+
+    auto w = discrete_dist{
+        0.25, // weight of G[0]
+        0.25, // weight of G[1]
+        0.25,  // weight of G[2]
+        0.25  // weight of G[2]
+    };
+
+
+
+
+
+  for (int i=0 ; i<num_samples_of_distance_distribution; i++){
+
+    auto index = w(gen);
+    auto temp_noise_val = G[index](gen);
+   // float temp_noise_val = float(noise(gen));
+      noise_distribution(0 ,i) = radius(0 ,i) - temp_noise_val;
+      noise_distribution2(0 ,i) = temp_noise_val;
+    }
+
+
 
   /* ---------- search loop ---------- */
 
@@ -239,6 +399,16 @@ int fast_planner::KinodynamicAstar::search(Eigen::Vector3d start_pt, Eigen::Vect
         double tau  = durations[j];
         stateTransit(cur_state, pro_state, um, tau);
         pro_t = cur_node->time + tau;                // this is the time for the node
+
+
+        double   distance_val_start ;
+        Eigen::Vector3d StartPt; 
+        StartPt << cur_state(0) , cur_state(1) , cur_state(2) ;
+
+
+        distance_val_start = DeterminePlaneCollisionDistance( cuboids , StartPt , GroundLocation);
+
+
 
 
         
@@ -359,10 +529,41 @@ int fast_planner::KinodynamicAstar::search(Eigen::Vector3d start_pt, Eigen::Vect
           continue;
         }
 
+        float MMD_start , MMD_end, delta_MMD ,  distance_val_end; 
+        Eigen::Vector3d ProState;
+
+        ProState << pro_state(0) , pro_state(1) , pro_state(2) ;
+
+        distance_val_end = DeterminePlaneCollisionDistance( cuboids , ProState ,GroundLocation );
+
+        if( distance_val_start < 2.0 ){
+
+          actual_distance = Eigen::MatrixXf::Constant( 1, num_samples_of_distance_distribution, distance_val_start);
+          actual_distribution = zero_matrix.cwiseMax( noise_distribution - actual_distance );
+          MMD_start =  MMD_transformed_features(actual_distribution) ; 
+        }
+        else{
+          MMD_start = 0 ;
+        }
+
+        if(distance_val_end < 2.0  ){
+
+          actual_distance = Eigen::MatrixXf::Constant( 1, num_samples_of_distance_distribution, distance_val_end);
+          actual_distribution = zero_matrix.cwiseMax( noise_distribution - actual_distance );
+          MMD_end =  MMD_transformed_features(actual_distribution) ; //+ 3*float(pro_state(2)) ;
+        }
+        else{
+          MMD_end =0 ;
+        }
+
+        delta_MMD = MMD_end - MMD_start ;
+
+
+
         /* ---------- compute cost ---------- */
         double time_to_goal, tmp_g_score, tmp_f_score;
-        tmp_g_score = (um.squaredNorm() + w_time_) * tau + cur_node->g_score;
-        tmp_f_score = tmp_g_score + lambda_heu_ * estimateHeuristic(pro_state, end_state, time_to_goal) - 3*dist_cost   ;
+        tmp_g_score = (um.squaredNorm() + w_time_) * tau + cur_node->g_score +  delta_MMD;
+        tmp_f_score = tmp_g_score + lambda_heu_ * estimateHeuristic(pro_state, end_state, time_to_goal)  - 3*dist_cost   ;
         
         /* ---------- compare expanded node in this loop ---------- */
 
@@ -442,13 +643,13 @@ void fast_planner::KinodynamicAstar::setParam(ros::NodeHandle& nh) {
   nh.param("search/max_vel", max_vel_, 2.0);
   nh.param("search/max_acc", max_acc_, 2.5); //3 
   nh.param("search/w_time", w_time_, 10.0);
-  nh.param("search/horizon", horizon_, 4.0);
+  nh.param("search/horizon", horizon_, 3.0);
   nh.param("search/resolution_astar", resolution_, 0.05);
   nh.param("search/time_resolution", time_resolution_, 0.8);
   nh.param("search/lambda_heu", lambda_heu_, 5.0);
-  nh.param("search/margin", margin_, 1.0);
+  nh.param("search/margin", margin_,0.5);
   nh.param("search/allocate_num", allocate_num_, 100000);
-  nh.param("search/check_num", check_num_, 5);
+  nh.param("search/check_num", check_num_, 7);
 
   cout << "margin:" << margin_ << endl;
   cout << "allocate num:" << allocate_num_ << endl;
@@ -887,3 +1088,6 @@ void fast_planner::KinodynamicAstar::stateTransit(Eigen::Matrix<double, 6, 1>& s
 }
 
 }  // namespace fast_planner
+
+
+

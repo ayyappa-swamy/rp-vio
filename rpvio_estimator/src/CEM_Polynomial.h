@@ -49,7 +49,7 @@ namespace PolynomialFormulation{
 
 		Eigen::MatrixXd optimTrajCoeffs = Eigen::MatrixXd::Zero(11,3);
 		Eigen::Vector3d var_vector;
-		int topSamples     = 10;
+		int topSamples     = 25;
 		bool PubTraj = true ;
 
 	};
@@ -202,7 +202,7 @@ double PolynomialFormulation::CEMPolynomialFormulation::MMDwithNormalUncertainit
 
 	Eigen::MatrixXf radius(1, numSamples_normal_uncertainity);  
 
-	radius = Eigen::MatrixXf::Constant( 1, numSamples_normal_uncertainity,  1.75); 
+	radius = Eigen::MatrixXf::Constant( 1, numSamples_normal_uncertainity,  1.5); 
 
     Eigen:Vector3d Qpt_transformed ;
     float distance_ ;
@@ -528,19 +528,29 @@ std::vector<Eigen::MatrixXd> PolynomialFormulation::CEMPolynomialFormulation::Cr
 
     var_vector = Eigen::Vector3d::Zero() ;
 
+    std::vector<Eigen::Vector3d> temp_mean_bernstein_trajectory ; 
+
+
 
 
 
     double var  = 5;
-    var_vector.x() = 1;
-    var_vector.y() = 1;
-    var_vector.z() = 1;
+    var_vector.x() = 0.1;
+    var_vector.y() = 0.1;
+    var_vector.z() = 0.1;
 
     int num_prev_top_traj = topSamples; 
 
     Eigen::MatrixXd prev_TopX( num_prev_top_traj, ptsPerTraj  );
     Eigen::MatrixXd prev_TopY( num_prev_top_traj , ptsPerTraj  );
     Eigen::MatrixXd prev_TopZ( num_prev_top_traj , ptsPerTraj  );
+
+    std::vector<Eigen::Vector3d> mean_bernstein_trajectory ;
+    mean_bernstein_trajectory = initBernsteinTraj;
+
+
+
+
 
     for(int iter = 0; iter<num_iterations; iter++)
     {
@@ -688,7 +698,7 @@ std::vector<Eigen::MatrixXd> PolynomialFormulation::CEMPolynomialFormulation::Cr
     traj_vis.visulize_sampled_trajectories( TopX , TopY , TopZ , topSamples , ptsPerTraj,  SampleTraj);
     }   
 
-    std::vector<Eigen::Vector3d> mean_bernstein_trajectory ; 
+    // std::vector<Eigen::Vector3d> temp_mean_bernstein_trajectory ; 
 
     for( int col =0 ; col < ptsPerTraj ; col++)
     {
@@ -705,12 +715,14 @@ std::vector<Eigen::MatrixXd> PolynomialFormulation::CEMPolynomialFormulation::Cr
         TopZ_mean /= topSamples;
 
 
-        waypoint_mean(0) =    TopX_mean(0,col);
-        waypoint_mean(1) =  TopY_mean(0,col);
+        waypoint_mean(0) =    TopX_mean(0,col) ;
+        waypoint_mean(1) =  TopY_mean(0,col)  ;
         waypoint_mean(2) =   TopZ_mean(0,col);
 
+
+
     
-        mean_bernstein_trajectory.push_back(waypoint_mean);
+        temp_mean_bernstein_trajectory.push_back(waypoint_mean);
 
     }
 
@@ -733,9 +745,9 @@ std::vector<Eigen::MatrixXd> PolynomialFormulation::CEMPolynomialFormulation::Cr
         sumTopCoeffsY += yCoeff.row(index_);
         sumTopCoeffsZ += zCoeff.row(index_);
 
-        Coeffx_top_Set.row(i) =  xCoeff.row(index_) ; ///xCoeff( index_ , 10 ) ; 
-        Coeffy_top_Set.row(i) = yCoeff.row(index_) ; // / yCoeff(index_ , 10); 
-        Coeffz_top_Set.row(i) = zCoeff.row(index_); //  / zCoeff(index_ , 10) ;
+        Coeffx_top_Set.row(i) =  xCoeff.row(index_)/xCoeff.row(index_).norm() ; 
+        Coeffy_top_Set.row(i) = yCoeff.row(index_) / yCoeff.row(index_).norm(); 
+        Coeffz_top_Set.row(i) = zCoeff.row(index_)/ zCoeff.row(index_).norm() ;
 
     }     
 
@@ -761,8 +773,6 @@ std::vector<Eigen::MatrixXd> PolynomialFormulation::CEMPolynomialFormulation::Cr
 
 
     std::vector<Eigen::Vector3d> Final;
-
-
     for(int i =0 ;i < 11 ; i++){
     	Coeff_updated << NewUpdateCoeffs(0 , i) , NewUpdateCoeffs(1 , i) , NewUpdateCoeffs(2 , i) ;  
     	Final.push_back(Coeff_updated); 
@@ -773,6 +783,9 @@ std::vector<Eigen::MatrixXd> PolynomialFormulation::CEMPolynomialFormulation::Cr
     var_vector.z() = get_variance(Coeffz_top_Set , iter , NewUpdateCoeffs.row(2) );
 
     std::cout << var_vector.x()  <<   " " << var_vector.y()  << " +++ " << var_vector.z()   <<  "  " << "updated variance" << std::endl;
+    
+
+
     bTraj.generateTrajCoeffs(mean_bernstein_trajectory);
 
     coeffs_.clear(); 
@@ -925,7 +938,7 @@ inline std::vector<Eigen::Vector3d> PolynomialFormulation::CEMPolynomialFormulat
     return trajPoints;
 }
 
-
+/*
 double PolynomialFormulation::CEMPolynomialFormulation::get_variance( Eigen::MatrixXd one_dimension_trajectory , int iter ,  Eigen::MatrixXd MeanCoeff  )
 {
 
@@ -935,12 +948,7 @@ double PolynomialFormulation::CEMPolynomialFormulation::get_variance( Eigen::Mat
 	Eigen::MatrixXd mean_sum(1,1);
 	mean_sum.setZero();
 
-	/*for(int i= 0 ;i < one_dimension_trajectory.rows() ; i++ ){
-		one_dimension_trajectory.row(i) -= MeanCoeff ; 
-		// one_dimension_trajectory.row(i) /= (one_dimension_trajectory.row(i)).norm() ; 
-	}*/
 
-	// std::cout << "here " << one_dimension_trajectory.rows() <<  " "  << one_dimension_trajectory.cols()  << std::endl;
 	int total_size = one_dimension_trajectory.rows()*one_dimension_trajectory.cols();
 
 	for(int k=0 ; k< one_dimension_trajectory.cols() ; k++ ){
@@ -959,6 +967,59 @@ double PolynomialFormulation::CEMPolynomialFormulation::get_variance( Eigen::Mat
 	variance_value = variance_value/(total_size); 
 
 	return variance_value ;
+
+}
+*/
+
+double DetermineVar( Eigen::MatrixXd values )
+{
+
+	double variance_value = 0; 
+
+	double mean =0 ;
+
+	// std::cout << values.cols() << std::endl ;
+	// std::cout << "-----------------" << std::endl ;
+
+	for( int i =0 ;i <values.cols() ; i++ )
+	{
+
+		mean += values(0, i)/values.cols()  ;
+	}
+
+
+	for( int i =0 ;i <values.cols() ; i++ )
+	{
+		variance_value += pow( ( values( 0,i) - mean ), 2);
+	}
+
+	return variance_value  ; 
+}
+
+double PolynomialFormulation::CEMPolynomialFormulation::get_variance( Eigen::MatrixXd Trajectories , int iter ,  Eigen::MatrixXd MeanCoeff  )
+{
+
+
+	int coeff_size = 11 ; 
+	double variance_value =0 ; 
+	double temp_var = 0;
+
+
+	int numTrajs = Trajectories.rows();
+
+	Eigen::MatrixXd CoeffVals( 1, numTrajs );
+
+	for( int j =0 ; j < Trajectories.cols() ; j ++ ){
+
+		for( int i=0 ; i < numTrajs ; i++ ){
+			CoeffVals( 0, i)=  Trajectories( i, j );
+
+		}
+		temp_var += DetermineVar(CoeffVals  );
+
+	}
+
+	return temp_var   ;
 
 }
 

@@ -330,9 +330,9 @@ inline std::vector<Eigen::MatrixXd> Bernstein::BernsteinPath::generateRandomCoef
         {
 
             // std::cout << i <<  " " << j << std::endl; 
-            std::normal_distribution<double> ndX(pt(0), var_vector.x());
-            std::normal_distribution<double> ndY(pt(1), var_vector.y());
-            std::normal_distribution<double> ndZ(pt(2), var_vector.z());
+            std::normal_distribution<double> ndX(pt(0), sqrt(var_vector.x()) );
+            std::normal_distribution<double> ndY(pt(1), sqrt(var_vector.y()) );
+            std::normal_distribution<double> ndZ(pt(2), sqrt(var_vector.z()) );
 
             coeffX(j,i) = ndX(de);
             coeffY(j,i) = ndY(de);
