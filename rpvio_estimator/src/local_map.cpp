@@ -104,27 +104,9 @@ void LocalMap::cluster_points()
     ROS_INFO("Found %d planes", (int)mPlanes.size());
 }
 
-void LocalMap::publish_cuboids(ros::Publisher cuboids_pub)
+void LocalMap::fit_cuboids()
 {
-    visualization_msgs::Marker line_list;
-    line_list.header = odometry_msg->header;
-
-    // line_list.action = visualization_msgs::Marker::ADD;
-    line_list.pose.orientation.w = 1.0;
-
-    line_list.id = id;
-    line_list.type = visualization_msgs::Marker::LINE_LIST;
-
-    // LINE_LIST markers use only the x component of scale, for the line width
-    line_list.scale.x = 0.08;
-
-    // Line list is green
-    // if (fabs(normal[0]) > fabs(normal[2]))
-    line_list.color.r = 1.0;
-    // else
-        // line_list.color.b = 1.0;
-    line_list.color.a = 1.0;
-
+    ROS_INFO("Fitting cuboids");
     //For each segmented plane
     for (auto& iter_plane: mPlanes)
     {   
@@ -167,10 +149,10 @@ void LocalMap::publish_cuboids(ros::Publisher cuboids_pub)
         pcl::removeNaNFromPointCloud(filtered_plane_pcd, filtered_plane_pcd, indices);
         
         ROS_INFO("Before filtering: %d, After filtering: %d", (int)plane_pcd.points.size(), (int)filtered_plane_pcd.points.size());
-        std::cout << "Before" << std::endl;
-        std::cout << plane_pcd << std::endl;
-        std::cout << "After" << std::endl;
-        std::cout << filtered_plane_pcd << std::endl;
+        //std::cout << "Before" << std::endl;
+        //std::cout << plane_pcd << std::endl;
+        //std::cout << "After" << std::endl;
+        //std::cout << filtered_plane_pcd << std::endl;
 
         if (filtered_plane_pcd.points.size() < 10)
             continue;
@@ -186,11 +168,100 @@ void LocalMap::publish_cuboids(ros::Publisher cuboids_pub)
         }
 
         Vector4d params = fit_vertical_plane_ransac(plane_points);
+        mPlanes[plane_id].params = params;
         ROS_INFO("Plane params %lf, %lf, %lf, %lf", params[0], params[1], params[2], params[3]);
 
         vector<geometry_msgs::Point> vertices;
         fit_cuboid_to_points(params, plane_points, vertices);
-        create_cuboid_frame(vertices, line_list, (Ti * Tic));
+        mPlanes[plane_id].vertices = vertices;
+        mPlanes[plane_id].is_initialized = true;
+    }
+}
+
+double LocalMap::compute_plane_merging_cost(Plane curr_plane, Plane prev_plane)
+{
+    // Compute plane-incidence error of prev_plane points
+    vector<Vector3d> prev_plane_points;
+    
+    for (auto &feature_id: prev_plane.feature_ids)
+    {
+        prev_plane_points.push_back(world2local * mPlaneFeatures[feature_id].point);
+    }
+
+    return get_plane_points_error(prev_plane_points, curr_plane.params);
+}
+
+void LocalMap::merge_old_map(LocalMap old_map)
+{
+    for (auto& plane: mPlanes)
+    {
+        // Find matching plane
+        int max_count = 10;
+        int best_match_id = 0;
+
+        for (auto &old_plane: old_map.mPlanes)
+        {
+            std::vector<int> common_feature_ids;
+
+            std::set_intersection(
+                plane.second.feature_ids.begin(), plane.second.feature_ids.end(),
+                old_plane.second.feature_ids.begin(), old_plane.second.feature_ids.end(),
+                std::back_inserter(common_feature_ids)
+            );
+
+            if (common_feature_ids.size() > max_count){
+                max_count = common_feature_ids.size();
+                best_match_id = old_plane.first;
+            }
+        }
+
+        if (max_count > 0 && best_match_id != 0)
+        {
+            // see if planes can be merged
+            if (compute_plane_merging_cost(plane.second, old_map.mPlanes[best_match_id]) < 1.5)
+            {
+                // Merge planes
+                Plane matching_plane;
+                mPlanes[plane.first].feature_ids.insert(matching_plane.feature_ids.begin(), matching_plane.feature_ids.end());
+                old_map.mPlanes.erase(best_match_id);
+                ROS_INFO("********* MERGED planes ********");
+            }
+        }
+    }
+    // mPlanes.insert(old_map.mPlanes.begin(), old_map.mPlanes.end());
+
+    // Again fit cuboids on the merged map
+    fit_cuboids();
+}
+
+void LocalMap::publish_cuboids(ros::Publisher cuboids_pub)
+{
+    ROS_INFO("Publishing cuboids");
+    visualization_msgs::Marker line_list;
+    line_list.header = odometry_msg->header;
+
+    // line_list.action = visualization_msgs::Marker::ADD;
+    line_list.pose.orientation.w = 1.0;
+
+    line_list.id = id;
+    line_list.type = visualization_msgs::Marker::LINE_LIST;
+
+    // LINE_LIST markers use only the x component of scale, for the line width
+    line_list.scale.x = 0.08;
+
+    // Line list is green
+    // if (fabs(normal[0]) > fabs(normal[2]))
+    line_list.color.r = 1.0;
+    // else
+        // line_list.color.b = 1.0;
+    line_list.color.a = 1.0;
+
+
+    for (auto& iter_plane: mPlanes)
+    {
+        if (! iter_plane.second.is_initialized)
+            continue;
+        create_cuboid_frame(iter_plane.second.vertices, line_list, (Ti * Tic));
     }
 
     cuboids_pub.publish(line_list);
@@ -198,6 +269,7 @@ void LocalMap::publish_cuboids(ros::Publisher cuboids_pub)
 
 void LocalMap::publish_clusters(ros::Publisher clusters_pub)
 {
+    ROS_INFO("Publishing clusters");
     pcl::PointCloud<pcl::PointXYZRGB> clusters_pcd;
     
     // For each segmented plane

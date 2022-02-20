@@ -56,6 +56,7 @@ using namespace Eigen;
 struct Plane
 {
     Vector4d params;
+    vector<geometry_msgs::Point> vertices;
     int plane_id;
     bool is_initialized = false;
     set<int> feature_ids;
@@ -84,6 +85,8 @@ public:
     void cluster_points();
     void filter_clusters();
     void fit_cuboids();
+    void merge_old_map(LocalMap map);
+    double compute_plane_merging_cost(Plane plane1, Plane plane2);
     void publish_clusters(ros::Publisher clusters_pub);
     void publish_cuboids(ros::Publisher cuboids_pub);
 
@@ -104,11 +107,11 @@ public:
     map<int, Plane> mPlanes;
     map<int, PlaneFeature> mPlaneFeatures;
 
-    // Cuboids
-    vector<geometry_msgs::Point> cuboid_vertices;
-
     // RViz markers
     pcl::PointCloud<pcl::PointXYZRGB> plane_pcd;
+
+    // Misc
+    int plane_counter;
 
 private:
     // Each color is stored in the hex format
@@ -121,7 +124,7 @@ private:
         unsigned long hex = ((r & 0xff) << 16) + ((g & 0xff) << 8) + (b & 0xff);
 
         if (color_index.find(hex) == color_index.end()) {
-            color_index[hex] = 1000 + (int)color_index.size();
+            color_index[hex] = plane_counter++;//1000 + mPlanes.size();//1000 + (int)color_index.size();
         }
 
         // std::cout << "Queried for color " << std::to_string(r) << " " << std::to_string(g) << " " << std::to_string(b) << std::endl;
@@ -210,15 +213,27 @@ Vector4d fit_vertical_plane(vector<Vector3d> &plane_points)
     return plane_params;
 }
 
-double get_plane_inliers_error(vector<int> &inlier_indices, vector<Vector3d> &plane_points, Vector4d plane_model)
+double get_plane_points_error(vector<Vector3d> &plane_points, Vector4d plane_params)
 {
     double error = 0.0;
-    for (int i = 0; i < inlier_indices.size(); i++)
+    for (int i = 0; i < plane_points.size(); i++)
     {
-        error += get_absolute_point_plane_distance(plane_points[inlier_indices[i]], plane_model);
+        error += get_absolute_point_plane_distance(plane_points[i], plane_params);
     }
 
-    return error / inlier_indices.size();
+    return error / plane_points.size();
+}
+
+double get_plane_inliers_error(vector<int> &inlier_indices, vector<Vector3d> &plane_points, Vector4d plane_model)
+{
+    vector<Vector3d> inlier_points;
+    
+    for (int i = 0; i < inlier_indices.size(); i++)
+    {
+        inlier_points.push_back(plane_points[inlier_indices[i]]);
+    }
+
+    return get_plane_points_error(inlier_points, plane_model);
 }
 
 Vector4d fit_vertical_plane_to_indices(vector<int> &indices, vector<Vector3d> &plane_points)

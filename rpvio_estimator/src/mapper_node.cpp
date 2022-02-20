@@ -17,6 +17,7 @@ ros::Publisher cuboids_pub;
 
 LocalMap previous_map;
 int local_map_id = 2;
+int plane_counter = 1000;
 
 sensor_msgs::PointField getFieldWithName(string name)
 {
@@ -44,13 +45,18 @@ void process_messages()
         sensor_msgs::ImageConstPtr mask_msg = sub_msg.mask_msg;
 
         LocalMap lm(features_msg, odometry_msg, mask_msg);
-        lm.id = local_map_id++;
+        lm.id = 2;//local_map_id++;
+        lm.plane_counter = plane_counter;
+        //lm.mPlanes = previous_map.mPlanes;
         lm.mPlaneFeatures = previous_map.mPlaneFeatures;
         lm.cluster_points();
+        lm.fit_cuboids();
+        lm.merge_old_map(previous_map);
         lm.publish_clusters(clusters_pub);
         lm.publish_cuboids(cuboids_pub);
 
         previous_map = lm;
+        plane_counter = lm.plane_counter;
     }
 }
 
