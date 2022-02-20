@@ -90,10 +90,14 @@ void LocalMap::cluster_points()
             }
             mPlanes[plane_id].feature_ids.insert(feature_id);
 
-            PlaneFeature new_plane_feature;
-            new_plane_feature.plane_id = plane_id;
-            new_plane_feature.point = fpoint;
-            mPlaneFeatures[feature_id] = new_plane_feature;
+            if (! mPlaneFeatures.count(feature_id))
+            {
+                PlaneFeature new_plane_feature;
+                mPlaneFeatures[feature_id] = new_plane_feature;
+            }
+            mPlaneFeatures[feature_id].point = fpoint;
+            mPlaneFeatures[feature_id].plane_id = plane_id;
+            mPlaneFeatures[feature_id].measurement_count++;
         }
     }
 
@@ -102,25 +106,24 @@ void LocalMap::cluster_points()
 
 void LocalMap::publish_cuboids(ros::Publisher cuboids_pub)
 {
-        visualization_msgs::Marker line_list;
-        line_list.header = odometry_msg->header;
+    visualization_msgs::Marker line_list;
+    line_list.header = odometry_msg->header;
 
-        // line_list.action = visualization_msgs::Marker::ADD;
-        line_list.pose.orientation.w = 1.0;
+    // line_list.action = visualization_msgs::Marker::ADD;
+    line_list.pose.orientation.w = 1.0;
 
-        line_list.id = 2;
-        line_list.type = visualization_msgs::Marker::LINE_LIST;
+    line_list.id = id;
+    line_list.type = visualization_msgs::Marker::LINE_LIST;
 
-        // LINE_LIST markers use only the x component of scale, for the line width
-        line_list.scale.x = 0.08;
+    // LINE_LIST markers use only the x component of scale, for the line width
+    line_list.scale.x = 0.08;
 
-        // Line list is green
-        // if (fabs(normal[0]) > fabs(normal[2]))
-        line_list.color.r = 1.0;
-        // else
-            // line_list.color.b = 1.0;
-        line_list.color.a = 1.0;
-
+    // Line list is green
+    // if (fabs(normal[0]) > fabs(normal[2]))
+    line_list.color.r = 1.0;
+    // else
+        // line_list.color.b = 1.0;
+    line_list.color.a = 1.0;
 
     //For each segmented plane
     for (auto& iter_plane: mPlanes)
@@ -139,6 +142,8 @@ void LocalMap::publish_cuboids(ros::Publisher cuboids_pub)
         // Create a coloured point cloud
         for (auto feature_id: iter_plane.second.feature_ids)
         {
+            if (mPlaneFeatures[feature_id].measurement_count < 3)
+                continue;
             Vector3d w_pt = mPlaneFeatures[feature_id].point;
             pcl::PointXYZRGB pt;
             pt.x = w_pt.x();
@@ -211,6 +216,8 @@ void LocalMap::publish_clusters(ros::Publisher clusters_pub)
         // Create a coloured point cloud
         for (auto feature_id: iter_plane.second.feature_ids)
         {
+            if (mPlaneFeatures[feature_id].measurement_count < 3)
+                continue;
             Vector3d w_pt = mPlaneFeatures[feature_id].point;
             pcl::PointXYZRGB pt;
             pt.x = w_pt.x();

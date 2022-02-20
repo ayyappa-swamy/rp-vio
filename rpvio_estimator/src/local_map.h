@@ -75,6 +75,7 @@ struct PlaneFeature
 class LocalMap
 {
 public:
+    LocalMap(){}
     LocalMap(sensor_msgs::PointCloudConstPtr features_msg, nav_msgs::OdometryConstPtr odometry_msg, sensor_msgs::ImageConstPtr mask_msg);
     
     // Computes the transforms from odometry
@@ -85,6 +86,9 @@ public:
     void fit_cuboids();
     void publish_clusters(ros::Publisher clusters_pub);
     void publish_cuboids(ros::Publisher cuboids_pub);
+
+    // ID of the local map
+    int id = 2;
 
     // Messages
     sensor_msgs::PointCloudConstPtr features_msg;

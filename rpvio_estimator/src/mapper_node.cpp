@@ -15,6 +15,9 @@ mutex sm_mutex;
 ros::Publisher clusters_pub;
 ros::Publisher cuboids_pub;
 
+LocalMap previous_map;
+int local_map_id = 2;
+
 sensor_msgs::PointField getFieldWithName(string name)
 {
     sensor_msgs::PointField pf;
@@ -41,9 +44,13 @@ void process_messages()
         sensor_msgs::ImageConstPtr mask_msg = sub_msg.mask_msg;
 
         LocalMap lm(features_msg, odometry_msg, mask_msg);
+        lm.id = local_map_id++;
+        lm.mPlaneFeatures = previous_map.mPlaneFeatures;
         lm.cluster_points();
         lm.publish_clusters(clusters_pub);
         lm.publish_cuboids(cuboids_pub);
+
+        previous_map = lm;
     }
 }
 
