@@ -24,7 +24,7 @@ Panels:
     Experimental: false
     Name: Time
     SyncMode: 0
-    SyncSource: mask image
+    SyncSource: ""
   - Class: rviz/Displays
     Help Height: 138
     Name: Displays
@@ -282,12 +282,12 @@ Visualization Manager:
       Marker Topic: /rpvio_mapper/cuboids
       Name: cuboids
       Namespaces:
-        "": true
+        {}
       Queue Size: 100
       Value: true
   Enabled: true
   Global Options:
-    Background Color: 255; 255; 255
+    Background Color: 0; 0; 0
     Default Light: true
     Fixed Frame: world
     Frame Rate: 30
@@ -308,25 +308,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/XYOrbit
-      Distance: 91.7039032
+      Distance: 54.6210976
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.0599999987
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 5.08421803
-        Y: -8.79236603
-        Z: 7.40720634e-06
+        X: 3.61124992
+        Y: -0.0850665569
+        Z: 1.91781801e-05
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.0500000007
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.00999999978
-      Pitch: 0.934795856
+      Pitch: 0.51979655
       Target Frame: <Fixed Frame>
       Value: XYOrbit (rviz)
-      Yaw: 3.23432803
+      Yaw: 3.92250037
     Saved: ~
 Window Geometry:
   Displays:

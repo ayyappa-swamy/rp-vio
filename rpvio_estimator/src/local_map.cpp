@@ -112,15 +112,17 @@ void LocalMap::fit_cuboids()
     {   
         int plane_id = iter_plane.first;
         
+	ROS_INFO("Fitting cuboid to plane %d ", plane_id);
         // Compute color of this plane cluster
-        unsigned long hex = id2color(plane_id);
-        int r = ((hex >> 16) & 0xFF);
-        int g = ((hex >> 8) & 0xFF);
-        int b = ((hex) & 0xFF);
+        // unsigned long hex = id2color(plane_id);
+        int r = 255;//((hex >> 16) & 0xFF);
+        int g = 255;//((hex >> 8) & 0xFF);
+        int b = 0;//((hex) & 0xFF);
 
         pcl::PointCloud<pcl::PointXYZRGB> plane_pcd;
         pcl::PointCloud<pcl::PointXYZRGB> filtered_plane_pcd;
         
+        ROS_INFO("Number of features in plane id %d are %d", iter_plane.first, (int)iter_plane.second.feature_ids.size());
         // Create a coloured point cloud
         for (auto feature_id: iter_plane.second.feature_ids)
         {
@@ -196,7 +198,7 @@ void LocalMap::merge_old_map(LocalMap old_map)
     for (auto& plane: mPlanes)
     {
         // Find matching plane
-        int max_count = 10;
+        int max_count = 1;
         int best_match_id = 0;
 
         for (auto &old_plane: old_map.mPlanes)
@@ -221,17 +223,29 @@ void LocalMap::merge_old_map(LocalMap old_map)
             if (compute_plane_merging_cost(plane.second, old_map.mPlanes[best_match_id]) < 1.5)
             {
                 // Merge planes
-                Plane matching_plane;
+                Plane matching_plane = old_map.mPlanes[best_match_id];
+		ROS_INFO("Before merging %d features", (int)mPlanes[plane.first].feature_ids.size());
                 mPlanes[plane.first].feature_ids.insert(matching_plane.feature_ids.begin(), matching_plane.feature_ids.end());
                 old_map.mPlanes.erase(best_match_id);
+		ROS_INFO("After merging %d features", (int)mPlanes[plane.first].feature_ids.size());
                 ROS_INFO("********* MERGED planes ********");
             }
         }
     }
-    // mPlanes.insert(old_map.mPlanes.begin(), old_map.mPlanes.end());
-
-    // Again fit cuboids on the merged map
-    fit_cuboids();
+    ROS_INFO("Before inserting %d planes", (int)mPlanes.size());
+    mPlanes.insert(old_map.mPlanes.begin(), old_map.mPlanes.end());
+    ROS_INFO("After inserting %d planes", (int)mPlanes.size());
+    
+    ROS_INFO("Before inserting %d colours", (int)color_index.size());
+    for (auto it = color_index.begin(); it != color_index.end(); ++it) {
+	ROS_INFO(" %d ", (int)it->second);
+    }
+    
+    color_index.insert(old_map.color_index.begin(), old_map.color_index.end());
+    ROS_INFO("After inserting %d colours", (int)color_index.size());
+    for (auto it = old_map.color_index.begin(); it != old_map.color_index.end(); ++it) {
+	ROS_INFO(" %d ", (int)it->second);
+    }
 }
 
 void LocalMap::publish_cuboids(ros::Publisher cuboids_pub)
@@ -279,10 +293,10 @@ void LocalMap::publish_clusters(ros::Publisher clusters_pub)
         ROS_INFO("Number of features in plane id %d are %d", iter_plane.first, (int)iter_plane.second.feature_ids.size());
         
         // Compute color of this plane cluster
-        unsigned long hex = id2color(plane_id);
-        int r = ((hex >> 16) & 0xFF);
-        int g = ((hex >> 8) & 0xFF);
-        int b = ((hex) & 0xFF);
+        // unsigned long hex = id2color(plane_id);
+        int r = 255; //((hex >> 16) & 0xFF);
+        int g = 255; //((hex >> 8) & 0xFF);
+        int b = 0; //((hex) & 0xFF);
 
         pcl::PointCloud<pcl::PointXYZRGB> plane_pcd;
         // Create a coloured point cloud

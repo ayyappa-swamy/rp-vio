@@ -52,6 +52,7 @@ void process_messages()
         lm.cluster_points();
         lm.fit_cuboids();
         lm.merge_old_map(previous_map);
+        lm.fit_cuboids();
         lm.publish_clusters(clusters_pub);
         lm.publish_cuboids(cuboids_pub);
 

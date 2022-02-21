@@ -112,11 +112,11 @@ public:
 
     // Misc
     int plane_counter;
-
-private:
+    
     // Each color is stored in the hex format
     std::map<unsigned long, int> color_index;
 
+private:
     // Returns the id from color specified by (r, g, b) values
     int color2id(int r, int g, int b)
     {
