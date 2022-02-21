@@ -22,7 +22,7 @@ colliding_cloud_pub = None
 
 is_inited = False
 prev_msg = None
-replan_distance = 3
+replan_distance = 5
 
 def should_replane(odom_msg1, odom_msg2):
     # Compute distance
@@ -44,6 +44,7 @@ def vertices_and_odom_callback(vertices_msg, odometry_msg):
         planner = Planner(vertices_msg, odometry_msg, local_goal_pub, local_stomp_pub, feasible_path_pub, free_cloud_pub, colliding_cloud_pub)
         planner.compute_paths()
         planner.publish_paths()
+        prev_msg = odometry_msg
         print("New plan !")
     else:
         print("Move atleast ", replan_distance, "m to replan")

@@ -24,7 +24,9 @@ class Planner:
     ric = np.eye(3)
     ti = np.zeros(3)
     ri = np.eye(3)
-    global_goal = np.array([20, -37, 10])
+    global_goal1 = np.array([0, -36, 10])
+    global_goal2 = np.array([20, -36, 10])
+    goal_changed = True 
 
     def __init__(self, vertices_msg, odometry_msg, local_goal_pub, local_stomp_pub, feasible_path_pub, free_cloud_pub, colliding_cloud_pub):
         self.vertices_msg = vertices_msg
@@ -34,10 +36,10 @@ class Planner:
         self.parse_odometry_msg(odometry_msg)
 
         self.map = BoxWorld(vertices_msg)
-
-        self.local_goal = self.global_goal#self.world2cam(self.global_goal)
-        self.local_goal[2] = 0.0
         self.start_point = self.cam2world(np.array([0, 0, 0]))
+
+        self.local_goal = self.get_goal()#self.world2cam(self.global_goal)
+        self.local_goal[2] = 0.0
         #print("Local goal is: ")
         #print(self.local_goal)
 
@@ -47,6 +49,12 @@ class Planner:
         self.free_cloud_pub = free_cloud_pub
         self.colliding_cloud_pub = colliding_cloud_pub
     
+    def get_goal(self):
+        if self.goal_changed or np.linalg.norm(self.start_point[:2] - self.global_goal1[:2]) <= 4:
+            self.goal_changed = True
+
+        return self.global_goal2# if self.goal_changed else self.global_goal1
+            
     def read_cam_imu_transform(self):
         fs = cv2.FileStorage("../../config/rpvio_sim_config.yaml", cv2.FILE_STORAGE_READ)
         self.ric = np.array(fs.getNode("extrinsicRotation").mat()).reshape((3, 3))
@@ -149,7 +157,7 @@ class Planner:
     def publish_local_goal(self):
         goal_pc = PointCloud()
         goal_pc.header = self.vertices_msg.header
-        goal_pc.points.append(self.to_ros_point(self.global_goal))
+        goal_pc.points.append(self.to_ros_point(self.get_goal()))
         self.local_goal_pub.publish(goal_pc)
     
     def publish_local_stomp_paths(self):

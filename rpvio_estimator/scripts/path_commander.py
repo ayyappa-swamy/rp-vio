@@ -32,6 +32,8 @@ client.enableApiControl(True)
 #client.moveToZAsync(-2.5, 0.5)
 
 path = []
+path.append(airsim.Vector3r(0.0, 0.0, 0))
+path.append(airsim.Vector3r(0.0, 0.0, -1))
 path.append(airsim.Vector3r(0.0, 0.0, -3))
 path.append(airsim.Vector3r(0.0, 0.0, -1))
 path.append(airsim.Vector3r(0.0, 0.0, -2.5))
@@ -80,7 +82,7 @@ def control_update_callback(event):
     else:
         path.pop(0)
         goal = path.pop(0)
-        client.moveToPositionAsync(goal.x_val, goal.y_val, -5, 0.5, 5, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(True, np.pi/32))
+        client.moveToPositionAsync(goal.x_val, goal.y_val, -5, 1, 5, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(True, -0.75))
 
 def listener():
 
