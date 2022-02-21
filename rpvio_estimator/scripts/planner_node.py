@@ -13,6 +13,7 @@ from visualization_msgs.msg import MarkerArray
 
 from scipy.spatial.transform.rotation import Rotation
 from planner import Planner
+import numpy as np
 
 local_goal_pub = None
 local_stomp_pub = None
@@ -22,9 +23,9 @@ colliding_cloud_pub = None
 
 is_inited = False
 prev_msg = None
-replan_distance = 5
+replan_distance = 3
 
-def should_replane(odom_msg1, odom_msg2):
+def should_replan(odom_msg1, odom_msg2):
     # Compute distance
     trans1 = odom_msg1.pose.pose.position
     pos1 = np.array([trans1.x, trans1.y, 0]).reshape((3, 1))
@@ -39,12 +40,15 @@ def vertices_and_odom_callback(vertices_msg, odometry_msg):
     global feasible_path_pub
     global free_cloud_pub
     global colliding_cloud_pub
+    global is_inited
+    global prev_msg
     
     if not is_inited or should_replan(odometry_msg, prev_msg):
         planner = Planner(vertices_msg, odometry_msg, local_goal_pub, local_stomp_pub, feasible_path_pub, free_cloud_pub, colliding_cloud_pub)
         planner.compute_paths()
         planner.publish_paths()
         prev_msg = odometry_msg
+        is_inited = True
         print("New plan !")
     else:
         print("Move atleast ", replan_distance, "m to replan")

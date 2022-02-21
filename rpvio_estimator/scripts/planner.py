@@ -25,7 +25,7 @@ class Planner:
     ti = np.zeros(3)
     ri = np.eye(3)
     global_goal1 = np.array([0, -36, 10])
-    global_goal2 = np.array([20, -36, 10])
+    global_goal2 = np.array([85, -20, 10])
     goal_changed = True 
 
     def __init__(self, vertices_msg, odometry_msg, local_goal_pub, local_stomp_pub, feasible_path_pub, free_cloud_pub, colliding_cloud_pub):
@@ -37,6 +37,7 @@ class Planner:
 
         self.map = BoxWorld(vertices_msg)
         self.start_point = self.cam2world(np.array([0, 0, 0]))
+        self.start_point[2] = 0.0 
 
         self.local_goal = self.get_goal()#self.world2cam(self.global_goal)
         self.local_goal[2] = 0.0
