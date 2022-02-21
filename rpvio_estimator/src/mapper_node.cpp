@@ -14,6 +14,7 @@ mutex sm_mutex;
 // Publishers
 ros::Publisher clusters_pub;
 ros::Publisher cuboids_pub;
+ros::Publisher vertices_pub;
 
 LocalMap previous_map;
 int local_map_id = 2;
@@ -54,7 +55,7 @@ void process_messages()
         lm.merge_old_map(previous_map);
         lm.fit_cuboids();
         lm.publish_clusters(clusters_pub);
-        lm.publish_cuboids(cuboids_pub);
+        lm.publish_cuboids(cuboids_pub, vertices_pub);
 
         previous_map = lm;
         plane_counter = lm.plane_counter;
@@ -113,6 +114,7 @@ int main(int argc, char **argv)
 
     clusters_pub = n.advertise<sensor_msgs::PointCloud2>("clusters", 5);
     cuboids_pub = n.advertise<visualization_msgs::Marker>("cuboids", 5);
+    vertices_pub = n.advertise<sensor_msgs::PointCloud>("vertices", 5);
     
     thread mapping_thread{process_messages};
     ros::spin();    

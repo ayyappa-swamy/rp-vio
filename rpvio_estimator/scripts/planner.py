@@ -24,7 +24,7 @@ class Planner:
     ric = np.eye(3)
     ti = np.zeros(3)
     ri = np.eye(3)
-    global_goal = np.array([90, -60, 460])
+    global_goal = np.array([20, -37, 10])
 
     def __init__(self, vertices_msg, odometry_msg, local_goal_pub, local_stomp_pub, feasible_path_pub, free_cloud_pub, colliding_cloud_pub):
         self.vertices_msg = vertices_msg
@@ -35,8 +35,9 @@ class Planner:
 
         self.map = BoxWorld(vertices_msg)
 
-        self.local_goal = self.world2cam(self.global_goal)
-        self.local_goal[1] = 0.0
+        self.local_goal = self.global_goal#self.world2cam(self.global_goal)
+        self.local_goal[2] = 0.0
+        self.start_point = self.cam2world(np.array([0, 0, 0]))
         #print("Local goal is: ")
         #print(self.local_goal)
 
@@ -80,12 +81,12 @@ class Planner:
 
     def compute_stomp_paths(self):
         num_goal = self.num_of_paths
-        num = max(int(1.15*np.linalg.norm(self.local_goal)), 3)
+        num = max(int(1.3*np.linalg.norm(self.local_goal-self.start_point)), 3)
         self.num = num
-
-        x_init =  0.0
-        y_init =  0.0
-        z_init =  0.0
+        
+        x_init = self.start_point[0] 
+        y_init = self.start_point[1]
+        z_init = self.start_point[2]
 
         x_des_traj_init = x_init
         y_des_traj_init = y_init
@@ -138,8 +139,8 @@ class Planner:
         eps_kz = np.random.multivariate_normal(mu, 0.03*cov, (num_goal, ))
 
         self.x_samples = x_interp+eps_kx
-        self.y_samples = y_interp+0.0*eps_ky
-        self.z_samples = z_interp+eps_kz
+        self.y_samples = y_interp+eps_ky
+        self.z_samples = z_interp+0.0*eps_kz
 
     def publish_paths(self):
         self.publish_local_goal()
@@ -180,12 +181,12 @@ class Planner:
 
             pts = []
             for w in range(self.x_samples.shape[1]):
-                pt = np.array([
+                w_pt = np.array([
                     self.x_samples[p, w],
                     self.y_samples[p, w],
                     self.z_samples[p, w]
                 ]).flatten()
-                w_pt = self.cam2world(pt).flatten() 
+                pt = self.world2cam(w_pt).flatten() 
 
                 pts += [[pt[0], pt[1], pt[2]]]
                 

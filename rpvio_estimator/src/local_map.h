@@ -86,9 +86,9 @@ public:
     void filter_clusters();
     void fit_cuboids();
     void merge_old_map(LocalMap map);
-    double compute_plane_merging_cost(Plane plane1, Plane plane2);
+    double compute_plane_merging_cost(Plane plane1, Plane plane2, Isometry3d w2l);
     void publish_clusters(ros::Publisher clusters_pub);
-    void publish_cuboids(ros::Publisher cuboids_pub);
+    void publish_cuboids(ros::Publisher cuboids_pub, ros::Publisher vertices_pub);
 
     // ID of the local map
     int id = 2;
@@ -533,6 +533,16 @@ void create_cuboid_frame(vector<geometry_msgs::Point> &local_vertices, visualiza
 
     line_list.points.push_back(vertices[3]);
     line_list.points.push_back(vertices[7]);
+}
+
+geometry_msgs::Point32 pointToPoint32(geometry_msgs::Point pt)
+{
+    geometry_msgs::Point32 pt32;
+    pt32.x = pt.x;
+    pt32.y = pt.y;
+    pt32.z = pt.z;
+
+    return pt32;
 }
 
 };

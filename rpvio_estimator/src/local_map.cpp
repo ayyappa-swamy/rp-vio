@@ -180,14 +180,14 @@ void LocalMap::fit_cuboids()
     }
 }
 
-double LocalMap::compute_plane_merging_cost(Plane curr_plane, Plane prev_plane)
+double LocalMap::compute_plane_merging_cost(Plane curr_plane, Plane prev_plane, Isometry3d w2l)
 {
     // Compute plane-incidence error of prev_plane points
     vector<Vector3d> prev_plane_points;
     
     for (auto &feature_id: prev_plane.feature_ids)
     {
-        prev_plane_points.push_back(world2local * mPlaneFeatures[feature_id].point);
+        prev_plane_points.push_back(w2l * mPlaneFeatures[feature_id].point);
     }
 
     return get_plane_points_error(prev_plane_points, curr_plane.params);
@@ -220,7 +220,7 @@ void LocalMap::merge_old_map(LocalMap old_map)
         if (max_count > 0 && best_match_id != 0)
         {
             // see if planes can be merged
-            if (compute_plane_merging_cost(plane.second, old_map.mPlanes[best_match_id]) < 1.5)
+            if (compute_plane_merging_cost(old_map.mPlanes[best_match_id], plane.second, old_map.world2local) < 3)
             {
                 // Merge planes
                 Plane matching_plane = old_map.mPlanes[best_match_id];
@@ -232,25 +232,29 @@ void LocalMap::merge_old_map(LocalMap old_map)
             }
         }
     }
-    ROS_INFO("Before inserting %d planes", (int)mPlanes.size());
-    mPlanes.insert(old_map.mPlanes.begin(), old_map.mPlanes.end());
-    ROS_INFO("After inserting %d planes", (int)mPlanes.size());
+    //ROS_INFO("Before inserting %d planes", (int)mPlanes.size());
+    //mPlanes.insert(old_map.mPlanes.begin(), old_map.mPlanes.end());
+    //ROS_INFO("After inserting %d planes", (int)mPlanes.size());
     
-    ROS_INFO("Before inserting %d colours", (int)color_index.size());
-    for (auto it = color_index.begin(); it != color_index.end(); ++it) {
-	ROS_INFO(" %d ", (int)it->second);
-    }
+    //ROS_INFO("Before inserting %d colours", (int)color_index.size());
+    //for (auto it = color_index.begin(); it != color_index.end(); ++it) {
+//	ROS_INFO(" %d ", (int)it->second);
+ //   }
     
-    color_index.insert(old_map.color_index.begin(), old_map.color_index.end());
-    ROS_INFO("After inserting %d colours", (int)color_index.size());
-    for (auto it = old_map.color_index.begin(); it != old_map.color_index.end(); ++it) {
-	ROS_INFO(" %d ", (int)it->second);
-    }
+  //  color_index.insert(old_map.color_index.begin(), old_map.color_index.end());
+   // ROS_INFO("After inserting %d colours", (int)color_index.size());
+    //for (auto it = old_map.color_index.begin(); it != old_map.color_index.end(); ++it) {
+//	ROS_INFO(" %d ", (int)it->second);
+ //   }
 }
 
-void LocalMap::publish_cuboids(ros::Publisher cuboids_pub)
+void LocalMap::publish_cuboids(ros::Publisher cuboids_pub, ros::Publisher vertices_pub)
 {
     ROS_INFO("Publishing cuboids");
+    sensor_msgs::PointCloud vertices_cloud;
+    vertices_cloud.header = features_msg->header;
+    sensor_msgs::ChannelFloat32 plane_id_ch;
+
     visualization_msgs::Marker line_list;
     line_list.header = odometry_msg->header;
 
@@ -276,9 +280,17 @@ void LocalMap::publish_cuboids(ros::Publisher cuboids_pub)
         if (! iter_plane.second.is_initialized)
             continue;
         create_cuboid_frame(iter_plane.second.vertices, line_list, (Ti * Tic));
+        for (int vid = 0; vid < iter_plane.second.vertices.size(); vid++)
+        {
+            vertices_cloud.points.push_back(pointToPoint32(iter_plane.second.vertices[vid]));
+            plane_id_ch.values.push_back(iter_plane.first);
+        }
     }
 
     cuboids_pub.publish(line_list);
+
+    vertices_cloud.channels.push_back(plane_id_ch);
+    vertices_pub.publish(vertices_cloud);
 }
 
 void LocalMap::publish_clusters(ros::Publisher clusters_pub)
