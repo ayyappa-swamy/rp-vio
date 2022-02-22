@@ -1,3 +1,4 @@
+import cv2
 import numpy as np
 from detect import Detector
 
@@ -68,6 +69,12 @@ class PlaneSegmentor:
             masks[i][sky_mask | ground_mask] = 0
             if (masks[i] == 1).sum() < self.thresh:
                 masks[i] = 0
+
+            grayscale = masks[i] * 255
+            res = cv2.morphologyEx(grayscale, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5)))
+            res = cv2.morphologyEx(res, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5)))
+            res = cv2.erode(res, np.ones((5, 5), np.uint8), iterations=2)
+            masks[i] = (res == 255).astype(np.uint8)
 
         return masks
 
