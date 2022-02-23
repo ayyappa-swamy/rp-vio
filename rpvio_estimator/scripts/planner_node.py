@@ -23,7 +23,7 @@ colliding_cloud_pub = None
 
 is_inited = False
 prev_msg = None
-replan_distance = 3
+replan_distance = 5
 
 def should_replan(odom_msg1, odom_msg2):
     # Compute distance

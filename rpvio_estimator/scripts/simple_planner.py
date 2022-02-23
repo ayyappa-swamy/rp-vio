@@ -27,8 +27,8 @@ class Planner:
     ric = np.eye(3)
     ti = np.zeros(3)
     ri = np.eye(3)
-    global_goal1 = np.array([0, -36, 5])
-    global_goal2 = np.array([95, -150, 5])
+    global_goal1 = np.array([65, -235, 5])
+    global_goal2 = np.array([90, 10, 5])
     goal_changed = True 
 
     def __init__(self, vertices_msg, odometry_msg, local_goal_pub, local_stomp_pub, feasible_path_pub, feasible_path_pub2, free_cloud_pub, colliding_cloud_pub):
@@ -43,7 +43,7 @@ class Planner:
         #self.start_point[2] = 0.0 
 
         self.local_goal = self.get_goal()#self.world2cam(self.global_goal)
-        #self.local_goal[2] = 0.0
+        self.local_goal[2] = self.start_point[2]
         #print("Local goal is: ")
         #print(self.local_goal)
 
@@ -58,7 +58,7 @@ class Planner:
         if self.goal_changed or np.linalg.norm(self.start_point[:2] - self.global_goal1[:2]) <= 4:
             self.goal_changed = True
 
-        return self.global_goal2# if self.goal_changed else self.global_goal1
+        return self.global_goal1# if self.goal_changed else self.global_goal1
             
     def read_cam_imu_transform(self):
         fs = cv2.FileStorage("../../config/rpvio_sim_config.yaml", cv2.FILE_STORAGE_READ)
@@ -153,7 +153,7 @@ class Planner:
 
         self.x_samples = x_interp+eps_kx
         self.y_samples = y_interp+eps_ky
-        self.z_samples = z_interp+0.001*eps_kz
+        self.z_samples = z_interp+0.01*eps_kz
 
     def publish_paths(self):
         self.publish_local_goal()

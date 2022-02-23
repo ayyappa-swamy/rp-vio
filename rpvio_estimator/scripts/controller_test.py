@@ -39,7 +39,7 @@ path.append(airsim.Vector3r(0.0, 0.0, -1))
 path.append(airsim.Vector3r(0.0, 0.0, -2.5))
 client.moveByRollPitchYawZAsync(0.0, 0.0, np.pi/2, -0.35, 2).join()
 client.moveOnPathAsync(path, 0.4, 10, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(True, 0.0)).join()
-#client.moveByRollPitchYawrateZAsync(0.0, 0.0, -np.pi/64, -2.75, 12).join()
+client.moveByRollPitchYawrateZAsync(0.0, 0.0, -np.pi/64, -3, 15).join()
 #client.moveByRollPitchYawrateZAsync(0.0, 0.0, np.pi/64, -3, 4).join()
 
 prev_goal = None
@@ -126,7 +126,7 @@ def path_update_callback(nav_path):
     rev_path = new_path[::-1]
     rev_path2 = []
     for rpt in rev_path:
-        if (rpt - current_position).get_length() < 2:
+        if (rpt - current_position).get_length() < 4:
             break
         rev_path2.append(rpt)
 
@@ -144,7 +144,7 @@ def control_update_callback(event):
         print("no waypoints in the path")
     else:
         goal = path.pop(0)
-        client.moveToPositionAsync(goal.x_val, goal.y_val, -5, 0.75, 5, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(True, 0.65))
+        client.moveToPositionAsync(goal.x_val, goal.y_val, goal.z_val, 0.5, 10, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(True, 0.0))
 
 def listener():
 
