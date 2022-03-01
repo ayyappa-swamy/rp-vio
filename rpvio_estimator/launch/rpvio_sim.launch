@@ -46,4 +46,17 @@
   <node name="throttle3" pkg="topic_tools" type="throttle" args="messages /airsim_node/drone/0/Segmentation 20 /mask_throttled"/> -->
 
   <node name="rvizvisualisation" pkg="rviz" type="rviz" output="log" args="-d $(find rpvio_estimator)/../config/rpvio_skyline2.rviz" />
-</launch>
+
+    <node pkg="octomap_server" type="octomap_server_node" name="octomap_server">
+        <param name="resolution" value="0.8" />
+        
+        <!-- fixed map frame (set to 'map' if SLAM or localization running!) -->
+        <param name="frame_id" type="string" value="world" />
+        
+        <!-- maximum range to integrate (speedup!) -->
+        <param name="sensor_model/max_range" value="255.0" />
+        
+        <!-- data source to integrate (PointCloud2) -->
+        <remap from="cloud_in" to="/rpvio_mapper/clusters" />
+    </node>
+</launch> 

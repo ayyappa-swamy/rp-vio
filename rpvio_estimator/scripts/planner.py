@@ -165,6 +165,7 @@ class Planner:
         ma = MarkerArray()
         
         optimal_line_strip = None
+        mmd_line_strip = None
         is_optimal_colliding = True
         max_sdf_cost = -100000000
 
@@ -329,6 +330,25 @@ class Planner:
                     feasible_cloud.points.append(point)
 
                 self.feasible_path_pub.publish(feasible_cloud)
+
+        if trajectory1 is not None:
+            line_strip = Marker()
+            line_strip.header = self.vertices_msg.header
+            
+            line_strip.pose.orientation.w = 1.0
+
+            line_strip.id = 9997
+            line_strip.type = Marker.LINE_STRIP
+
+            line_strip.scale.x = 0.08
+
+            line_strip.color.b = 1.0
+            line_strip.color.a = 0.7
+
+            for way_pt in trajectory1:
+                line_strip.points.append(self.to_ros_point(self.cam2world(way_pt)))
+            
+            ma.markers.append(line_strip)
 
         self.local_stomp_pub.publish(ma)
 

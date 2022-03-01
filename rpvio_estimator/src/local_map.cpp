@@ -248,6 +248,63 @@ void LocalMap::merge_old_map(LocalMap old_map)
  //   }
 }
 
+void LocalMap::merge_old_map2(LocalMap old_map)
+{
+    for (auto &old_plane: old_map.mPlanes)
+    {
+        // Find matching plane
+        int max_count = 0;
+        int best_match_id = 0;
+
+        for (auto &plane: mPlanes)
+        {
+            std::vector<int> common_feature_ids;
+
+            std::set_intersection(
+                plane.second.feature_ids.begin(), plane.second.feature_ids.end(),
+                old_plane.second.feature_ids.begin(), old_plane.second.feature_ids.end(),
+                std::back_inserter(common_feature_ids)
+            );
+
+            if (common_feature_ids.size() > max_count){
+                max_count = common_feature_ids.size();
+                best_match_id = old_plane.first;
+            }
+        }
+
+        if (max_count > 0 && best_match_id != 0)
+        {
+            // see if planes can be merged
+            if (compute_plane_merging_cost(old_map.mPlanes[best_match_id], plane.second, old_map.world2local) < 3)
+            {
+                // Merge planes
+                Plane matching_plane = old_map.mPlanes[best_match_id];
+		ROS_INFO("Before merging %d features", (int)mPlanes[plane.first].feature_ids.size());
+                mPlanes[plane.first].feature_ids.insert(matching_plane.feature_ids.begin(), matching_plane.feature_ids.end());
+                old_map.mPlanes.erase(best_match_id);
+		ROS_INFO("After merging %d features", (int)mPlanes[plane.first].feature_ids.size());
+                ROS_INFO("********* MERGED planes ********");
+            }
+        }
+    }
+    //ROS_INFO("Before inserting %d planes", (int)mPlanes.size());
+    //mPlanes.insert(old_map.mPlanes.begin(), old_map.mPlanes.end());
+    //ROS_INFO("After inserting %d planes", (int)mPlanes.size());
+    
+    //ROS_INFO("Before inserting %d colours", (int)color_index.size());
+    //for (auto it = color_index.begin(); it != color_index.end(); ++it) {
+//	ROS_INFO(" %d ", (int)it->second);
+ //   }
+    
+  //  color_index.insert(old_map.color_index.begin(), old_map.color_index.end());
+   // ROS_INFO("After inserting %d colours", (int)color_index.size());
+    //for (auto it = old_map.color_index.begin(); it != old_map.color_index.end(); ++it) {
+//	ROS_INFO(" %d ", (int)it->second);
+ //   }
+}
+
+
+
 void LocalMap::publish_cuboids(ros::Publisher cuboids_pub, ros::Publisher vertices_pub)
 {
     ROS_INFO("Publishing cuboids");

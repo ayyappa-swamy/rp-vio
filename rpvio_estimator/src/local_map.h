@@ -86,6 +86,7 @@ public:
     void filter_clusters();
     void fit_cuboids();
     void merge_old_map(LocalMap map);
+    void merge_old_map2(LocalMap map);
     double compute_plane_merging_cost(Plane plane1, Plane plane2, Isometry3d w2l);
     void publish_clusters(ros::Publisher clusters_pub);
     void publish_cuboids(ros::Publisher cuboids_pub, ros::Publisher vertices_pub);

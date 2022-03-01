@@ -28,7 +28,7 @@ class Planner:
     ti = np.zeros(3)
     ri = np.eye(3)
     global_goal1 = np.array([65, -235, 5])
-    global_goal2 = np.array([90, 10, 5])
+    global_goal2 = np.array([90, -15, -15])
     goal_changed = True 
 
     def __init__(self, vertices_msg, odometry_msg, local_goal_pub, local_stomp_pub, feasible_path_pub, feasible_path_pub2, free_cloud_pub, colliding_cloud_pub):
@@ -58,7 +58,7 @@ class Planner:
         if self.goal_changed or np.linalg.norm(self.start_point[:2] - self.global_goal1[:2]) <= 4:
             self.goal_changed = True
 
-        return self.global_goal1# if self.goal_changed else self.global_goal1
+        return self.global_goal2# if self.goal_changed else self.global_goal1
             
     def read_cam_imu_transform(self):
         fs = cv2.FileStorage("../../config/rpvio_sim_config.yaml", cv2.FILE_STORAGE_READ)
@@ -94,7 +94,7 @@ class Planner:
 
     def compute_stomp_paths(self):
         num_goal = self.num_of_paths
-        num = max(int(1.3*np.linalg.norm(self.local_goal-self.start_point)), 3)
+        num = max(int(1.1*np.linalg.norm(self.local_goal-self.start_point)), 3)
         self.num = num
         
         x_init = self.start_point[0] 
@@ -169,6 +169,8 @@ class Planner:
         ma = MarkerArray()
         
         optimal_line_strip = None
+        mmd_line_strip = None
+        mmd_line_strip = None
         is_optimal_colliding = True
         max_sdf_cost = -100000000
 
@@ -186,7 +188,7 @@ class Planner:
 
             line_strip.scale.x = 0.03
 
-            line_strip.color.r = 1.0
+            line_strip.color.g = 0.5
             line_strip.color.a = 0.7
 
             is_colliding = False
@@ -235,6 +237,7 @@ class Planner:
         #print("Number of planes are : ", str(num_of_planes))
 
         optimized_traj = None
+        mmd_traj = None
 
         if traj_num > 0 and num_of_planes > 0 and not is_optimal_colliding:
 
@@ -255,6 +258,7 @@ class Planner:
 
                 x = cp.Variable((num, 3))
                 x.value = trajectory1
+                mmd_traj = trajectory1
                 constraint = [x[0, :] == trajectory1[0, :]]
                 constraint += [x[num-1, :] == trajectory1[num-1, :]]
                 constraint += [cp.multiply(bin_collision_mat, normals@x.T + ds) >= 0.0]
@@ -299,7 +303,7 @@ class Planner:
 
             line_strip.scale.x = 0.06
 
-            line_strip.color.g = 1.0
+            line_strip.color.b = 0.5
             line_strip.color.a = 0.7
 
             for way_pt in optimized_traj:
@@ -346,6 +350,27 @@ class Planner:
                     nav_path.poses.append(way_pt)
 
                 self.feasible_path_pub2.publish(nav_path)
+        
+        if mmd_traj is not None:
+            line_strip = Marker()
+            line_strip.header = self.vertices_msg.header
+            
+            line_strip.pose.orientation.w = 1.0
+
+            line_strip.id = 9997
+            line_strip.type = Marker.LINE_STRIP
+
+            line_strip.scale.x = 0.2
+
+            line_strip.color.r = 1.0
+            line_strip.color.g = 0.3
+            line_strip.color.a = 1.0
+
+            for way_pt in mmd_traj:
+                line_strip.points.append(self.to_ros_point(self.cam2world(way_pt)))
+            
+            ma.markers.append(line_strip)
+
 
         self.local_stomp_pub.publish(ma)
 
