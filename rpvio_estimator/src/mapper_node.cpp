@@ -278,7 +278,7 @@ void mapping_callback(
         // Create the filtering object
         pcl::RadiusOutlierRemoval<pcl::PointXYZRGB> ror;
         ror.setInputCloud (plane_pcd.makeShared());
-        ror.setRadiusSearch (2);
+        ror.setRadiusSearch (1);
         ror.setMinNeighborsInRadius (5);
         // ror.setKeepOrganized (true);
         ror.filter (plane_pcd);
@@ -395,14 +395,14 @@ int main(int argc, char **argv)
     message_filters::Subscriber<nav_msgs::Odometry> sub_odometry(n, "/odometry", 100);
     message_filters::Subscriber<sensor_msgs::Image> sub_image(n, "/image", 10);
     message_filters::Subscriber<sensor_msgs::Image> sub_mask(n, "/mask", 10);
-    message_filters::Subscriber<sensor_msgs::Image> sub_seg(n, "/airsim_node/drone/0/Segmentation", 10);
-    message_filters::Subscriber<sensor_msgs::Image> sub_depth(n, "/airsim_node/drone/0/DepthPerspective", 10);
+    //message_filters::Subscriber<sensor_msgs::Image> sub_seg(n, "/airsim_node/drone/0/Segmentation", 10);
+    //message_filters::Subscriber<sensor_msgs::Image> sub_depth(n, "/airsim_node/drone/0/DepthPerspective", 10);
 
     typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::PointCloud, nav_msgs::Odometry, sensor_msgs::Image, sensor_msgs::Image> MySyncPolicy;
-    typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image, sensor_msgs::Image, nav_msgs::Odometry> MySyncPolicyDepth;
+    //typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image, sensor_msgs::Image, nav_msgs::Odometry> MySyncPolicyDepth;
     // ApproximateTime takes a queue size as its constructor argument, hence MySyncPolicy(10)
     message_filters::Synchronizer<MySyncPolicy> sync(MySyncPolicy(10), sub_point_cloud, sub_odometry, sub_image, sub_mask);
-    message_filters::Synchronizer<MySyncPolicyDepth> sync_depth(MySyncPolicyDepth(2), sub_depth, sub_seg, sub_odometry);
+    //message_filters::Synchronizer<MySyncPolicyDepth> sync_depth(MySyncPolicyDepth(2), sub_depth, sub_seg, sub_odometry);
     // message_filters::TimeSynchronizer<sensor_msgs::PointCloud, nav_msgs::Odometry, sensor_msgs::Image, sensor_msgs::Image> sync(
     //     sub_point_cloud,
     //     sub_odometry,
@@ -410,8 +410,8 @@ int main(int argc, char **argv)
     //     sub_mask,
     //     2000
     // );
-    // sync.registerCallback(boost::bind(&mapping_callback, _1, _2, _3, _4));
-    sync_depth.registerCallback(boost::bind(&depth_image_callback, _1, _2, _3));
+    sync.registerCallback(boost::bind(&mapping_callback, _1, _2, _3, _4));
+    //sync_depth.registerCallback(boost::bind(&depth_image_callback, _1, _2, _3));
 
     // Register all publishers
     // Publish coloured point cloud
@@ -424,6 +424,6 @@ int main(int argc, char **argv)
     masked_im_pub = n.advertise<sensor_msgs::Image>("masked_image", 10);
     marker_pub = n.advertise<visualization_msgs::Marker>("cuboids", 10);
     // ma_pub = n.advertise<visualization_msgs::MarkerArray>("centroid_segs", 100);
-    dense_pub = n.advertise<sensor_msgs::PointCloud2>("dense_cloud", 5);
+    //dense_pub = n.advertise<sensor_msgs::PointCloud2>("dense_cloud", 5);
     ros::spin();
 }

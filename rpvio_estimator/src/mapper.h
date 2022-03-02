@@ -895,7 +895,7 @@ bool fit_cuboid_to_point_cloud(Vector4d plane_params, vector<Vector3d> points, v
     {
         Vector3d point = points[i];
 
-        if (get_absolute_point_plane_distance(point, plane_params) > 1.5)
+        if (get_absolute_point_plane_distance(point, plane_params) > 1.25)
            continue;
 
         double nd = -normal.dot(point);
@@ -1330,7 +1330,7 @@ Vector4d fit_vertical_plane_ransac(vector<Vector3d> &plane_points, int plane_id)
     int N = (int)(log(1 - p) / log(1 - pow(1 - e, s)));
     N++;
 
-    double plane_distance_threshold = 1.5;
+    double plane_distance_threshold = 1.25;
 
     int bestNumOfInliers = 4;
     Vector4d bestFit;

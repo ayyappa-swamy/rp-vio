@@ -24,7 +24,7 @@ class Planner:
     ric = np.eye(3)
     ti = np.zeros(3)
     ri = np.eye(3)
-    global_goal = np.array([10, -10, 1.0])
+    global_goal = np.array([20, -10, 1.0])
 
     def __init__(self, vertices_msg, odometry_msg, local_goal_pub, local_stomp_pub, feasible_path_pub, free_cloud_pub, colliding_cloud_pub):
         self.vertices_msg = vertices_msg
