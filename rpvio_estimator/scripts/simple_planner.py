@@ -28,7 +28,7 @@ class Planner:
     ti = np.zeros(3)
     ri = np.eye(3)
     global_goal1 = np.array([65, -235, 5])
-    global_goal2 = np.array([90, -15, -15])
+    global_goal2 = np.array([125, 30, -15])
     goal_changed = True 
 
     def __init__(self, vertices_msg, odometry_msg, local_goal_pub, local_stomp_pub, feasible_path_pub, feasible_path_pub2, free_cloud_pub, colliding_cloud_pub):

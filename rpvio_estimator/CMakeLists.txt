@@ -96,10 +96,10 @@ target_link_libraries(rpvio_estimator ${catkin_LIBRARIES} ${OpenCV_LIBS} ${CERES
 target_link_libraries(rpvio_mapper ${catkin_LIBRARIES} ${OpenCV_LIBS} ${CERES_LIBRARIES} ${PCL_LIBRARIES})
 target_link_libraries(rpvio_planner ${catkin_LIBRARIES} ${OpenCV_LIBS} ${CERES_LIBRARIES})
 
-catkin_install_python(PROGRAMS
-  scripts/planner_node.py
-        scripts/planercnn/plane_segmentation_service_server.py
-  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-)
+#catkin_install_python(PROGRAMS
+#  scripts/planner_node.py
+#        scripts/planercnn/plane_segmentation_service_server.py
+#  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+#)
 
 

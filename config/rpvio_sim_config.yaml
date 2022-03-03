@@ -12,7 +12,7 @@ gt_path: "/home/tvvsstas/rpvio_ws/src/rp-vio/output"
 color_palette_path: "/home/tvvsstas/rpvio_ws/src/rp-vio/config/seg_rgbs.txt"
 
 #mapper parameters
-mapper_mask_topic: "/plane_mask_processed"
+mapper_mask_topic: "/plane_mask"
 mapper_point_cloud_topic: "/vins_estimator/point_cloud"
 mapper_odometry_topic: "/vins_estimator/odometry"
 
