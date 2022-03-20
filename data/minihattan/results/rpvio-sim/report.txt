@@ -1,0 +1,3 @@
+######c1######
+
+[ERROR] csv file /home/tvvsstas/rpvio_ws/src/rp-vio/data/minihattan/minihattan/groundtruth.txt does not exist

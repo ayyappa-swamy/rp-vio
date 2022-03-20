@@ -3,8 +3,7 @@ Panels:
     Help Height: 0
     Name: Displays
     Property Tree Widget:
-      Expanded:
-        - /Grid1
+      Expanded: ~
       Splitter Ratio: 0.579250693
     Tree Height: 232
   - Class: rviz/Selection
@@ -25,7 +24,7 @@ Panels:
     Experimental: false
     Name: Time
     SyncMode: 0
-    SyncSource: ""
+    SyncSource: PointCloud2
   - Class: rviz/Displays
     Help Height: 78
     Name: Displays
@@ -129,7 +128,7 @@ Visualization Manager:
           Marker Topic: /pose_graph/camera_pose_visual
           Name: camera_visual
           Namespaces:
-            {}
+            CameraPoseVisualization: true
           Queue Size: 100
           Value: true
         - Class: rviz/Image
@@ -149,7 +148,7 @@ Visualization Manager:
           Marker Topic: /pose_graph/key_odometrys
           Name: Marker
           Namespaces:
-            {}
+            key_odometrys: true
           Queue Size: 100
           Value: true
         - Alpha: 1
@@ -475,10 +474,10 @@ Visualization Manager:
       Name: VIO
     - Class: rviz/Marker
       Enabled: true
-      Marker Topic: /rpvio_mapper/visualization_marker
+      Marker Topic: /rpvio_mapper/cuboids
       Name: Plane Segment BBox
       Namespaces:
-        {}
+        "": true
       Queue Size: 100
       Value: true
     - Alpha: 0.200000003
@@ -702,7 +701,7 @@ Visualization Manager:
       Value: true
   Enabled: true
   Global Options:
-    Background Color: 0; 0; 0
+    Background Color: 255; 255; 255
     Default Light: true
     Fixed Frame: world
     Frame Rate: 30
@@ -738,10 +737,10 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.00999999978
-      Pitch: 0.539797306
+      Pitch: 0.979796886
       Target Frame: <Fixed Frame>
       Value: XYOrbit (rviz)
-      Yaw: 3.02252555
+      Yaw: 3.01252556
     Saved: ~
 Window Geometry:
   Displays:

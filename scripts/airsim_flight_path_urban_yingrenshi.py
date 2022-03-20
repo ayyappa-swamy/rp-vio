@@ -17,8 +17,8 @@ client.reset()
 client.enableApiControl(True)
 client.armDisarm(True)
 client.takeoffAsync().join()
-client.hoverAsync().join()
-# client.moveToZAsync(3, 3).join()
+#client.hoverAsync().join()
+client.moveToZAsync(-5, 0.5).join()
 
 # yaw the drone to face the camera
 # client.moveByAngleRatesZAsync(0.0, 0.0, np.pi/2, -1, 1).join()
@@ -48,7 +48,7 @@ path.append(airsim.Vector3r(76.0, 0, -5))
 # path.append(airsim.Vector3r())
 # path.append(airsim.Vector3r())
 
-client.moveToZAsync(-5, 1, np.inf, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(is_rate=False, yaw_or_rate=-45)).join()
+#client.moveToZAsync(-15, 1, 10, airsim.DrivetrainType.ForwardOnly, airsim.YawMode(is_rate=False, yaw_or_rate=-45)).join()
 # client.moveToZAsync(-7, 0.5).join()
 # client.moveToZAsync(-2, 0.5).join()
 # client.moveToZAsync(0, 1).join()
@@ -60,16 +60,16 @@ client.moveToZAsync(-5, 1, np.inf, airsim.DrivetrainType.MaxDegreeOfFreedom, air
 # client.moveToPositionAsync(0.0, -20.0, -2, 1).join()
 
 print("flying on smooth path..")
-client.moveOnPathAsync(path, 0.5, np.inf, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(is_rate=True, yaw_or_rate=-0.5)).join()
+client.moveOnPathAsync(path, 1, np.inf, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(is_rate=True, yaw_or_rate=0.5)).join()
 path = []
-path.append(airsim.Vector3r(77.0, -90, -5))
-client.moveOnPathAsync(path, 0.5, np.inf, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(is_rate=True, yaw_or_rate=0.0)).join()
+path.append(airsim.Vector3r(83.0, -90, -5))
+client.moveOnPathAsync(path, 1, np.inf, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(is_rate=True, yaw_or_rate=0.0)).join()
 
 # End motion and recording
 print("Done ...")
 # client.moveToZAsync(5, 2).join()
 # client.moveToPositionAsync(0, 0, 0, 1).join()
-client.landAsync(timeout_sec=10).join()
+#client.landAsync(timeout_sec=10).join()
 client.armDisarm(False)
 client.reset()
 client.enableApiControl(False)
